@@ -1039,6 +1039,7 @@ static int scan_dir(const char *path, entry_t **out)
 	entry_t *list = malloc(cap * sizeof(entry_t));
 	struct dirent *ent;
 	if (strcmp(path, WIIU_SD_ROOT) != 0) {
+		memset(&list[n], 0, sizeof(entry_t));
 		strcpy(list[n].name, "..");
 		list[n].idTried = 1;
 		list[n].id[0] = 0;
@@ -1051,6 +1052,9 @@ static int scan_dir(const char *path, entry_t **out)
 			if (!isdir && !is_game_file(ent->d_name)) continue;
 			/* hide .bin tracks that belong to a .cue/.m3u in the same folder? keep simple */
 			if (n == cap) { cap *= 2; list = realloc(list, cap * sizeof(entry_t)); }
+			/* every field starts empty: a reused block of memory once left
+			 * "has a custom cover" set and the entry showed no cover */
+			memset(&list[n], 0, sizeof(entry_t));
 			strncpy(list[n].name, ent->d_name, sizeof(list[n].name) - 1);
 			list[n].name[sizeof(list[n].name) - 1] = 0;
 			list[n].dir = isdir;
@@ -1684,6 +1688,7 @@ rescan:
 		count = m;
 		list = realloc(list, (count + 1) * sizeof(entry_t));
 		memmove(list + 1, list, count * sizeof(entry_t));
+		memset(&list[0], 0, sizeof(entry_t));
 		strcpy(list[0].name, "\x01");    /* marker: use this folder */
 		list[0].dir = 2;
 		list[0].idTried = 1;
