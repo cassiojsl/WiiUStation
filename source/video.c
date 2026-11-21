@@ -117,10 +117,17 @@ void video_set_pixel_format(int fmt)
  * Only the top and bottom are cropped. The borders are measured during the
  * first ~2 seconds of real picture, the smallest value seen is kept (so no
  * picture is ever cut), and then the crop is locked: no zooming in and out
- * with the scenes. It is measured again only if the resolution changes. */
-static int   zoomW, zoomH;                 /* resolution the lock belongs to */
-static int   minT, minB, samples, locked;
-static int   lockT, lockB;
+ * with the scenes. The lock is kept per resolution (games switch between
+ * 240 and 480 lines). If picture ever shows up inside the cropped area (an
+ * FMV with bars followed by gameplay without them) the crop is released at
+ * once and measured again. */
+#define ZSLOTS 4
+static struct {
+	int w, h;
+	int minT, minB, samples, locked;
+	int lockT, lockB, bad;
+} zs[ZSLOTS], *zc;
+static int   zNext;
 static float cropT, cropB;                 /* eased towards the lock */
 
 static int px_dark(const void *row, unsigned x)
@@ -133,39 +140,67 @@ static int px_dark(const void *row, unsigned x)
 		uint16_t v = ((const uint16_t *)row)[x];
 		r = (v >> 11) << 3; g = ((v >> 5) & 0x3f) << 2; b = (v & 0x1f) << 3;
 	}
-	return r + g + b < 40;
+	return r + g + b < 16;          /* a real border is black; dark scenes are not */
 }
 
 static int row_dark(const void *data, size_t pitch, unsigned y, unsigned w)
 {
 	const uint8_t *row = (const uint8_t *)data + (size_t)y * pitch;
-	for (unsigned i = 0; i < 32; i++)
-		if (!px_dark(row, i * w / 32)) return 0;
+	for (unsigned i = 0; i < 48; i++)
+		if (!px_dark(row, (i * w + w / 2) / 48 % w)) return 0;
 	return 1;
 }
 
 static void measure_borders(const void *data, unsigned w, unsigned h, size_t pitch)
 {
 	unsigned t = 0, b = 0;
-	if ((int)w != zoomW || (int)h != zoomH) {      /* new resolution: measure again */
-		zoomW = w; zoomH = h;
-		minT = minB = 1 << 30;
-		samples = 0;
-		locked = 0;
+	if (!zc || zc->w != (int)w || zc->h != (int)h) {   /* new resolution */
+		int i;
+		for (i = 0; i < ZSLOTS; i++)
+			if (zs[i].w == (int)w && zs[i].h == (int)h) break;
+		if (i == ZSLOTS) {
+			i = zNext++ % ZSLOTS;
+			zs[i].w = w; zs[i].h = h;
+			zs[i].minT = zs[i].minB = 1 << 30;
+			zs[i].samples = zs[i].locked = zs[i].bad = 0;
+		}
+		if (zc && zc->h > 0) {       /* keep the eased crop in the new resolution's pixels */
+			cropT = cropT * h / zc->h;
+			cropB = cropB * h / zc->h;
+		}
+		zc = &zs[i];
 	}
-	if (locked) return;
 	while (t < h / 5 && row_dark(data, pitch, t, w)) t++;
 	while (b < h / 5 && row_dark(data, pitch, h - 1 - b, w)) b++;
-	if (t >= h / 5 && b >= h / 5) return;           /* black / fading frame: no info */
-	if ((int)t < minT) minT = t;
-	if ((int)b < minB) minB = b;
-	if (++samples >= 8) {                           /* ~2 s of picture */
-		lockT = minT;
-		lockB = minB;
+	if (t >= h / 5 || b >= h / 5) return;           /* black / fading / dark frame: no info */
+
+	if (zc->locked) {
+		/* picture inside the cropped area? then the lock is wrong: undo it now */
+		if ((int)t < zc->lockT - 1 || (int)b < zc->lockB - 1) {
+			if (++zc->bad >= 2) {
+				zc->locked = 0;
+				zc->samples = 0;
+				zc->bad = 0;
+				zc->minT = t;
+				zc->minB = b;
+				if (cropT > (float)t) cropT = (float)t;   /* snap, do not ease */
+				if (cropB > (float)b) cropB = (float)b;
+			}
+		} else {
+			zc->bad = 0;
+		}
+		return;
+	}
+	if ((int)t < zc->minT) zc->minT = t;
+	if ((int)b < zc->minB) zc->minB = b;
+	if (++zc->samples >= 8) {                       /* ~2 s of picture */
+		zc->lockT = zc->minT;
+		zc->lockB = zc->minB;
 		/* keep it symmetric so the picture stays centred */
-		if (lockT > lockB + 4) lockT = lockB + 4;
-		if (lockB > lockT + 4) lockB = lockT + 4;
-		locked = 1;
+		if (zc->lockT > zc->lockB + 4) zc->lockT = zc->lockB + 4;
+		if (zc->lockB > zc->lockT + 4) zc->lockB = zc->lockT + 4;
+		zc->locked = 1;
+		zc->bad = 0;
 	}
 }
 
@@ -173,7 +208,8 @@ static void crop_rect(SDL_Rect *src)
 {
 	src->x = 0; src->y = 0; src->w = frameW; src->h = frameH;
 	if (cfg.aspect != WIIU_ASPECT_ZOOM) return;
-	float t = locked ? lockT : 0, b = locked ? lockB : 0;
+	int on = zc && zc->locked && zc->h == frameH;
+	float t = on ? zc->lockT : 0, b = on ? zc->lockB : 0;
 	cropT += (t - cropT) * 0.08f;                   /* one smooth move, once */
 	cropB += (b - cropB) * 0.08f;
 	src->y = (int)(cropT + 0.5f);
@@ -204,7 +240,7 @@ void video_upload(const void *data, unsigned w, unsigned h, size_t pitch)
 	}
 	SDL_UpdateTexture(frameTex, &r, conv, (int)(w * 4));
 
-	if (cfg.aspect == WIIU_ASPECT_ZOOM && (n++ % 15) == 0)
+	if (cfg.aspect == WIIU_ASPECT_ZOOM && ((n++ % 15) == 0 || (int)w != frameW || (int)h != frameH))
 		measure_borders(data, w, h, pitch);
 	frameW = w;
 	frameH = h;
