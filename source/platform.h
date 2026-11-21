@@ -100,6 +100,7 @@ typedef struct {
 	int sort;           /* game list: 0 name, 1 last played, 2 most played */
 	int regionf;        /* game list: 0 all, 1 USA, 2 Europe, 3 Japan */
 	int menusfx;        /* menu sounds and the opening */
+	int autostart;      /* open the last game when the app starts */
 	int cover3d;        /* covers: 0 = 2D front, 1 = 3D box */
 	int view;           /* game browser: 0 grid, 1 list, 2 compact, 3 shelf, 4 carousel */
 	int core[32];       /* extra PCSX-ReARMed options, see core_opt_* */

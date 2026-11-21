@@ -29,6 +29,9 @@
 /* ------------------------------------------------------------------------ */
 static SDL_Renderer *R;
 static TTF_Font *fontTitle, *fontItem, *fontSmall;
+static int introShown;   /* the opening plays once */
+static int introCancel;  /* B in the opening: don't open the last game */
+static int autoResume;   /* continue without asking (opening the last game) */
 
 static const SDL_Color WHITE  = { 240, 242, 248, 255 };
 static const SDL_Color GREY   = { 150, 158, 178, 255 };
@@ -1774,11 +1777,11 @@ static void update_screen(void);
 
 static void settings(void)
 {
-	enum { S_SCOPE, S_LANG, S_SFX, S_GAMES, S_VIEW, S_COVERS, S_RESUME, S_CORE, S_SKIP, S_FFWD, S_FFSPEED, S_FPS, S_AUDIO,
+	enum { S_SCOPE, S_LANG, S_SFX, S_AUTOSTART, S_GAMES, S_VIEW, S_COVERS, S_RESUME, S_CORE, S_SKIP, S_FFWD, S_FFSPEED, S_FPS, S_AUDIO,
 	       S_ASPECT, S_FILTER, S_BEZEL, S_WIDE, S_SCAN, S_CRT, S_FX, S_DRC, S_DITHER, S_PAD, S_GYRO, S_PAD2, S_DEADZONE, S_MTAP,
 	       S_CONTROLS, S_HOTKEYS, S_RUMBLE, S_REGION, S_BIOS, S_LOGO, S_ADV, S_UPDATE, S_COUNT };
 	static const char *allLabels[S_COUNT] = {
-		"Settings for", "Language", "Menu sounds", "Games folder", "Game list", "Covers", "Continue where you left off", "CPU core",
+		"Settings for", "Language", "Menu sounds", "Open the last game at start", "Games folder", "Game list", "Covers", "Continue where you left off", "CPU core",
 		"Frame skip", "Fast forward", "Fast forward speed", "Show FPS", "Sound", "Screen",
 		"Picture", "Border", "Widescreen (16:9)", "Scanlines", "CRT mask", "Screen effect", "GamePad screen", "Dithering", "Player 1 controller", "Aim with GamePad motion",
 		"Player 2+ controller", "Analog dead zone", "Multitap (up to 5 players)", "Button mapping...", "Hotkeys...", "Vibration",
@@ -1796,7 +1799,8 @@ static void settings(void)
 			if (i == S_SCOPE && !loaded) continue;
 			/* app-wide options are hidden while editing one game's settings */
 			if (game && (i == S_GAMES || i == S_VIEW || i == S_COVERS || i == S_RESUME ||
-			             i == S_FFWD || i == S_LANG || i == S_HOTKEYS || i == S_SFX || i == S_UPDATE)) continue;
+			             i == S_FFWD || i == S_LANG || i == S_HOTKEYS || i == S_SFX || i == S_UPDATE ||
+			             i == S_AUTOSTART)) continue;
 			map[n] = i;
 			labels[n] = allLabels[i];
 			values[n] = NULL;
@@ -1824,6 +1828,7 @@ static void settings(void)
 			case S_COVERS: values[k] = cfg.cover3d ? "3D box" : "2D"; break;
 			case S_LANG:   values[k] = lang_name(cfg.lang); break;
 			case S_SFX:    values[k] = cfg.menusfx ? "On" : "Off"; break;
+			case S_AUTOSTART: values[k] = cfg.autostart ? "On" : "Off"; break;
 			case S_UPDATE: values[k] = app_version(); break;
 			case S_RESUME: values[k] = cfg.resume ? "Ask" : "Off"; break;
 			case S_CORE:   values[k] = cfg.dynarec ? "Lightrec" : "Interpreter"; break;
@@ -1984,6 +1989,10 @@ static void settings(void)
 		case S_CONTROLS: controls(); transition(); break;
 		case S_HOTKEYS:  hotkeys(); transition(); break;
 		case S_SFX:      cfg.menusfx = !cfg.menusfx; sfx_play(SFX_OK); break;
+		case S_AUTOSTART:
+			cfg.autostart = !cfg.autostart;
+			if (cfg.autostart) status("The last game opens when WiiUStation starts. Hold B during the opening to go to the menu.");
+			break;
 		case S_UPDATE:   update_screen(); transition(); break;
 		case S_LANG:     cfg.lang = (cfg.lang + LANG_COUNT + dir) % LANG_COUNT; video_lang_changed(); break;
 		case S_RUMBLE: cfg.rumble = !cfg.rumble; break;
@@ -3161,7 +3170,7 @@ static int start_game(const char *path)
 		status("Could not load the game (bad image or missing BIOS?).");
 		return 0;
 	}
-	if (cfg.resume && emu_state_exists(-1) && ask_resume()) {
+	if (cfg.resume && emu_state_exists(-1) && (autoResume || ask_resume())) {
 		if (!emu_state_load(-1)) status("Could not continue: the saved state is unreadable.");
 	}
 	video_fade_in();
@@ -3234,7 +3243,7 @@ static void action_icon(int kind, float cx, float cy, float s, SDL_Color c)
 	}
 }
 
-static int introShown;   /* the opening plays once */
+
 
 /* opening: the four shapes fly in and turn into a ring around the logo,
  * with a short chime. Any button or a touch skips it. */
@@ -3253,7 +3262,9 @@ static void intro(void)
 		float t = now / 1000.0f;
 		if (now >= LEN || wiiu_quit) break;
 		wiiu_input_update();
-		if (wiiu_input_menu_pressed()) break;
+		uint32_t pr = wiiu_input_menu_pressed() | (wiiu_input_menu_held() & WIIU_BTN_B);
+		if (pr & WIIU_BTN_B) introCancel = 1;
+		if (pr) break;
 		if (!chimed && now > 350) { sfx_play(SFX_INTRO); chimed = 1; }
 
 		SDL_SetRenderDrawColor(R, 4, 6, 18, 255);
@@ -3319,7 +3330,21 @@ int menu_run(void)
 
 	menu_fonts();
 	{
-		if (!introShown) { introShown = 1; intro(); }
+		if (!introShown) {
+			introShown = 1;
+			intro();
+			/* "open the last game at start" (B during the opening skips it) */
+			struct stat st;
+			if (cfg.autostart && !introCancel && !emu_game_loaded() && emu_recent_count() > 0 &&
+			    stat(emu_recent(0), &st) == 0) {
+				char last[512];
+				snprintf(last, sizeof(last), "%s", emu_recent(0));
+				autoResume = 1;
+				int ok = start_game(last);
+				autoResume = 0;
+				if (ok) return 1;
+			}
+		}
 	}
 	poll_buttons();
 	T.down = T.tapped = 0;
