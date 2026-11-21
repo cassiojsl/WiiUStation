@@ -486,3 +486,4 @@
 499|Appuyez sur A pour fermer WiiUStation, puis rouvrez-le pour utiliser la nouvelle version.
 500|La version %s est prête.
 501|Appuyez sur A pour redémarrer WiiUStation avec la nouvelle version.
+502|Impossible d'ouvrir le jeu : %s (détails dans last_error.txt)

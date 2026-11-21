@@ -458,3 +458,4 @@
 { "Press A to close WiiUStation, then open it again to use the new version.", "Drücke A, um WiiUStation zu schließen, und öffne es dann erneut, um die neue Version zu nutzen." },
 { "Version %s is ready.", "Version %s ist bereit." },
 { "Press A to restart WiiUStation with the new version.", "Drücke A, um WiiUStation mit der neuen Version neu zu starten." },
+{ "Could not load the game: %s (details in last_error.txt)", "Das Spiel konnte nicht geladen werden: %s (Details in last_error.txt)" },

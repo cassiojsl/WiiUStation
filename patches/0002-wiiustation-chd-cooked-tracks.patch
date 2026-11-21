@@ -1,0 +1,70 @@
+--- a/libpcsxcore/cdriso.c
++++ b/libpcsxcore/cdriso.c
+@@ -89,6 +89,8 @@
+ 	unsigned int current_hunk[2];
+ 	unsigned int current_buffer;
+ 	unsigned int sector_in_hunk;
++	unsigned int cooked;		// bytes per data sector kept without the raw header: 2048, 2336, or 0 for raw 2352
++	unsigned int last_cooked;	// the last read was rebuilt in cdbuffer
+ } *chd_img;
+ #else
+ #define chd_img 0
+@@ -1140,6 +1142,12 @@
+ 		numtracks++;
+ 
+ 		if (numtracks == 1) {
++			// discs made from a plain .iso (2048 byte sectors) have no sync/header:
++			// the reads below rebuild a raw sector from them
++			if (!strcmp(md.type, "MODE1") || !strcmp(md.type, "MODE2_FORM1"))
++				chd_img->cooked = 2048;
++			else if (!strcmp(md.type, "MODE2") || !strcmp(md.type, "MODE2_FORM_MIX"))
++				chd_img->cooked = 2336;
+ 			if (!strncmp(md.subtype, "RW", 2)) {
+ 				subChanMixed = TRUE;
+ 				if (!strcmp(md.subtype, "RW_RAW"))
+@@ -1389,6 +1397,7 @@
+ static int cdread_chd(FILE *f, unsigned int base, void *dest, int sector)
+ {
+ 	int hunk;
++	int asked = sector;
+ 
+ 	sector += base;
+ 
+@@ -1406,6 +1415,28 @@
+ 		chd_img->current_hunk[chd_img->current_buffer] = hunk;
+ 	}
+ 
++	chd_img->last_cooked = 0;
++	if (chd_img->cooked && base == 0) {
++		// a data read of a track kept without raw headers: build the raw
++		// sector, with a fake header like cdread_2048() does
++		const unsigned char *src = chd_get_sector(chd_img->current_buffer, chd_img->sector_in_hunk);
++		unsigned char *dst = dest ? dest : cdbuffer;
++
++		memset(dst, 0, 12 * 2);
++		sec2msf(asked + 2 * 75, dst + 12);
++		dst[12 + 0] = itob(dst[12 + 0]);
++		dst[12 + 1] = itob(dst[12 + 1]);
++		dst[12 + 2] = itob(dst[12 + 2]);
++		if (chd_img->cooked == 2336) {
++			dst[12 + 3] = 2;
++			memcpy(dst + 16, src, 2336);
++		} else {
++			dst[12 + 3] = 1;
++			memcpy(dst + 12 * 2, src, 2048);
++		}
++		chd_img->last_cooked = dest == NULL;
++		return CD_FRAMESIZE_RAW;
++	}
+ 	if (dest != NULL)
+ 		memcpy(dest, chd_get_sector(chd_img->current_buffer, chd_img->sector_in_hunk),
+ 			CD_FRAMESIZE_RAW);
+@@ -1473,6 +1504,8 @@
+ 
+ #ifdef HAVE_CHD
+ static void * ISOgetBuffer_chd(void) {
++       if (chd_img->last_cooked)
++               return cdbuffer + 12;
+        return chd_get_sector(chd_img->current_buffer, chd_img->sector_in_hunk) + 12;
+ }
+ #endif

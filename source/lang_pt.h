@@ -107,6 +107,7 @@
 { "Could not continue: the saved state is unreadable.", "Não foi possível continuar: o save state está ilegível." },
 { "Could not copy the image.", "Não foi possível copiar a imagem." },
 { "Could not load the game (bad image or missing BIOS?).", "Não foi possível abrir o jogo (imagem ruim ou falta a BIOS?)." },
+{ "Could not load the game: %s (details in last_error.txt)", "Não foi possível abrir o jogo: %s (detalhes em last_error.txt)" },
 { "Could not reach GitHub.", "Não foi possível acessar o GitHub." },
 { "Could not read that memory card.", "Não foi possível ler esse cartão de memória." },
 { "Could not read the release version.", "Não foi possível ler a versão publicada." },

@@ -66,7 +66,7 @@ export OFILES	:=	$(CFILES:.c=.o)
 export LD	:=	$(CC)
 export INCLUDE	:=	$(foreach dir,$(LIBDIRS),-I$(dir)/include) \
 			-I$(PORTLIBS_PATH)/wiiu/include/SDL2 \
-			-I$(CURDIR)/source -I$(CORE_DIR)/deps/libretro-common/include
+			-I$(CURDIR)/source -I$(CORE_DIR)/deps/libretro-common/include -I$(CORE_DIR)/deps/libchdr/include
 export LIBPATHS	:=	$(foreach dir,$(LIBDIRS),-L$(dir)/lib)
 
 .PHONY: all clean core $(BUILD)

@@ -9,6 +9,7 @@
 #include <ctype.h>
 #include <stdint.h>
 #include <sys/stat.h>
+#include <libchdr/chd.h>
 
 #include "platform.h"
 
@@ -62,37 +63,20 @@ static int id_from_name(const char *name, char *out)
 	return 0;
 }
 
-/* ---- ISO9660 inside a raw (2352) or cooked (2048) image ---- */
-typedef struct { FILE *f; int ssize, doff; } disc_t;
-
-static int disc_read(disc_t *d, uint32_t lba, uint8_t *buf)
-{
-	if (fseek(d->f, (long)lba * d->ssize + d->doff, SEEK_SET)) return 0;
-	return fread(buf, 1, 2048, d->f) == 2048;
-}
+/* ---- ISO9660: the ID from SYSTEM.CNF, over any way of reading a sector ---- */
+typedef int (*sector_fn)(void *ctx, uint32_t lba, uint8_t *buf);   /* 2048 bytes of user data */
 
 static uint32_t le32(const uint8_t *p) { return p[0] | p[1] << 8 | p[2] << 16 | (uint32_t)p[3] << 24; }
 
-static int id_from_iso(const char *path, char *out)
+static int id_from_sectors(sector_fn rd, void *ctx, char *out)
 {
-	static const int layouts[][2] = { { 2352, 24 }, { 2352, 16 }, { 2048, 0 }, { 2336, 8 } };
 	uint8_t buf[2048];
-	disc_t d;
-	int found = 0;
-
-	d.f = fopen(path, "rb");
-	if (!d.f) return 0;
-	for (unsigned i = 0; i < sizeof(layouts) / sizeof(layouts[0]); i++) {
-		d.ssize = layouts[i][0];
-		d.doff = layouts[i][1];
-		if (disc_read(&d, 16, buf) && buf[0] == 1 && !memcmp(buf + 1, "CD001", 5)) { found = 1; break; }
-	}
-	if (!found) { fclose(d.f); return 0; }
+	if (!rd(ctx, 16, buf) || buf[0] != 1 || memcmp(buf + 1, "CD001", 5)) return 0;
 
 	uint32_t rootLba = le32(buf + 156 + 2), rootSize = le32(buf + 156 + 10);
 	uint32_t cnfLba = 0, cnfSize = 0;
 	for (uint32_t s = 0; s < (rootSize + 2047) / 2048 && s < 16 && !cnfLba; s++) {
-		if (!disc_read(&d, rootLba + s, buf)) break;
+		if (!rd(ctx, rootLba + s, buf)) break;
 		for (int off = 0; off < 2048;) {
 			int len = buf[off];
 			if (!len) break;
@@ -105,21 +89,81 @@ static int id_from_iso(const char *path, char *out)
 			off += len;
 		}
 	}
+	if (!cnfLba || !rd(ctx, cnfLba, buf)) return 0;
+	char txt[2049];
+	memcpy(txt, buf, 2048);
+	txt[cnfSize < 2048 ? cnfSize : 2048] = 0;
+	char *boot = strstr(txt, "BOOT");
+	if (!boot) return 0;
+	char *eol = strpbrk(boot, "\r\n");
+	if (eol) *eol = 0;
+	char *name = strrchr(boot, '\\');
+	if (!name) name = strrchr(boot, ':');
+	return name && normalise_id(name + 1, out);
+}
+
+/* a raw (2352) or cooked (2048) image file */
+typedef struct { FILE *f; int ssize, doff; } disc_t;
+
+static int disc_read(void *ctx, uint32_t lba, uint8_t *buf)
+{
+	disc_t *d = ctx;
+	if (fseek(d->f, (long)lba * d->ssize + d->doff, SEEK_SET)) return 0;
+	return fread(buf, 1, 2048, d->f) == 2048;
+}
+
+static int id_from_iso(const char *path, char *out)
+{
+	static const int layouts[][2] = { { 2352, 24 }, { 2352, 16 }, { 2048, 0 }, { 2336, 8 } };
+	disc_t d;
 	int ok = 0;
-	if (cnfLba && disc_read(&d, cnfLba, buf)) {
-		char txt[2049];
-		memcpy(txt, buf, 2048);
-		txt[cnfSize < 2048 ? cnfSize : 2048] = 0;
-		char *boot = strstr(txt, "BOOT");
-		if (boot) {
-			char *eol = strpbrk(boot, "\r\n");
-			if (eol) *eol = 0;
-			char *name = strrchr(boot, '\\');
-			if (!name) name = strrchr(boot, ':');
-			ok = name && normalise_id(name + 1, out);
-		}
+
+	d.f = fopen(path, "rb");
+	if (!d.f) return 0;
+	for (unsigned i = 0; i < sizeof(layouts) / sizeof(layouts[0]) && !ok; i++) {
+		d.ssize = layouts[i][0];
+		d.doff = layouts[i][1];
+		ok = id_from_sectors(disc_read, &d, out);
 	}
 	fclose(d.f);
+	return ok;
+}
+
+/* a .chd: its frames are 2352 bytes of sector + 96 of subcode, packed in
+ * hunks; read through libchdr (already in the core) */
+typedef struct { chd_file *chd; const chd_header *h; uint8_t *hunk; uint32_t cur; int doff; } chd_ctx_t;
+
+static int chd_sector_read(void *ctx, uint32_t lba, uint8_t *buf)
+{
+	chd_ctx_t *c = ctx;
+	const uint32_t frame = 2352 + 96, per = c->h->hunkbytes / frame;
+	if (!per) return 0;
+	uint32_t hunk = lba / per;
+	if (hunk >= c->h->totalhunks) return 0;
+	if (hunk != c->cur) {
+		if (chd_read(c->chd, hunk, c->hunk) != CHDERR_NONE) { c->cur = (uint32_t)-1; return 0; }
+		c->cur = hunk;
+	}
+	memcpy(buf, c->hunk + (lba % per) * frame + c->doff, 2048);
+	return 1;
+}
+
+static int id_from_chd(const char *path, char *out)
+{
+	chd_file *chd = NULL;
+	if (chd_open(path, CHD_OPEN_READ, NULL, &chd) != CHDERR_NONE) return 0;
+	chd_ctx_t c = { chd, chd_get_header(chd), NULL, (uint32_t)-1, 0 };
+	int ok = 0;
+	if (c.h && c.h->hunkbytes >= 2352 + 96 && c.h->hunkbytes <= 1024 * 1024 && (c.hunk = malloc(c.h->hunkbytes))) {
+		static const int offs[] = { 24, 16, 0 };       /* MODE2 form 1, MODE1, cooked */
+		for (unsigned i = 0; i < 3 && !ok; i++) {
+			c.doff = offs[i];
+			c.cur = (uint32_t)-1;
+			ok = id_from_sectors(chd_sector_read, &c, out);
+		}
+		free(c.hunk);
+	}
+	chd_close(chd);
 	return ok;
 }
 
@@ -221,6 +265,10 @@ static void ids_load(void)
 		ids[nids].name[sizeof(ids[nids].name) - 1] = 0;
 		strncpy(ids[nids].id, tab + 1, sizeof(ids[nids].id) - 1);
 		ids[nids].id[sizeof(ids[nids].id) - 1] = 0;
+		/* a .chd with no ID remembered was only given up on because CHDs
+		 * could not be read before: look at it again */
+		const char *dot = strrchr(ids[nids].name, '.');
+		if (!strcmp(ids[nids].id, "-") && dot && !strcasecmp(dot, ".chd")) continue;
 		nids++;
 	}
 	fclose(f);
@@ -274,6 +322,7 @@ int covers_detect_id(const char *path, char *out)
 	int ok = 0;
 	if (id_from_name(n, out)) ok = 1;
 	else if (ext && !strcasecmp(ext, ".cue")) ok = id_from_cue(path, out);
+	else if (ext && !strcasecmp(ext, ".chd")) ok = id_from_chd(path, out);
 	else if (ext && !strcasecmp(ext, ".pbp")) ok = id_from_pbp(path, out);
 	else if (ext && !strcasecmp(ext, ".m3u")) ok = id_from_m3u(path, out);
 	else if (ext && (!strcasecmp(ext, ".bin") || !strcasecmp(ext, ".iso") ||

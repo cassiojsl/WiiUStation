@@ -534,9 +534,75 @@ static const char *core_var(const char *key)
 	return NULL;   /* core default */
 }
 
+/* The core's messages are only kept while a game is being loaded: if it
+ * fails, they say why (see load_failed). */
+static char coreLog[48][200];
+static int coreLogN, coreLogOn;
+
 static void core_log(enum retro_log_level level, const char *fmt, ...)
 {
-	(void)level; (void)fmt;
+	if (!coreLogOn) return;
+	char b[184];
+	va_list ap;
+	va_start(ap, fmt);
+	vsnprintf(b, sizeof(b), fmt, ap);
+	va_end(ap);
+	b[strcspn(b, "\r\n")] = 0;
+	if (!b[0]) return;
+	snprintf(coreLog[coreLogN++ % 48], sizeof(coreLog[0]), "%s%s",
+	         level >= RETRO_LOG_ERROR ? "[error] " : level == RETRO_LOG_WARN ? "[warn] " : "", b);
+}
+
+static char loadError[160];
+const char *emu_load_error(void) { return loadError; }
+
+/* why the game did not load, from the core's own messages, and a report
+ * with everything needed to understand it: sd:/wiiu/apps/WiiUStation/last_error.txt */
+static void load_failed(const char *path)
+{
+	struct stat st;
+	const char *reason = NULL;
+	int chdErr = -1, n = coreLogN < 48 ? coreLogN : 48;
+	loadError[0] = 0;
+	for (int i = 0; i < n; i++) {
+		const char *l = coreLog[(coreLogN - n + i + 48 * 4) % 48];
+		if (!strncmp(l, "chd_open: ", 10)) chdErr = atoi(l + 10);
+		if (!strncmp(l, "[error] ", 8)) reason = l + 8;
+	}
+	if (chdErr >= 0) {
+		static const char *why[] = { "", "no interface", "out of memory", "invalid file", "invalid parameter", "invalid data",
+		                             "file not found", "needs a parent CHD", "not writeable", "read error", "write error",
+		                             "codec error", "invalid parent", "hunk out of range", "decompression error" };
+		snprintf(loadError, sizeof(loadError), "CHD error %d (%s)", chdErr,
+		         chdErr < (int)(sizeof(why) / sizeof(why[0])) ? why[chdErr] : "unsupported");
+	} else if (reason) {
+		if (!strncmp(reason, "unsupported/invalid CD image", 28)) snprintf(loadError, sizeof(loadError), "not a PlayStation disc image");
+		else snprintf(loadError, sizeof(loadError), "%.100s", reason);
+	} else snprintf(loadError, sizeof(loadError), "the core gave no reason");
+
+	wiiu_mkdirs(WIIU_APP_DIR);
+	FILE *f = fopen(WIIU_APP_DIR "/last_error.txt", "w");
+	if (!f) return;
+	fprintf(f, "WiiUStation %s\n", app_version());
+	fprintf(f, "game: %s\n", path);
+	fprintf(f, "size: %lld bytes\n", stat(path, &st) == 0 ? (long long)st.st_size : -1LL);
+	fprintf(f, "reason: %s\n", loadError);
+	fprintf(f, "dynarec: %s (jit %s)\n", cfg.dynarec ? "on" : "off", jit_available() ? "available" : "unavailable");
+	fprintf(f, "bios folder: %s\n", bios_dir());
+	DIR *d = opendir(bios_dir());
+	if (d) {
+		struct dirent *e;
+		while ((e = readdir(d)) != NULL) {
+			char p[400];
+			if (e->d_name[0] == '.') continue;
+			snprintf(p, sizeof(p), "%s/%s", bios_dir(), e->d_name);
+			fprintf(f, "  %s (%lld bytes)\n", e->d_name, stat(p, &st) == 0 ? (long long)st.st_size : -1LL);
+		}
+		closedir(d);
+	} else fprintf(f, "  (folder not found)\n");
+	fprintf(f, "--- core messages ---\n");
+	for (int i = 0; i < n; i++) fprintf(f, "%s\n", coreLog[(coreLogN - n + i + 48 * 4) % 48]);
+	fclose(f);
 }
 
 static bool rumble_cb(unsigned port, enum retro_rumble_effect effect, uint16_t strength)
@@ -1089,7 +1155,11 @@ int emu_load_game(const char *pathIn)
 	}
 	if (!ppfFromDisc) find_ppf(path);
 	ppfFromDisc = 0;
-	if (!retro_load_game(&gi)) { settings_leave_game(); return -1; }
+	coreLogN = 0;
+	coreLogOn = 1;
+	bool loadedOk = retro_load_game(&gi);
+	coreLogOn = 0;
+	if (!loadedOk) { load_failed(path); settings_leave_game(); return -1; }
 	loaded = 1;
 	retro_get_system_av_info(&av);
 	emu_apply_settings();

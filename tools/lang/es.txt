@@ -486,3 +486,4 @@
 499|Pulsa A para cerrar WiiUStation y ábrelo de nuevo para usar la nueva versión.
 500|La versión %s está lista.
 501|Pulsa A para reiniciar WiiUStation con la nueva versión.
+502|No se pudo abrir el juego: %s (detalles en last_error.txt)

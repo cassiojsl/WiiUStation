@@ -486,3 +486,4 @@
 499|Druk op A om WiiUStation te sluiten en open het daarna opnieuw voor de nieuwe versie.
 500|Versie %s is klaar.
 501|Druk op A om WiiUStation opnieuw te starten met de nieuwe versie.
+502|Kan de game niet laden: %s (details in last_error.txt)

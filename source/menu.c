@@ -3848,7 +3848,9 @@ static int start_game(const char *path)
 	pendingDisc[0] = 0;
 	pendingIndex = 0;
 	if (rc != 0) {
-		status("Could not load the game (bad image or missing BIOS?).");
+		char m[256];
+		snprintf(m, sizeof(m), tr("Could not load the game: %s (details in last_error.txt)"), emu_load_error());
+		status(m);
 		return 0;
 	}
 	if (cfg.resume && emu_state_exists(-1) && (autoResume || ask_resume())) {
