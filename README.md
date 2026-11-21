@@ -19,6 +19,10 @@ sd:/wiiu/apps/WiiUStation/
 ├── states/     save states
 ├── covers/     downloaded covers (<GAME-ID>.jpg) - you can add your own
 ├── bezels/     your borders: default.png or <GAME-ID>.png (1280x720)
+├── cheats/     libretro .cht files: <game file name>.cht or <GAME-ID>.cht
+├── screenshots/
+├── gamesettings/  per-game settings
+├── favorites.txt, recent.txt
 └── settings.cfg
 ```
 
@@ -57,8 +61,22 @@ controllers.
   - screen: 4:3, stretch, integer scale;
   - borders: **Ambient**, a soft, dimmed copy of the game behind it, or
     **Custom image**, your own PNG bezels.
-- **Saves**: memory cards are saved automatically, plus 10 save-state slots.
-  Multi-disc games are supported (`.m3u`, or "Change disc").
+- **Saves**: memory cards are saved automatically. There are 10 save-state
+  slots, each with a thumbnail.
+- **Continue where you left off**: the game is saved when you leave it, and
+  you are offered to resume when you start it again.
+- **Fast forward**: hold R3, press R3 to toggle, or hold ZL+ZR, at 2x, 3x
+  or 4x.
+- **Per-game settings**: open Settings while a game is running and set
+  "Settings for" to "This game only".
+- **Players**: up to 5 with a multitap. Player 1 and the other players can
+  each use a Digital pad or a DualShock. Every button can be remapped.
+- **Cheats**: GameShark codes from libretro `.cht` files.
+- **Favourites and search**: in the game browser, Y marks a favourite, −
+  shows favourites only, + searches by name. **Screenshots** can be taken
+  from the menu.
+- **Region**: Auto, NTSC or PAL, also per game.
+- Multi-disc games are supported (`.m3u`, or "Change disc").
 
 ## Building
 

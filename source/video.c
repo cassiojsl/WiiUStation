@@ -454,6 +454,32 @@ void video_draw_game(int dim)
 	}
 }
 
+int video_save_frame(const char *path, int width)
+{
+	/* conv holds the last frame as ARGB8888, frameW x frameH, stride frameW */
+	SDL_Surface *src, *dst;
+	int ok;
+	if (!haveFrame || !conv) return 0;
+	src = SDL_CreateRGBSurfaceWithFormatFrom(conv, frameW, frameH, 32, frameW * 4,
+	                                         SDL_PIXELFORMAT_ARGB8888);
+	if (!src) return 0;
+	if (width > 0) {
+		int h = width * 3 / 4;
+		dst = SDL_CreateRGBSurfaceWithFormat(0, width, h, 32, SDL_PIXELFORMAT_ARGB8888);
+		if (dst) SDL_BlitScaled(src, NULL, dst, NULL);
+	} else {
+		/* full size, stretched to 4:3 like on screen */
+		int h = frameH, w = frameH * 4 / 3;
+		if (frameH <= 288) { h = frameH * 2; w = h * 4 / 3; }
+		dst = SDL_CreateRGBSurfaceWithFormat(0, w, h, 32, SDL_PIXELFORMAT_ARGB8888);
+		if (dst) SDL_BlitScaled(src, NULL, dst, NULL);
+	}
+	ok = dst && IMG_SavePNG(dst, path) == 0;
+	if (dst) SDL_FreeSurface(dst);
+	SDL_FreeSurface(src);
+	return ok;
+}
+
 static uint32_t gameFade;
 void video_fade_in(void) { gameFade = SDL_GetTicks(); }
 
@@ -477,6 +503,33 @@ void video_present(void)
 	SDL_RenderPresent(renderer);
 }
 
+static char textIn[128];
+static int textState;      /* 0 idle, 1 typing, 2 confirmed */
+
+void video_text_begin(void)
+{
+	textIn[0] = 0;
+	textState = 1;
+	SDL_StartTextInput();
+}
+
+int video_text_poll(char *buf, size_t n)
+{
+	if (textState == 2) {
+		snprintf(buf, n, "%s", textIn);
+		return 1;
+	}
+	return 0;
+}
+
+int video_text_active(void) { return SDL_IsTextInputActive(); }
+
+void video_text_end(void)
+{
+	textState = 0;
+	if (SDL_IsTextInputActive()) SDL_StopTextInput();
+}
+
 int pump_events(void)
 {
 	SDL_Event ev;
@@ -484,6 +537,11 @@ int pump_events(void)
 	while (SDL_PollEvent(&ev)) {
 		if (ev.type == SDL_QUIT) wiiu_quit = 1;
 		else if (ev.type == SDL_APP_WILLENTERBACKGROUND) background = 1;
+		else if (ev.type == SDL_TEXTINPUT && textState == 1) {
+			/* the Wii U keyboard sends the whole text when OK is pressed */
+			snprintf(textIn, sizeof(textIn), "%s", ev.text.text);
+			textState = 2;
+		}
 	}
 	/* HOME Menu: Cafe OS takes the GPU away; freeze until we get it back. */
 	if (background && !wiiu_quit) {

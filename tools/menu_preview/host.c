@@ -67,6 +67,23 @@ void emu_reset(void) {}
 int emu_state_save(int s) { (void)s; return 1; }
 int emu_state_load(int s) { (void)s; return 0; }
 int emu_disk_count(void) { return 1; }
+int emu_state_exists(int s) { return s == 0 || s == 3 || s == -1; }
+void emu_state_thumb(int s, char *o, size_t n) { snprintf(o, n, "%s/covers/SCUS-94244.jpg", WIIU_APP_DIR); (void)s; }
+int emu_screenshot(void) { return 1; }
+int emu_player_count(void) { return 2; }
+static int chon[3];
+int emu_cheat_count(void) { return 3; }
+const char *emu_cheat_name(int i) { static const char *n[] = { "Infinite lives", "All gems", "Max time trial" }; return n[i]; }
+int emu_cheat_enabled(int i) { return chon[i]; }
+void emu_cheat_toggle(int i) { chon[i] = !chon[i]; }
+int emu_fav_is(const char *p) { return strstr(p, "Crash") || strstr(p, "Tekken"); }
+void emu_fav_toggle(const char *p) { (void)p; }
+int settings_game_scope(void) { return 0; }
+int settings_set_game_scope(int on) { (void)on; return 1; }
+void video_text_begin(void) {}
+int video_text_poll(char *b, size_t n) { (void)b; (void)n; return 0; }
+int video_text_active(void) { return 1; }
+void video_text_end(void) {}
 int emu_disk_index(void) { return 0; }
 int emu_disk_set(int i) { (void)i; return 1; }
 int emu_disk_append(const char *p) { (void)p; return 1; }
@@ -98,6 +115,10 @@ int main(int argc, char **argv)
 	else if (!strcmp(mode, "ingame")) { loaded = 1; menu_run(); }
 	else if (!strcmp(mode, "grid")) { char o[512]; cfg.view = 0; R = ren; menu_fonts(); scriptBtn[10] = WIIU_BTN_RIGHT; scriptBtn[14] = WIIU_BTN_DOWN; browse("Load game", o, sizeof(o), 0); }
 	else if (!strcmp(mode, "list")) { char o[512]; cfg.view = 1; R = ren; menu_fonts(); browse("Load game", o, sizeof(o), 0); }
+	else if (!strcmp(mode, "slots")) { loaded = 1; R = ren; menu_fonts(); slot_picker(0); }
+	else if (!strcmp(mode, "cheats")) { loaded = 1; R = ren; menu_fonts(); scriptBtn[8] = WIIU_BTN_A; cheats_screen(); }
+	else if (!strcmp(mode, "resume")) { loaded = 1; R = ren; menu_fonts(); ask_resume(); }
+	else if (!strcmp(mode, "gamesettings")) { loaded = 1; R = ren; menu_fonts(); settings(); }
 	else if (!strcmp(mode, "controls")) { R = ren; menu_fonts(); controls(); }
 	else if (!strcmp(mode, "settings")) { R = ren; menu_fonts(); settings(); }
 	else if (!strcmp(mode, "credits")) { R = ren; menu_fonts(); shotAt = 200; quitAt = 202; credits(); }

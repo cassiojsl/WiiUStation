@@ -52,7 +52,13 @@ typedef struct {
 	int dithering;      /* 0 off, 1 on, 2 force */
 	int bios_hle;       /* 1 = always HLE */
 	int bootlogo;       /* show BIOS boot logo */
-	int analog;         /* pad type: 1 = DualShock */
+	int analog;         /* player 1 pad type: 1 = DualShock */
+	int analog2;        /* player 2 pad type */
+	int multitap;       /* 4 players on port 1 */
+	int region;         /* 0 auto, 1 NTSC, 2 PAL */
+	int resume;         /* offer to continue where you left off */
+	int ffwd;           /* fast forward: 0 off, 1 hold R3, 2 toggle R3, 3 hold ZL+ZR */
+	int ffspeed;        /* 2..4x */
 	int rumble;
 	int audio;
 	int bezel;          /* 0 off, 1 ambient, 2 custom image */
@@ -64,6 +70,11 @@ typedef struct {
 extern wiiu_settings cfg;
 void settings_load(void);
 int  settings_save(void);
+/* per-game settings: game_key = game ID or file name */
+void settings_enter_game(const char *game_key);  /* global + overrides */
+void settings_leave_game(void);                  /* back to global */
+int  settings_game_scope(void);                  /* 1 if editing this game's file */
+int  settings_set_game_scope(int on);            /* create / delete the file */
 
 /* ---- video (video.c) ---- */
 int  video_init(void);
@@ -76,11 +87,18 @@ void video_present(void);
 void video_osd(const char *msg);
 void video_set_fps_text(const char *txt);
 void video_set_game_id(const char *id);
-void video_fade_in(void);                 /* fade the game in from black */   /* for per-game bezels */
+void video_fade_in(void);
+/* save the last game frame as PNG; width 0 = full size, else scaled */
+int  video_save_frame(const char *path, int width);                 /* fade the game in from black */   /* for per-game bezels */
 void *video_open_font(int size);       /* TTF_Font* (system font) */
 
 /* events: 0 when the app must quit (HOME Menu -> Close) */
 int  pump_events(void);
+/* system keyboard: begin, poll (1 = confirmed, -1 = cancelled, 0 = typing) */
+void video_text_begin(void);
+int  video_text_poll(char *buf, size_t n);
+int  video_text_active(void);
+void video_text_end(void);
 extern volatile int wiiu_quit;
 
 /* ---- audio (audio.c) ---- */
@@ -145,7 +163,17 @@ const char *emu_recent(int i);   /* full path, newest first */
 const char *emu_game_name(void);
 void emu_reset(void);
 int  emu_state_save(int slot);
-int  emu_state_load(int slot);
+int  emu_state_load(int slot);      /* slot -1 = automatic resume state */
+int  emu_state_exists(int slot);
+void emu_state_thumb(int slot, char *out, size_t n);
+int  emu_screenshot(void);
+int  emu_player_count(void);
+int  emu_cheat_count(void);
+const char *emu_cheat_name(int i);
+int  emu_cheat_enabled(int i);
+void emu_cheat_toggle(int i);
+int  emu_fav_is(const char *path);
+void emu_fav_toggle(const char *path);
 int  emu_disk_count(void);
 int  emu_disk_index(void);
 int  emu_disk_set(int index);

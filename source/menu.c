@@ -430,6 +430,16 @@ static void present(void)
 	SDL_Delay(1);
 }
 
+/* case-insensitive substring search (newlib has no strcasestr) */
+static int contains_ci(const char *hay, const char *needle)
+{
+	size_t n = strlen(needle);
+	if (!n) return 1;
+	for (; *hay; hay++)
+		if (!strncasecmp(hay, needle, n)) return 1;
+	return 0;
+}
+
 /* "Crash Bandicoot 3 (USA) (SCUS-94244).chd" -> "Crash Bandicoot 3" */
 static void pretty_name(const char *file, char *out, size_t n)
 {
@@ -446,6 +456,21 @@ static void pretty_name(const char *file, char *out, size_t n)
 			break;
 		}
 	if (!out[0]) snprintf(out, n, "%s", b);
+}
+
+static void star(float cx, float cy, float r, SDL_Color c)
+{
+	float xy[20];
+	for (int i = 0; i < 10; i++) {
+		float a = -1.5707963f + i * 0.6283185f, rr = (i & 1) ? r * 0.45f : r;
+		xy[i * 2] = cx + cosf(a) * rr;
+		xy[i * 2 + 1] = cy + sinf(a) * rr;
+	}
+	/* fan from the centre */
+	for (int i = 0; i < 10; i++) {
+		float tri[6] = { cx, cy, xy[i * 2], xy[i * 2 + 1], xy[((i + 1) % 10) * 2], xy[((i + 1) % 10) * 2 + 1] };
+		poly(tri, 3, c, 255);
+	}
 }
 
 /* Smooth loading indicator: a rotating arc with a fading tail. */
@@ -610,11 +635,42 @@ static int list_run(list_t *L, const char **labels, const char **values, int cou
 	return tapped;
 }
 
+/* On-screen keyboard (Wii U system keyboard through SDL text input).
+ * Returns 1 with the text in out; an empty result clears the filter. */
+static int text_prompt(const char *title, const char *initial, char *out, size_t n)
+{
+	char buf[128];
+	int frames = 0;
+	snprintf(buf, sizeof(buf), "%s", initial);
+	video_text_begin();
+	for (;;) {
+		int st = video_text_poll(buf, sizeof(buf));
+		poll_touch();
+		uint32_t b = poll_buttons();
+		draw_background();
+		draw_header(title, 0);
+		SDL_Color card = { 14, 18, 40 };
+		rrect(240, 280, 800, 120, 22, card, 240);
+		text(fontItem, 640, 340, buf[0] ? buf : "Type a name...", buf[0] ? WHITE : DIM, 1);
+		draw_footer("Use the keyboard on the GamePad");
+		present();
+		frames++;
+		if (st > 0) { snprintf(out, n, "%s", buf); video_text_end(); return 1; }
+		if (st < 0 || (b & WIIU_BTN_B) || wiiu_quit || (frames > 20 && !video_text_active())) {
+			video_text_end();
+			snprintf(out, n, "%s", buf);
+			return buf[0] != 0 || initial[0] != 0;
+		}
+	}
+}
+
 /* ------------------------------------------------------------------------ */
 /* file browser                                                             */
 /* ------------------------------------------------------------------------ */
-typedef struct { char name[256]; int dir; int idTried; char id[16]; } entry_t;
+typedef struct { char name[256]; int dir; int idTried; char id[16]; int fav; } entry_t;
 static char browsePath[512];
+static int favOnly;            /* show favourites only */
+static char searchText[64];    /* filter by name */
 
 static int is_game_file(const char *n)
 {
@@ -763,6 +819,7 @@ static int grid_run(grid_t *G, entry_t *list, const char **labels, int count, co
 				fill(cx + 40, y + 52, 60, 16, PS_YELLOW, 200);
 			} else {
 				cover_or_disc(e->id, cx, y + 10, COVER_SZ);
+				if (e->fav) star(cx + COVER_SZ - 22, y + 32, 18, PS_YELLOW);
 			}
 			/* name, cleaned and shortened to fit */
 			char full[272], nm[40];
@@ -822,12 +879,41 @@ static int browse(const char *title, char *out, size_t outsz, int pickDir)
 		if (stat(browsePath, &st) != 0) strcpy(browsePath, WIIU_SD_ROOT);
 	}
 
+	int keepSel = 0;
+	if (0) {
+rescan_keep:
+		keepSel = 1;
+		free(list);
+		list = NULL;
+	}
+	if (0) {
 rescan:
+		keepSel = 0;
+	}
 	free(list);
 	count = scan_dir(browsePath, &list);
 	if (!pickDir && count && !strcmp(list[0].name, "..") && at_or_above(browsePath, cfg.games_dir)) {
 		memmove(list, list + 1, (count - 1) * sizeof(entry_t));
 		count--;
+	}
+	if (!pickDir) {
+		int m = 0;
+		for (int i = 0; i < count; i++) {
+			char full[768], nm[272];
+			snprintf(full, sizeof(full), "%s/%s", browsePath, list[i].name);
+			list[i].fav = !list[i].dir && emu_fav_is(full);
+			if (!list[i].dir && favOnly && !list[i].fav) continue;
+			if (!list[i].dir && searchText[0]) {
+				pretty_name(list[i].name, nm, sizeof(nm));
+				if (!contains_ci(nm, searchText)) continue;
+			}
+			list[m++] = list[i];
+		}
+		count = m;
+		/* favourites first */
+		int f = 0;
+		for (int i = 0; i < count; i++)
+			if (list[i].fav) { entry_t t = list[i]; memmove(list + f + 1, list + f, (i - f) * sizeof(entry_t)); list[f++] = t; }
 	}
 	if (pickDir) {
 		/* folders only, plus "use this folder" on top */
@@ -848,14 +934,20 @@ rescan:
 		if (list[i].dir == 2) snprintf(names[i], sizeof(names[i]), "[ Use this folder ]");
 		else if (!strcmp(list[i].name, "..")) snprintf(names[i], sizeof(names[i]), ".. (up)");
 		else if (list[i].dir) snprintf(names[i], sizeof(names[i]), "%s/", list[i].name);
+		else if (list[i].fav) snprintf(names[i], sizeof(names[i]), "\xe2\x98\x85 %s", list[i].name);
 		else snprintf(names[i], sizeof(names[i]), "%s", list[i].name);
 		labels[i] = names[i];
 	}
-	L.sel = 0;
-	L.scroll = 0;
-	L.hyInit = 0;
-	memset(&G, 0, sizeof(G));
-	transition();
+	if (!keepSel) {
+		L.sel = 0;
+		L.scroll = 0;
+		L.hyInit = 0;
+		memset(&G, 0, sizeof(G));
+		transition();
+	} else {
+		if (L.sel >= count) L.sel = count ? count - 1 : 0;
+		if (G.sel >= count) G.sel = count ? count - 1 : 0;
+	}
 
 	for (;;) {
 		int useGrid = !pickDir && cfg.view == 0;
@@ -880,6 +972,35 @@ rescan:
 				if (b & WIIU_BTN_A) activate = L.sel;
 			}
 		}
+		if (!pickDir && count && (b & WIIU_BTN_Y)) {
+			int i = useGrid ? G.sel : L.sel;
+			if (i >= 0 && i < count && !list[i].dir) {
+				char full[768];
+				snprintf(full, sizeof(full), "%s/%s", browsePath, list[i].name);
+				emu_fav_toggle(full);
+				status(emu_fav_is(full) ? "Added to favourites." : "Removed from favourites.");
+				int keepG = G.sel, keepL = L.sel;
+				free(list); list = NULL;
+				count = 0;
+				/* rescan keeps the cursor */
+				count = scan_dir(browsePath, &list);
+				(void)keepG; (void)keepL;
+				goto rescan_keep;
+			}
+		}
+		if (!pickDir && (b & WIIU_BTN_MINUS)) {
+			favOnly = !favOnly;
+			status(favOnly ? "Showing favourites only." : "Showing all games.");
+			goto rescan;
+		}
+		if (!pickDir && (b & WIIU_BTN_PLUS)) {
+			char q[64];
+			if (text_prompt("Search games", searchText, q, sizeof(q))) {
+				snprintf(searchText, sizeof(searchText), "%s", q);
+				goto rescan;
+			}
+			transition();
+		}
 		if (!pickDir && (b & WIIU_BTN_X)) {
 			cfg.view = !cfg.view;          /* X: switch grid / list */
 			settings_save();
@@ -892,12 +1013,16 @@ rescan:
 		int back = draw_header(title, 1);
 		{
 			const char *p = browsePath + strlen(WIIU_SD_ROOT);
-			text(fontSmall, LIST_X, 116, *p ? p : "/", DIM, 0);
+			char sub[200];
+			snprintf(sub, sizeof(sub), "%s%s%s%s%s", *p ? p : "/", favOnly ? "   \xe2\x98\x85 Favourites" : "",
+			         searchText[0] ? "   Search: \"" : "", searchText, searchText[0] ? "\"" : "");
+			text(fontSmall, LIST_X, 116, sub, DIM, 0);
 		}
 		int t = -1;
 		if (count == 0) {
-			text(fontItem, 640, 360, "No games in this folder.", GREY, 1);
-			text(fontSmall, 640, 410, "Choose your games folder in Settings.", DIM, 1);
+			text(fontItem, 640, 360, favOnly || searchText[0] ? "No games match." : "No games in this folder.", GREY, 1);
+			text(fontSmall, 640, 410, favOnly || searchText[0] ? "Press - or + to change the filter."
+			                                                    : "Choose your games folder in Settings.", DIM, 1);
 		} else if (pickDir) {
 			t = list_run(&L, labels, NULL, count, 0, NULL, NULL);
 		} else if (useGrid) {
@@ -919,10 +1044,11 @@ rescan:
 		}
 		if (t >= 0) activate = t;
 		draw_footer(pickDir ? "Pick the folder with your games" :
-		            useGrid ? "X  List view    Drag to scroll" : "X  Grid view    L/R  Page");
+		            useGrid ? "X  List   Y Favourite   - Favourites only   + Search"
+		                    : "X  Grid   Y Favourite   - Favourites only   + Search");
 		present();
 
-		if (back || (b & WIIU_BTN_PLUS)) break;               /* leave now */
+		if (back) break;                                      /* leave now */
 		if (b & WIIU_BTN_B) {
 			if (at_or_above(browsePath, root)) break;          /* back to menu */
 			go_up();
@@ -959,63 +1085,97 @@ static void controls(void);
 
 static void settings(void)
 {
-	enum { S_GAMES, S_VIEW, S_CORE, S_SKIP, S_FPS, S_AUDIO, S_ASPECT, S_FILTER, S_BEZEL, S_SCAN, S_CRT,
-	       S_DITHER, S_PAD, S_CONTROLS, S_RUMBLE, S_BIOS, S_LOGO, S_ADV, S_COUNT };
-	const char *labels[S_COUNT] = {
-		"Games folder", "Game list", "CPU core", "Frame skip", "Show FPS", "Sound", "Screen", "Picture", "Border",
-		"Scanlines", "CRT mask", "Dithering", "Controller", "Button mapping...", "Vibration",
-		"BIOS", "PlayStation boot logo", "Advanced..."
+	enum { S_SCOPE, S_GAMES, S_VIEW, S_RESUME, S_CORE, S_SKIP, S_FFWD, S_FFSPEED, S_FPS, S_AUDIO,
+	       S_ASPECT, S_FILTER, S_BEZEL, S_SCAN, S_CRT, S_DITHER, S_PAD, S_PAD2, S_MTAP,
+	       S_CONTROLS, S_RUMBLE, S_REGION, S_BIOS, S_LOGO, S_ADV, S_COUNT };
+	static const char *allLabels[S_COUNT] = {
+		"Settings for", "Games folder", "Game list", "Continue where you left off", "CPU core",
+		"Frame skip", "Fast forward", "Fast forward speed", "Show FPS", "Sound", "Screen",
+		"Picture", "Border", "Scanlines", "CRT mask", "Dithering", "Player 1 controller",
+		"Player 2+ controller", "Multitap (up to 5 players)", "Button mapping...", "Vibration",
+		"Region", "BIOS", "PlayStation boot logo", "Advanced..."
 	};
-	const char *values[S_COUNT];
+	const char *labels[S_COUNT], *values[S_COUNT];
+	int map[S_COUNT];
 	list_t L = { 0, 0 };
+	char scopeStr[96], gd[80], ffs[8];
 	transition();
 
 	for (;;) {
-		{
-			/* show the last two folder names: ".../WiiUStation/games" */
-			static char gd[80];
-			const char *p = cfg.games_dir + strlen(WIIU_SD_ROOT);
-			const char *last = strrchr(p, '/'), *prev = last;
-			if (last && last > p) { prev = last - 1; while (prev > p && *prev != '/') prev--; }
-			snprintf(gd, sizeof(gd), "%s%.40s", prev && prev > p ? "..." : "", prev && *p ? prev : "/");
-			values[S_GAMES] = gd;
+		int loaded = emu_game_loaded(), game = settings_game_scope(), n = 0;
+		for (int i = 0; i < S_COUNT; i++) {
+			if (i == S_SCOPE && !loaded) continue;
+			/* app-wide options are hidden while editing one game's settings */
+			if (game && (i == S_GAMES || i == S_VIEW || i == S_RESUME || i == S_FFWD ||
+			             i == S_ADV)) continue;
+			map[n] = i;
+			labels[n] = allLabels[i];
+			values[n] = NULL;
+			n++;
 		}
-		values[S_VIEW]   = cfg.view ? "List" : "Grid with covers";
-		values[S_BEZEL]  = cfg.bezel == BEZEL_OFF ? "Off" : cfg.bezel == BEZEL_AMBIENT ? "Ambient" : "Custom image";
-		values[S_CORE]   = cfg.dynarec ? "Lightrec" : "Interpreter";
-		values[S_SKIP]   = cfg.frameskip ? "Auto" : "Off";
-		values[S_FPS]    = cfg.show_fps ? "On" : "Off";
-		values[S_AUDIO]  = cfg.audio ? "On" : "Off";
-		values[S_ASPECT] = cfg.aspect == WIIU_ASPECT_4_3 ? "4:3" :
-		                   cfg.aspect == WIIU_ASPECT_ZOOM ? "4:3 Auto zoom" :
-		                   cfg.aspect == WIIU_ASPECT_STRETCH ? "Stretch" : "Integer";
-		values[S_FILTER] = cfg.filter == WIIU_FILTER_LINEAR ? "Smooth" :
-		                   cfg.filter == WIIU_FILTER_NEAREST ? "Pixel" : "Sharp smooth";
-		values[S_SCAN]   = cfg.scanlines ? "On" : "Off";
-		values[S_CRT]    = cfg.crt ? "On" : "Off";
-		values[S_DITHER] = cfg.dithering == 0 ? "Off" : cfg.dithering == 1 ? "On" : "Force";
-		values[S_PAD]    = cfg.analog ? "DualShock" : "Digital";
-		values[S_CONTROLS] = NULL;
-		values[S_RUMBLE] = cfg.rumble ? "On" : "Off";
-		values[S_BIOS]   = cfg.bios_hle ? "Built-in" : "Auto";
-		values[S_LOGO]   = cfg.bootlogo ? "On" : "Off";
-		values[S_ADV]    = NULL;
+		for (int k = 0; k < n; k++) {
+			switch (map[k]) {
+			case S_SCOPE:
+				if (game) {
+					char nm[64];
+					pretty_name(emu_game_name(), nm, sizeof(nm));
+					snprintf(scopeStr, sizeof(scopeStr), "This game only");
+				} else snprintf(scopeStr, sizeof(scopeStr), "All games");
+				values[k] = scopeStr;
+				break;
+			case S_GAMES: {
+				const char *p = cfg.games_dir + strlen(WIIU_SD_ROOT);
+				const char *last = strrchr(p, '/'), *prev = last;
+				if (last && last > p) { prev = last - 1; while (prev > p && *prev != '/') prev--; }
+				snprintf(gd, sizeof(gd), "%s%.40s", prev && prev > p ? "..." : "", prev && *p ? prev : "/");
+				values[k] = gd;
+				break;
+			}
+			case S_VIEW:   values[k] = cfg.view ? "List" : "Grid with covers"; break;
+			case S_RESUME: values[k] = cfg.resume ? "Ask" : "Off"; break;
+			case S_CORE:   values[k] = cfg.dynarec ? "Lightrec" : "Interpreter"; break;
+			case S_SKIP:   values[k] = cfg.frameskip ? "Auto" : "Off"; break;
+			case S_FFWD:   values[k] = cfg.ffwd == 0 ? "Off" : cfg.ffwd == 1 ? "Hold R3" :
+			                           cfg.ffwd == 2 ? "Press R3 (toggle)" : "Hold ZL+ZR"; break;
+			case S_FFSPEED: snprintf(ffs, sizeof(ffs), "%dx", cfg.ffspeed); values[k] = ffs; break;
+			case S_FPS:    values[k] = cfg.show_fps ? "On" : "Off"; break;
+			case S_AUDIO:  values[k] = cfg.audio ? "On" : "Off"; break;
+			case S_ASPECT: values[k] = cfg.aspect == WIIU_ASPECT_4_3 ? "4:3" :
+			                           cfg.aspect == WIIU_ASPECT_ZOOM ? "4:3 Auto zoom" :
+			                           cfg.aspect == WIIU_ASPECT_STRETCH ? "Stretch" : "Integer"; break;
+			case S_FILTER: values[k] = cfg.filter == WIIU_FILTER_LINEAR ? "Smooth" :
+			                           cfg.filter == WIIU_FILTER_NEAREST ? "Pixel" : "Sharp smooth"; break;
+			case S_BEZEL:  values[k] = cfg.bezel == BEZEL_OFF ? "Off" : cfg.bezel == BEZEL_AMBIENT ? "Ambient" : "Custom image"; break;
+			case S_SCAN:   values[k] = cfg.scanlines ? "On" : "Off"; break;
+			case S_CRT:    values[k] = cfg.crt ? "On" : "Off"; break;
+			case S_DITHER: values[k] = cfg.dithering == 0 ? "Off" : cfg.dithering == 1 ? "On" : "Force"; break;
+			case S_PAD:    values[k] = cfg.analog ? "DualShock" : "Digital"; break;
+			case S_PAD2:   values[k] = cfg.analog2 ? "DualShock" : "Digital"; break;
+			case S_MTAP:   values[k] = cfg.multitap ? "On" : "Off"; break;
+			case S_RUMBLE: values[k] = cfg.rumble ? "On" : "Off"; break;
+			case S_REGION: values[k] = cfg.region == 0 ? "Auto" : cfg.region == 1 ? "NTSC (60 Hz)" : "PAL (50 Hz)"; break;
+			case S_BIOS:   values[k] = cfg.bios_hle ? "Built-in" : "Auto"; break;
+			case S_LOGO:   values[k] = cfg.bootlogo ? "On" : "Off"; break;
+			default: break;
+			}
+		}
+		if (L.sel >= n) L.sel = n - 1;
 
 		poll_touch();
 		uint32_t b = poll_buttons();
 		int dir = 0;
-		if (b & WIIU_BTN_UP)   L.sel = L.sel > 0 ? L.sel - 1 : S_COUNT - 1;
-		if (b & WIIU_BTN_DOWN) L.sel = L.sel < S_COUNT - 1 ? L.sel + 1 : 0;
+		if (b & WIIU_BTN_UP)   L.sel = L.sel > 0 ? L.sel - 1 : n - 1;
+		if (b & WIIU_BTN_DOWN) L.sel = L.sel < n - 1 ? L.sel + 1 : 0;
 		if (b & (WIIU_BTN_RIGHT | WIIU_BTN_A)) dir = 1;
 		if (b & WIIU_BTN_LEFT) dir = -1;
 
 		draw_background();
-		int back = draw_header("Settings", 1);
+		int back = draw_header(game ? "Game settings" : "Settings", 1);
 		int arrow = 0;
-		int t = list_run(&L, labels, values, S_COUNT, 1, &arrow, NULL);
+		int t = list_run(&L, labels, values, n, 1, &arrow, NULL);
 		if (t >= 0) dir = 1;
 		if (arrow) dir = arrow;
-		draw_footer("Tap the arrows to change");
+		draw_footer(game ? "Changes apply to this game only" : "Tap the arrows to change");
 		present();
 
 		if (back || (b & WIIU_BTN_B) || wiiu_quit) {
@@ -1024,19 +1184,26 @@ static void settings(void)
 			return;
 		}
 		if (!dir) continue;
-		switch (L.sel) {
+		switch (map[L.sel]) {
+		case S_SCOPE:
+			settings_save();
+			settings_set_game_scope(!game);
+			status(!game ? "Now editing this game's own settings." : "This game uses the global settings again.");
+			break;
 		case S_GAMES: {
-			char dir[512];
-			if (browse("Games folder", dir, sizeof(dir), 1)) {
-				strncpy(cfg.games_dir, dir, sizeof(cfg.games_dir) - 1);
+			char dirp[512];
+			if (browse("Games folder", dirp, sizeof(dirp), 1)) {
+				strncpy(cfg.games_dir, dirp, sizeof(cfg.games_dir) - 1);
 				cfg.games_dir[sizeof(cfg.games_dir) - 1] = 0;
 				browsePath[0] = 0;
 				settings_save();
 				status("Games folder saved.");
 			}
+			transition();
 			break;
 		}
-		case S_VIEW:  cfg.view = !cfg.view; break;
+		case S_VIEW:   cfg.view = !cfg.view; break;
+		case S_RESUME: cfg.resume = !cfg.resume; break;
 		case S_BEZEL:
 			cfg.bezel = (cfg.bezel + 3 + dir) % 3;
 			if (cfg.bezel == BEZEL_CUSTOM)
@@ -1051,11 +1218,12 @@ static void settings(void)
 				status("Applies the next time a game is loaded.");
 			}
 			break;
-		case S_SKIP:   cfg.frameskip = !cfg.frameskip; break;
-		case S_FPS:    cfg.show_fps = !cfg.show_fps; break;
-		case S_AUDIO:  cfg.audio = !cfg.audio; break;
+		case S_SKIP:    cfg.frameskip = !cfg.frameskip; break;
+		case S_FFWD:    cfg.ffwd = (cfg.ffwd + 4 + dir) % 4; break;
+		case S_FFSPEED: cfg.ffspeed = 2 + (cfg.ffspeed - 2 + 3 + dir) % 3; break;
+		case S_FPS:     cfg.show_fps = !cfg.show_fps; break;
+		case S_AUDIO:   cfg.audio = !cfg.audio; break;
 		case S_ASPECT: {
-			/* order shown: 4:3, Auto zoom, Stretch, Integer */
 			static const int ord[4] = { WIIU_ASPECT_4_3, WIIU_ASPECT_ZOOM, WIIU_ASPECT_STRETCH, WIIU_ASPECT_INTEGER };
 			int k = 0;
 			while (k < 4 && ord[k] != cfg.aspect) k++;
@@ -1070,11 +1238,17 @@ static void settings(void)
 		case S_PAD:    cfg.analog = !cfg.analog;
 		               if (cfg.analog) status("DualShock: some older games only work with Digital.");
 		               break;
+		case S_PAD2:   cfg.analog2 = !cfg.analog2; break;
+		case S_MTAP:   cfg.multitap = !cfg.multitap;
+		               status(cfg.multitap ? "Players 1-4 on port 1, player 5 on port 2. Applies on resume."
+		                                   : "Two players.");
+		               break;
 		case S_CONTROLS: controls(); transition(); break;
 		case S_RUMBLE: cfg.rumble = !cfg.rumble; break;
+		case S_REGION: cfg.region = (cfg.region + 3 + dir) % 3; status("Applies the next time a game is loaded."); break;
 		case S_BIOS:   cfg.bios_hle = !cfg.bios_hle; status("Applies the next time a game is loaded."); break;
 		case S_LOGO:   cfg.bootlogo = !cfg.bootlogo; break;
-		case S_ADV:    advanced(); break;
+		case S_ADV:    advanced(); transition(); break;
 		}
 	}
 }
@@ -1295,7 +1469,7 @@ static void controls(void)
 /* ------------------------------------------------------------------------ */
 /* home screen                                                              */
 /* ------------------------------------------------------------------------ */
-enum { H_RESUME, H_SAVE, H_LOAD, H_SLOT, H_RESET, H_DISC, H_RECENT,
+enum { H_RESUME, H_SAVE, H_LOAD, H_CHEATS, H_SHOT, H_RESET, H_DISC, H_RECENT,
        H_GAMES, H_SETTINGS, H_CREDITS, H_EXIT };
 typedef struct { SDL_Rect r; int kind, arg; } hitem_t;
 
@@ -1334,6 +1508,185 @@ static void icon(int kind, float cx, float cy, float s, SDL_Color c)
 	}
 	default: break;
 	}
+}
+
+
+/* ------------------------------------------------------------------------ */
+/* save-state slots with thumbnails                                         */
+/* ------------------------------------------------------------------------ */
+static SDL_Texture *thumbs[10];
+
+static void thumbs_free(void)
+{
+	for (int i = 0; i < 10; i++) if (thumbs[i]) { SDL_DestroyTexture(thumbs[i]); thumbs[i] = NULL; }
+}
+
+static void thumbs_load(void)
+{
+	char p[600];
+	thumbs_free();
+	for (int i = 0; i < 10; i++) {
+		if (!emu_state_exists(i)) continue;
+		emu_state_thumb(i, p, sizeof(p));
+		SDL_Surface *s = IMG_Load(p);
+		if (s) { thumbs[i] = SDL_CreateTextureFromSurface(R, s); SDL_FreeSurface(s); }
+	}
+}
+
+/* save = 1: pick a slot to save to; 0: pick a slot to load.
+ * Returns 1 when a state was loaded (go back to the game). */
+static int slot_picker(int save)
+{
+	int sel = 0;
+	float fx = 0, fy = 0;
+	int finit = 0;
+	char m[96];
+	thumbs_load();
+	transition();
+	for (;;) {
+		poll_touch();
+		uint32_t b = poll_buttons();
+		int activate = 0;
+		if (b & WIIU_BTN_LEFT)  sel = (sel + 9) % 10;
+		if (b & WIIU_BTN_RIGHT) sel = (sel + 1) % 10;
+		if (b & (WIIU_BTN_UP | WIIU_BTN_DOWN)) sel = (sel + 5) % 10;
+		if (b & WIIU_BTN_A) activate = 1;
+
+		draw_background();
+		int back = draw_header(save ? "Save state" : "Load state", 1);
+		SDL_Color card = { 14, 18, 40 }, hl = { 0, 140, 220 };
+		for (int i = 0; i < 10; i++) {
+			int x = 60 + (i % 5) * 236, y = 128 + (i / 5) * 262;
+			SDL_Rect r = { x, y, 216, 236 };
+			if (tap_in(r.x, r.y, r.w, r.h)) { sel = i; activate = 1; }
+			if (i == sel) {
+				if (!finit) { fx = x; fy = y; finit = 1; }
+				fx += (x - fx) * 0.4f; fy += (y - fy) * 0.4f;
+			}
+		}
+		rrect((int)fx - 6, (int)fy - 6, 228, 248, 22, hl, 255);
+		for (int i = 0; i < 10; i++) {
+			int x = 60 + (i % 5) * 236, y = 128 + (i / 5) * 262;
+			rrect(x, y, 216, 236, 18, card, 255);
+			if (thumbs[i]) {
+				SDL_Rect d = { x + 12, y + 12, 192, 144 };
+				SDL_RenderCopy(R, thumbs[i], NULL, &d);
+			} else {
+				SDL_Color slot = { 26, 32, 60 };
+				rrect(x + 12, y + 12, 192, 144, 10, slot, 255);
+				text(fontSmall, x + 108, y + 84, emu_state_exists(i) ? "Saved" : "Empty", DIM, 1);
+			}
+			snprintf(m, sizeof(m), "Slot %d", i);
+			text(fontItem, x + 108, y + 196, m, i == sel ? WHITE : GREY, 1);
+		}
+		draw_footer(save ? "Choose a slot to save to" : "Choose a slot to load");
+		present();
+
+		if (back || (b & WIIU_BTN_B) || wiiu_quit) { thumbs_free(); return 0; }
+		if (!activate) continue;
+		if (save) {
+			snprintf(m, sizeof(m), emu_state_save(sel) ? "Saved to slot %d." : "Could not save to slot %d.", sel);
+			status(m);
+			thumbs_load();
+		} else {
+			if (emu_state_load(sel)) { thumbs_free(); return 1; }
+			snprintf(m, sizeof(m), "Slot %d is empty.", sel);
+			status(m);
+		}
+	}
+}
+
+/* ------------------------------------------------------------------------ */
+/* cheats                                                                   */
+/* ------------------------------------------------------------------------ */
+static void cheats_screen(void)
+{
+	const char **labels, **values;
+	int n = emu_cheat_count();
+	list_t L = { 0, 0 };
+	labels = malloc((n + 1) * sizeof(char *));
+	values = malloc((n + 1) * sizeof(char *));
+	transition();
+	for (;;) {
+		for (int i = 0; i < n; i++) {
+			labels[i] = emu_cheat_name(i);
+			values[i] = emu_cheat_enabled(i) ? "On" : "Off";
+		}
+		poll_touch();
+		uint32_t b = poll_buttons();
+		int toggle = -1;
+		if (n) {
+			if (b & WIIU_BTN_UP)   L.sel = L.sel > 0 ? L.sel - 1 : n - 1;
+			if (b & WIIU_BTN_DOWN) L.sel = L.sel < n - 1 ? L.sel + 1 : 0;
+			if (b & (WIIU_BTN_A | WIIU_BTN_LEFT | WIIU_BTN_RIGHT)) toggle = L.sel;
+		}
+		draw_background();
+		int back = draw_header("Cheats", 1);
+		if (!n) {
+			text(fontItem, 640, 330, "No cheats for this game.", GREY, 1);
+			text(fontSmall, 640, 380, "Copy a libretro .cht file to WiiUStation/cheats,", DIM, 1);
+			text(fontSmall, 640, 414, "named like the game file or its ID (e.g. SCUS-94244.cht).", DIM, 1);
+		} else {
+			int arrow = 0;
+			int t = list_run(&L, labels, values, n, 1, &arrow, NULL);
+			if (t >= 0 || arrow) toggle = L.sel;
+		}
+		draw_footer(n ? "Cheats are saved per game" : NULL);
+		present();
+		if (back || (b & WIIU_BTN_B) || wiiu_quit) break;
+		if (toggle >= 0) emu_cheat_toggle(toggle);
+	}
+	free(labels);
+	free(values);
+}
+
+/* ------------------------------------------------------------------------ */
+/* "continue where you left off?"                                           */
+/* ------------------------------------------------------------------------ */
+static int ask_resume(void)
+{
+	int sel = 0;
+	SDL_Rect yes = { 400, 420, 220, 70 }, no = { 660, 420, 220, 70 };
+	poll_buttons();
+	T.down = T.tapped = 0;
+	for (int frames = 0;; frames++) {
+		poll_touch();
+		uint32_t b = poll_buttons();
+		if (b & (WIIU_BTN_LEFT | WIIU_BTN_RIGHT)) sel = !sel;
+		draw_background();
+		draw_header(NULL, 0);
+		SDL_Color card = { 14, 18, 40 }, hl = { 0, 140, 220 }, btn = { 40, 46, 74 };
+		rrect(300, 220, 680, 310, 26, card, 240);
+		text(fontTitle, 640, 290, "Continue where you left off?", WHITE, 1);
+		char nm[80];
+		pretty_name(emu_game_name(), nm, sizeof(nm));
+		text(fontSmall, 640, 345, nm, GREY, 1);
+		rrect(yes.x, yes.y, yes.w, yes.h, 35, sel == 0 ? hl : btn, 255);
+		rrect(no.x, no.y, no.w, no.h, 35, sel == 1 ? hl : btn, 255);
+		text(fontItem, yes.x + yes.w / 2, yes.y + yes.h / 2, "Continue", WHITE, 1);
+		text(fontItem, no.x + no.w / 2, no.y + no.h / 2, "Start over", WHITE, 1);
+		present();
+		if (wiiu_quit) return 0;
+		if (tap_in(yes.x, yes.y, yes.w, yes.h)) return 1;
+		if (tap_in(no.x, no.y, no.w, no.h)) return 0;
+		if (b & WIIU_BTN_A) return sel == 0;
+		if (b & WIIU_BTN_B) return 0;
+	}
+}
+
+/* Starts a game: loading screen, load, optional resume. 1 = running. */
+static int start_game(const char *path)
+{
+	loading_screen(path);
+	if (emu_load_game(path) != 0) {
+		status("Could not load the game (bad image or missing BIOS?).");
+		return 0;
+	}
+	if (cfg.resume && emu_state_exists(-1) && ask_resume()) {
+		if (!emu_state_load(-1)) status("Could not continue: the saved state is unreadable.");
+	}
+	video_fade_in();
+	return 1;
 }
 
 /* d-pad spatial navigation between the items */
@@ -1381,12 +1734,11 @@ int menu_run(void)
 		int tileY, tileH;
 		if (loaded) {
 			const char *labels[6] = { "Resume", "Save state", "Load state", "", "Reset", "Change disc" };
-			static const int widths[6] = { 130, 142, 142, 140, 108, 152 };
-			int x = 330;
-			for (int i = 0; i < 6; i++) {
+			static const int widths[7] = { 118, 104, 104, 112, 146, 98, 136 };
+			int x = 318;
+			for (int i = 0; i < 7; i++) {
 				it[n++] = (hitem_t){ { x, 278, widths[i], 58 }, i, 0 };
-				x += widths[i] + 12;
-				(void)labels;
+				x += widths[i] + 10;
 			}
 			int rx = 60;
 			for (int i = 0; i < nrec && i < 9; i++) {
@@ -1423,13 +1775,8 @@ int menu_run(void)
 		if ((b & WIIU_BTN_B) && loaded) return 1;
 		for (int i = 0; i < n; i++)
 			if (tap_in(it[i].r.x, it[i].r.y, it[i].r.w, it[i].r.h)) {
-				if (it[i].kind == H_SLOT) {   /* left / right half of the slot pill */
-					slot = (slot + (T.tx < it[i].r.x + it[i].r.w / 2 ? 9 : 1)) % 10;
-					sel = i;
-				} else { sel = i; activate = 1; }
+				sel = i; activate = 1;
 			}
-		if (it[sel].kind == H_SLOT && (b & (WIIU_BTN_L | WIIU_BTN_R)))
-			slot = (slot + ((b & WIIU_BTN_L) ? 9 : 1)) % 10;
 
 		/* ---- draw ---- */
 		draw_background();
@@ -1443,7 +1790,12 @@ int menu_run(void)
 			pretty_name(emu_game_name(), nm, sizeof(nm));
 			text(fontSmall, 330, 160, "NOW PLAYING", PS_BLUE, 0);
 			text(fontTitle, 330, 210, nm, WHITE, 0);
-			text(fontSmall, 1210, 160, "Player 1: GamePad   Player 2: next controller", DIM, 2);
+			{
+				char pl[64];
+				int np = emu_player_count();
+				snprintf(pl, sizeof(pl), np > 1 ? "%d players" : "1 player", np);
+				text(fontSmall, 1210, 160, pl, DIM, 2);
+			}
 			text(fontSmall, 60, 384, "Recently played", GREY, 0);
 		} else {
 			text(fontItem, 60, 140, nrec ? "Recently played" : "Welcome", WHITE, 0);
@@ -1469,12 +1821,10 @@ int menu_run(void)
 			int f = i == sel;
 			switch (it[i].kind) {
 			case H_RESUME: pill(&r, "Resume", f); break;
-			case H_SAVE:   pill(&r, "Save state", f); break;
-			case H_LOAD:   pill(&r, "Load state", f); break;
-			case H_SLOT:
-				snprintf(m, sizeof(m), "<  Slot %d  >", slot);
-				pill(&r, m, f);
-				break;
+			case H_SAVE:   pill(&r, "Save", f); break;
+			case H_LOAD:   pill(&r, "Load", f); break;
+			case H_CHEATS: pill(&r, "Cheats", f); break;
+			case H_SHOT:   pill(&r, "Screenshot", f); break;
 			case H_RESET:  pill(&r, "Reset", f); break;
 			case H_DISC:
 				if (emu_disk_count() > 1) snprintf(m, sizeof(m), "Disc %d/%d", emu_disk_index() + 1, emu_disk_count());
@@ -1517,16 +1867,19 @@ int menu_run(void)
 		case H_RESUME:
 			return 1;
 		case H_SAVE:
-			snprintf(m, sizeof(m), emu_state_save(slot) ? "State saved to slot %d." : "Could not save the state (slot %d).", slot);
-			status(m);
+			slot_picker(1);
+			transition();
 			break;
 		case H_LOAD:
-			if (emu_state_load(slot)) return 1;
-			snprintf(m, sizeof(m), "No state in slot %d.", slot);
-			status(m);
+			if (slot_picker(0)) return 1;
+			transition();
 			break;
-		case H_SLOT:
-			slot = (slot + 1) % 10;
+		case H_CHEATS:
+			cheats_screen();
+			transition();
+			break;
+		case H_SHOT:
+			status(emu_screenshot() ? "Screenshot saved to WiiUStation/screenshots." : "Could not save the screenshot.");
 			break;
 		case H_RESET:
 			emu_reset();
@@ -1546,17 +1899,11 @@ int menu_run(void)
 		case H_RECENT:
 			snprintf(path, sizeof(path), "%s", emu_recent(it[sel].arg));
 			if (loaded && !strcmp(path, emu_game_path())) return 1;
-			loading_screen(path);
-			if (emu_load_game(path) == 0) { video_fade_in(); return 1; }
-			status("Could not load the game.");
+			if (start_game(path)) return 1;
 			transition();
 			break;
 		case H_GAMES:
-			if (browse("Games", path, sizeof(path), 0)) {
-				loading_screen(path);
-				if (emu_load_game(path) == 0) { video_fade_in(); return 1; }
-				status("Could not load the game (bad image or missing BIOS?).");
-			}
+			if (browse("Games", path, sizeof(path), 0) && start_game(path)) return 1;
 			transition();
 			break;
 		case H_SETTINGS:

@@ -16,6 +16,7 @@
 #include <strings.h>
 #include <stdarg.h>
 #include <errno.h>
+#include <time.h>
 #include <sys/stat.h>
 
 #include "platform.h"
@@ -24,6 +25,7 @@
 wiiu_settings cfg;
 extern const int default_map[16];
 static void recent_add(const char *path);
+static void cheats_load(void);
 
 /* ------------------------------------------------------------------------ */
 /* helpers                                                                  */
@@ -77,16 +79,30 @@ static struct { const char *key; int *val; int min, max; } OPTS[] = {
 	{ "bios_hle",   &cfg.bios_hle,   0, 1 },
 	{ "bootlogo",   &cfg.bootlogo,   0, 1 },
 	{ "analog",     &cfg.analog,     0, 1 },
+	{ "analog2",    &cfg.analog2,    0, 1 },
+	{ "multitap",   &cfg.multitap,   0, 1 },
+	{ "region",     &cfg.region,     0, 2 },
+	{ "resume",     &cfg.resume,     0, 1 },
+	{ "ffwd",       &cfg.ffwd,       0, 3 },
+	{ "ffspeed",    &cfg.ffspeed,    2, 4 },
 	{ "rumble",     &cfg.rumble,     0, 1 },
 	{ "audio",      &cfg.audio,      0, 1 },
 	{ "bezel",      &cfg.bezel,      0, 2 },
 	{ "view",       &cfg.view,       0, 1 },
 };
-
-void settings_load(void)
+/* keys that only make sense globally (never in a per-game file) */
+static int global_only(const char *k)
 {
-	char line[128];
-	FILE *f;
+	return !strcmp(k, "view") || !strcmp(k, "games_dir") || !strcmp(k, "gpu_thread") ||
+	       !strcmp(k, "spu_thread") || !strcmp(k, "resume") || !strcmp(k, "ffwd");
+}
+
+#define GAMECFG_DIR WIIU_APP_DIR "/gamesettings"
+static char gameKey[64];        /* set while a game is loaded */
+static int  gameScope;          /* editing the per-game file */
+
+static void settings_defaults(void)
+{
 	cfg.dynarec = 1;
 	cfg.gpu_thread = 1;   /* renderer on core 2 */
 	cfg.spu_thread = 0;   /* off: sound was lost with Lightrec + SPU thread */
@@ -101,69 +117,139 @@ void settings_load(void)
 	cfg.bios_hle = 0;
 	cfg.bootlogo = 0;
 	cfg.analog = 0;       /* digital pad: works with every game */
+	cfg.analog2 = 0;
+	cfg.multitap = 0;
+	cfg.region = 0;
+	cfg.resume = 1;
+	cfg.ffwd = 1;         /* hold R3 */
+	cfg.ffspeed = 3;
 	cfg.rumble = 1;
 	cfg.audio = 1;
 	cfg.bezel = BEZEL_AMBIENT;
 	cfg.view = 0;
 	strcpy(cfg.games_dir, WIIU_ISO_DIR);
 	memcpy(cfg.map, default_map, sizeof(cfg.map));
-	f = fopen(WIIU_CONFIG_FILE, "r");
-	if (!f) f = fopen(WIIU_OLD_DIR "/wiiustation.cfg", "r");   /* older builds */
-	if (f) {
-		int version = 0;
-		long start;
-		/* settings files written before version 2 had the threaded GPU off
-		 * and DualShock on: ignore those two keys from old files. */
-		while (fgets(line, sizeof(line), f))
-			if (!strncmp(line, "version", 7)) version = atoi(strchr(line, '=') ? strchr(line, '=') + 1 : "0");
-		rewind(f);
-		(void)start;
-		while (fgets(line, sizeof(line), f)) {
-			char *eq = strchr(line, '=');
-			if (!eq || line[0] == '#') continue;
-			*eq = 0;
-			char *k = line;
-			while (*k == ' ') k++;
-			for (char *e = eq - 1; e >= k && *e == ' '; e--) *e = 0;
-			if (!strcmp(k, "games_dir")) {
-				char *v = eq + 1;
-				while (*v == ' ') v++;
-				v[strcspn(v, "\r\n")] = 0;
-				if (!strncmp(v, WIIU_SD_ROOT, strlen(WIIU_SD_ROOT)))
-					strncpy(cfg.games_dir, v, sizeof(cfg.games_dir) - 1);
-				continue;
-			}
-			if (!strncmp(k, "map", 3) && k[3] >= '0' && k[3] <= '9') {
-				int id = atoi(k + 3), v = atoi(eq + 1);
-				if (id >= 0 && id < 16 && v >= 0 && v < 16) cfg.map[id] = v;
-				continue;
-			}
-			int v = atoi(eq + 1);
-			if (version < 2 && (!strcmp(k, "gpu_thread") || !strcmp(k, "analog")))
-				continue;
-			if (version < 3 && (!strcmp(k, "spu_thread") || !strcmp(k, "filter")))
-				continue;
-			for (unsigned i = 0; i < sizeof(OPTS) / sizeof(OPTS[0]); i++)
-				if (!strcmp(OPTS[i].key, k) && v >= OPTS[i].min && v <= OPTS[i].max)
-					*OPTS[i].val = v;
+}
+
+static int settings_parse(const char *path, int isGame)
+{
+	char line[300];
+	FILE *f = fopen(path, "r");
+	int version = 0;
+	if (!f) return 0;
+	/* files written before version 2 had the threaded GPU off and DualShock
+	 * on; before version 3 the SPU thread on and a broken filter */
+	while (fgets(line, sizeof(line), f))
+		if (!strncmp(line, "version", 7)) version = atoi(strchr(line, '=') ? strchr(line, '=') + 1 : "0");
+	rewind(f);
+	while (fgets(line, sizeof(line), f)) {
+		char *eq = strchr(line, '=');
+		if (!eq || line[0] == '#') continue;
+		*eq = 0;
+		char *k = line;
+		while (*k == ' ') k++;
+		for (char *e = eq - 1; e >= k && *e == ' '; e--) *e = 0;
+		if (isGame && global_only(k)) continue;
+		if (!strcmp(k, "games_dir")) {
+			char *v = eq + 1;
+			while (*v == ' ') v++;
+			v[strcspn(v, "\r\n")] = 0;
+			if (!strncmp(v, WIIU_SD_ROOT, strlen(WIIU_SD_ROOT)))
+				strncpy(cfg.games_dir, v, sizeof(cfg.games_dir) - 1);
+			continue;
 		}
-		fclose(f);
+		if (!strncmp(k, "map", 3) && k[3] >= '0' && k[3] <= '9') {
+			int id = atoi(k + 3), v = atoi(eq + 1);
+			if (id >= 0 && id < 16 && v >= 0 && v < 16) cfg.map[id] = v;
+			continue;
+		}
+		int v = atoi(eq + 1);
+		if (version < 2 && (!strcmp(k, "gpu_thread") || !strcmp(k, "analog")))
+			continue;
+		if (version < 3 && (!strcmp(k, "spu_thread") || !strcmp(k, "filter")))
+			continue;
+		for (unsigned i = 0; i < sizeof(OPTS) / sizeof(OPTS[0]); i++)
+			if (!strcmp(OPTS[i].key, k) && v >= OPTS[i].min && v <= OPTS[i].max)
+				*OPTS[i].val = v;
+	}
+	fclose(f);
+	return 1;
+}
+
+static int settings_write(const char *path, int isGame)
+{
+	FILE *f = fopen(path, "w");
+	if (!f) return 0;
+	fprintf(f, "# WiiUStation %s\nversion = 3\n", isGame ? "per-game settings" : "settings");
+	for (unsigned i = 0; i < sizeof(OPTS) / sizeof(OPTS[0]); i++)
+		if (!isGame || !global_only(OPTS[i].key))
+			fprintf(f, "%s = %d\n", OPTS[i].key, *OPTS[i].val);
+	if (!isGame) fprintf(f, "games_dir = %s\n", cfg.games_dir);
+	for (int i = 0; i < 16; i++) fprintf(f, "map%d = %d\n", i, cfg.map[i]);
+	fclose(f);
+	return 1;
+}
+
+static void game_cfg_path(char *out, size_t n)
+{
+	snprintf(out, n, "%s/%s.cfg", GAMECFG_DIR, gameKey);
+}
+
+void settings_load(void)
+{
+	settings_defaults();
+	if (!settings_parse(WIIU_CONFIG_FILE, 0))
+		settings_parse(WIIU_OLD_DIR "/wiiustation.cfg", 0);   /* older builds */
+	if (gameKey[0]) {
+		char p[256];
+		game_cfg_path(p, sizeof(p));
+		gameScope = settings_parse(p, 1);
 	}
 	if (!jit_available()) cfg.dynarec = 0;
 }
 
 int settings_save(void)
 {
-	FILE *f;
+	char p[256];
+	if (gameKey[0] && gameScope) {
+		wiiu_mkdirs(GAMECFG_DIR);
+		game_cfg_path(p, sizeof(p));
+		/* globals edited while in game scope still go to the main file */
+		return settings_write(p, 1);
+	}
 	wiiu_mkdirs(WIIU_APP_DIR);
-	f = fopen(WIIU_CONFIG_FILE, "w");
-	if (!f) return 0;
-	fprintf(f, "# WiiUStation settings\nversion = 3\n");
-	for (unsigned i = 0; i < sizeof(OPTS) / sizeof(OPTS[0]); i++)
-		fprintf(f, "%s = %d\n", OPTS[i].key, *OPTS[i].val);
-	fprintf(f, "games_dir = %s\n", cfg.games_dir);
-	for (int i = 0; i < 16; i++) fprintf(f, "map%d = %d\n", i, cfg.map[i]);
-	fclose(f);
+	return settings_write(WIIU_CONFIG_FILE, 0);
+}
+
+void settings_enter_game(const char *key)
+{
+	snprintf(gameKey, sizeof(gameKey), "%s", key);
+	for (char *c = gameKey; *c; c++)
+		if (*c == '/' || *c == ':' || *c == '\\') *c = '_';
+	settings_load();
+}
+
+void settings_leave_game(void)
+{
+	gameKey[0] = 0;
+	gameScope = 0;
+	settings_load();
+}
+
+int settings_game_scope(void) { return gameKey[0] && gameScope; }
+
+int settings_set_game_scope(int on)
+{
+	char p[256];
+	if (!gameKey[0]) return 0;
+	game_cfg_path(p, sizeof(p));
+	if (on) {
+		gameScope = 1;
+		return settings_save();          /* starts as a copy of the current values */
+	}
+	remove(p);
+	gameScope = 0;
+	settings_load();                     /* back to the global values */
 	return 1;
 }
 
@@ -213,6 +299,9 @@ static const char *core_var(const char *key)
 	if (!strcmp(key, "pcsx_rearmed_bios")) return cfg.bios_hle ? "HLE" : "auto";
 	if (!strcmp(key, "pcsx_rearmed_show_bios_bootlogo")) return cfg.bootlogo ? "enabled" : "disabled";
 	if (!strcmp(key, "pcsx_rearmed_spu_reverb")) return cfg.reverb ? "enabled" : "disabled";
+	if (!strcmp(key, "pcsx_rearmed_multitap")) return cfg.multitap ? "port 1" : "disabled";
+	if (!strcmp(key, "pcsx_rearmed_region"))
+		return cfg.region == 1 ? "NTSC" : cfg.region == 2 ? "PAL" : "auto";
 	if (!strcmp(key, "pcsx_rearmed_vibration")) return cfg.rumble ? "enabled" : "disabled";
 	if (!strcmp(key, "pcsx_rearmed_display_fps_v2")) return "disabled";
 	if (!strcmp(key, "pcsx_rearmed_rgb32_output")) return "disabled"; /* RGB565: cheapest upload */
@@ -322,28 +411,48 @@ static void audio_sample_cb(int16_t l, int16_t r)
 	audio_push(s, 1);
 }
 
+static int ffMuted;      /* fast forward: extra frames make no sound */
+
 static size_t audio_batch_cb(const int16_t *d, size_t frames)
 {
-	audio_push(d, frames);
+	if (!ffMuted) audio_push(d, frames);
 	return frames;
 }
 
-/* ---- input: PSX port -> Wii U controller ---- */
-static int portPad[2] = { -1, -1 };
+/* ---- input: PSX pad index -> Wii U controller ----
+ * Players are the connected controllers in order (GamePad first). Without a
+ * multitap, player 1 = pad index 0 and player 2 = index 1. With a multitap
+ * on port 1, players 1-4 = indices 0-3 and player 5 = index 4 (port 2). */
+#define NPORTS 8
+static int portPad[NPORTS];
 
 int pad_for_port(int port)
 {
-	return port >= 0 && port < 2 ? portPad[port] : -1;
+	return port >= 0 && port < NPORTS ? portPad[port] : -1;
 }
 
 static void assign_pads(void)
 {
-	int n = 0;
-	portPad[0] = portPad[1] = -1;
-	for (int i = 0; i < WIIU_MAX_PADS && n < 2; i++)
-		if (wiiu_input_get(i)->connected) portPad[n++] = i;
-	if (portPad[0] < 0) portPad[0] = 0;
+	int players[WIIU_MAX_PADS], n = 0;
+	for (int i = 0; i < NPORTS; i++) portPad[i] = -1;
+	for (int i = 0; i < WIIU_MAX_PADS; i++)
+		if (wiiu_input_get(i)->connected) players[n++] = i;
+	if (!n) players[n++] = 0;
+	for (int k = 0; k < n; k++) {
+		int port = cfg.multitap ? (k < 4 ? k : 4) : (k == 0 ? 0 : k == 1 ? 1 : -1);
+		if (port >= 0) portPad[port] = players[k];
+	}
 }
+
+int emu_player_count(void)
+{
+	int n = 0;
+	for (int i = 0; i < NPORTS; i++) if (portPad[i] >= 0) n++;
+	return n;
+}
+
+/* pad type of a PSX pad index: player 1 uses cfg.analog, the others analog2 */
+static int port_is_analog(int port) { return port == 0 ? cfg.analog : cfg.analog2; }
 
 static void input_poll_cb(void)
 {
@@ -365,11 +474,11 @@ const int default_map[16] = {
 	14, 15,                         /* L3 R3 */
 };
 
-static uint32_t psx_mask(const wiiu_pad_state *p)
+static uint32_t psx_mask(const wiiu_pad_state *p, int analog)
 {
 	uint32_t b = p->held, m = 0;
 	/* Digital pad: the left stick also drives the d-pad */
-	if (!cfg.analog) {
+	if (!analog) {
 		if (p->ly > 0.5f)  b |= WIIU_BTN_UP;
 		if (p->ly < -0.5f) b |= WIIU_BTN_DOWN;
 		if (p->lx < -0.5f) b |= WIIU_BTN_LEFT;
@@ -382,6 +491,9 @@ static uint32_t psx_mask(const wiiu_pad_state *p)
 	return m;
 }
 
+/* while fast forward is held on R3, the game must not see R3 */
+static uint32_t ffwdMask = 0xffffffffu;
+
 static int16_t input_state_cb(unsigned port, unsigned device, unsigned index, unsigned id)
 {
 	int pad = pad_for_port(port);
@@ -392,14 +504,14 @@ static int16_t input_state_cb(unsigned port, unsigned device, unsigned index, un
 
 	switch (device & RETRO_DEVICE_MASK) {
 	case RETRO_DEVICE_JOYPAD: {
-		uint32_t m = psx_mask(p);
+		uint32_t m = psx_mask(p, port_is_analog(port)) & ffwdMask;
 		if (id == RETRO_DEVICE_ID_JOYPAD_MASK) return (int16_t)m;
 		return (m >> id) & 1;
 	}
 	case RETRO_DEVICE_ANALOG: {
 		float v;
 		if (index == RETRO_DEVICE_INDEX_ANALOG_BUTTON) {
-			uint32_t m = psx_mask(p);
+			uint32_t m = psx_mask(p, port_is_analog(port)) & ffwdMask;
 			return ((m >> id) & 1) ? 0x7fff : 0;
 		}
 		if (index == RETRO_DEVICE_INDEX_ANALOG_LEFT)
@@ -477,10 +589,11 @@ void emu_apply_settings(void)
 {
 	varsDirty = 1;
 	if (loaded) {
-		unsigned dev = cfg.analog ? RETRO_DEVICE_SUBCLASS(RETRO_DEVICE_ANALOG, 1)
-		                          : RETRO_DEVICE_JOYPAD;
-		retro_set_controller_port_device(0, dev);
-		retro_set_controller_port_device(1, dev);
+		for (int port = 0; port < NPORTS; port++) {
+			unsigned dev = port_is_analog(port) ? RETRO_DEVICE_SUBCLASS(RETRO_DEVICE_ANALOG, 1)
+			                                    : RETRO_DEVICE_JOYPAD;
+			retro_set_controller_port_device(port, dev);
+		}
 	}
 }
 
@@ -495,8 +608,17 @@ int emu_load_game(const char *path)
 	strncpy(gamePath, path, sizeof(gamePath) - 1);
 	strncpy(gameName, slash ? slash + 1 : path, sizeof(gameName) - 1);
 
+	/* per-game settings are keyed by the file name; applied before the core
+	 * reads its options (region, dynarec, BIOS...) */
+	{
+		char key[256];
+		snprintf(key, sizeof(key), "%s", gameName);
+		char *dot = strrchr(key, '.');
+		if (dot) *dot = 0;
+		settings_enter_game(key);
+	}
 	varsDirty = 1;
-	if (!retro_load_game(&gi)) return -1;
+	if (!retro_load_game(&gi)) { settings_leave_game(); return -1; }
 	loaded = 1;
 	retro_get_system_av_info(&av);
 	emu_apply_settings();
@@ -506,6 +628,7 @@ int emu_load_game(const char *path)
 	if (!covers_detect_id(path, gameId)) gameId[0] = 0;
 	video_set_game_id(gameId);
 	recent_add(path);
+	cheats_load();
 	return 0;
 }
 
@@ -513,10 +636,12 @@ void emu_unload_game(void)
 {
 	if (!loaded) return;
 	emu_save_memcards();
+	if (cfg.resume) emu_state_save(-1);     /* "continue where you left off" */
 	retro_unload_game();
 	audio_shutdown();
 	loaded = 0;
 	gameName[0] = 0;
+	settings_leave_game();
 }
 
 /* ---- recently played (recent.txt, newest first) ---- */
@@ -572,7 +697,8 @@ static void state_path(int slot, char *out, size_t sz)
 	base[sizeof(base) - 1] = 0;
 	char *dot = strrchr(base, '.');
 	if (dot) *dot = 0;
-	snprintf(out, sz, "%s/%s.state%d", WIIU_STATE_DIR, base, slot);
+	if (slot < 0) snprintf(out, sz, "%s/%s.auto", WIIU_STATE_DIR, base);
+	else snprintf(out, sz, "%s/%s.state%d", WIIU_STATE_DIR, base, slot);
 }
 
 int emu_state_save(int slot)
@@ -589,6 +715,11 @@ int emu_state_save(int slot)
 		wiiu_mkdirs(WIIU_STATE_DIR);
 		state_path(slot, path, sizeof(path));
 		ok = write_file(path, buf, size) == 0;
+		if (ok && slot >= 0) {            /* thumbnail for the slot picker */
+			char png[600];
+			snprintf(png, sizeof(png), "%s.png", path);
+			video_save_frame(png, 160);
+		}
 	}
 	free(buf);
 	return ok;
@@ -609,6 +740,168 @@ int emu_state_load(int slot)
 		ok = retro_unserialize(buf, size);
 	free(buf);
 	return ok;
+}
+
+int emu_state_exists(int slot)
+{
+	char path[512];
+	struct stat st;
+	if (!loaded) return 0;
+	state_path(slot, path, sizeof(path));
+	return stat(path, &st) == 0;
+}
+
+/* path of a slot's thumbnail (may not exist) */
+void emu_state_thumb(int slot, char *out, size_t n)
+{
+	char path[512];
+	state_path(slot, path, sizeof(path));
+	snprintf(out, n, "%s.png", path);
+}
+
+/* ---- screenshots ---- */
+int emu_screenshot(void)
+{
+	char path[512], base[256];
+	time_t now = time(NULL);
+	struct tm *tm = localtime(&now);
+	if (!loaded) return 0;
+	snprintf(base, sizeof(base), "%s", gameName);
+	char *dot = strrchr(base, '.');
+	if (dot) *dot = 0;
+	wiiu_mkdirs(WIIU_APP_DIR "/screenshots");
+	snprintf(path, sizeof(path), "%s/screenshots/%s-%04d%02d%02d-%02d%02d%02d.png", WIIU_APP_DIR, base,
+	         tm ? tm->tm_year + 1900 : 0, tm ? tm->tm_mon + 1 : 0, tm ? tm->tm_mday : 0,
+	         tm ? tm->tm_hour : 0, tm ? tm->tm_min : 0, tm ? tm->tm_sec : 0);
+	return video_save_frame(path, 0);
+}
+
+/* ---- cheats: libretro .cht files in WiiUStation/cheats ---- */
+#define MAX_CHEATS 128
+static struct { char desc[96]; char code[512]; int on; } cheats[MAX_CHEATS];
+static int ncheats;
+static char chtPath[512];
+
+static char *cht_value(char *v)
+{
+	while (*v == ' ' || *v == '\t') v++;
+	v[strcspn(v, "\r\n")] = 0;
+	if (*v == '"') { v++; char *e = strrchr(v, '"'); if (e) *e = 0; }
+	return v;
+}
+
+static void cheats_apply(void)
+{
+	retro_cheat_reset();
+	for (int i = 0; i < ncheats; i++)
+		if (cheats[i].on) retro_cheat_set(i, true, cheats[i].code);
+}
+
+static void cheats_load(void)
+{
+	char base[256], line[700];
+	FILE *f = NULL;
+	ncheats = 0;
+	chtPath[0] = 0;
+	snprintf(base, sizeof(base), "%s", gameName);
+	char *dot = strrchr(base, '.');
+	if (dot) *dot = 0;
+	/* <file name>.cht, else <GAME-ID>.cht */
+	snprintf(chtPath, sizeof(chtPath), "%s/cheats/%s.cht", WIIU_APP_DIR, base);
+	f = fopen(chtPath, "r");
+	if (!f && gameId[0]) {
+		snprintf(chtPath, sizeof(chtPath), "%s/cheats/%s.cht", WIIU_APP_DIR, gameId);
+		f = fopen(chtPath, "r");
+	}
+	if (!f) { chtPath[0] = 0; return; }
+	while (fgets(line, sizeof(line), f)) {
+		int idx;
+		char field[16];
+		char *eq = strchr(line, '=');
+		if (!eq || sscanf(line, "cheat%d_%15[a-z]", &idx, field) != 2) continue;
+		if (idx < 0 || idx >= MAX_CHEATS) continue;
+		char *v = cht_value(eq + 1);
+		if (!strcmp(field, "desc")) snprintf(cheats[idx].desc, sizeof(cheats[idx].desc), "%s", v);
+		else if (!strcmp(field, "code")) snprintf(cheats[idx].code, sizeof(cheats[idx].code), "%s", v);
+		else if (!strcmp(field, "enable")) cheats[idx].on = !strcmp(v, "true");
+		if (idx + 1 > ncheats) ncheats = idx + 1;
+	}
+	fclose(f);
+	for (int i = 0; i < ncheats; i++)
+		if (!cheats[i].desc[0]) snprintf(cheats[i].desc, sizeof(cheats[i].desc), "Cheat %d", i + 1);
+	cheats_apply();
+}
+
+static void cheats_save(void)
+{
+	FILE *f;
+	if (!chtPath[0]) return;
+	f = fopen(chtPath, "w");
+	if (!f) return;
+	fprintf(f, "cheats = %d\n\n", ncheats);
+	for (int i = 0; i < ncheats; i++)
+		fprintf(f, "cheat%d_desc = \"%s\"\ncheat%d_code = \"%s\"\ncheat%d_enable = %s\n\n",
+		        i, cheats[i].desc, i, cheats[i].code, i, cheats[i].on ? "true" : "false");
+	fclose(f);
+}
+
+int emu_cheat_count(void) { return ncheats; }
+const char *emu_cheat_name(int i) { return i >= 0 && i < ncheats ? cheats[i].desc : ""; }
+int emu_cheat_enabled(int i) { return i >= 0 && i < ncheats && cheats[i].on; }
+void emu_cheat_toggle(int i)
+{
+	if (i < 0 || i >= ncheats) return;
+	cheats[i].on = !cheats[i].on;
+	cheats_apply();
+	cheats_save();
+}
+
+/* ---- favourites (file names, favorites.txt) ---- */
+#define FAV_FILE WIIU_APP_DIR "/favorites.txt"
+static char (*favs)[256];
+static int nfavs = -1;
+
+static void favs_load(void)
+{
+	FILE *f;
+	char line[300];
+	if (nfavs >= 0) return;
+	nfavs = 0;
+	f = fopen(FAV_FILE, "r");
+	if (!f) return;
+	while (fgets(line, sizeof(line), f)) {
+		line[strcspn(line, "\r\n")] = 0;
+		if (!line[0]) continue;
+		favs = realloc(favs, (nfavs + 1) * sizeof(*favs));
+		snprintf(favs[nfavs++], sizeof(favs[0]), "%s", line);
+	}
+	fclose(f);
+}
+
+static const char *base_of(const char *p) { const char *s = strrchr(p, '/'); return s ? s + 1 : p; }
+
+int emu_fav_is(const char *path)
+{
+	favs_load();
+	for (int i = 0; i < nfavs; i++) if (!strcmp(favs[i], base_of(path))) return 1;
+	return 0;
+}
+
+void emu_fav_toggle(const char *path)
+{
+	FILE *f;
+	favs_load();
+	int i;
+	for (i = 0; i < nfavs; i++) if (!strcmp(favs[i], base_of(path))) break;
+	if (i < nfavs) { memmove(favs[i], favs[i + 1], (nfavs - i - 1) * sizeof(*favs)); nfavs--; }
+	else {
+		favs = realloc(favs, (nfavs + 1) * sizeof(*favs));
+		snprintf(favs[nfavs++], sizeof(favs[0]), "%s", base_of(path));
+	}
+	f = fopen(FAV_FILE, "w");
+	if (!f) return;
+	for (i = 0; i < nfavs; i++) fprintf(f, "%s\n", favs[i]);
+	fclose(f);
 }
 
 int emu_disk_count(void) { return haveDisk ? (int)disk.get_num_images() : 0; }
@@ -675,17 +968,40 @@ static void run_game(void)
 	audio_pause(!cfg.audio);
 	hotkey_pressed();   /* arm the latch */
 
+	int ffToggle = 0, ffPrev = 0;
 	while (!wiiu_quit) {
 		wiiu_input_update();
 		if (hotkey_pressed()) break;
 
+		/* ---- fast forward ---- */
+		uint32_t any = 0;
+		for (int i = 0; i < WIIU_MAX_PADS; i++)
+			if (wiiu_input_get(i)->connected) any |= wiiu_input_get(i)->held;
+		int r3 = (any & WIIU_BTN_STICKR) && !(any & WIIU_BTN_STICKL);   /* L3+R3 = menu */
+		int zlzr = (any & (WIIU_BTN_ZL | WIIU_BTN_ZR)) == (WIIU_BTN_ZL | WIIU_BTN_ZR);
+		if (cfg.ffwd == 2 && r3 && !ffPrev) ffToggle = !ffToggle;
+		ffPrev = r3;
+		int ff = (cfg.ffwd == 1 && r3) || (cfg.ffwd == 2 && ffToggle) || (cfg.ffwd == 3 && zlzr);
+		ffwdMask = 0xffffffffu;
+		if (cfg.ffwd == 1 || cfg.ffwd == 2) ffwdMask &= ~(1u << RETRO_DEVICE_ID_JOYPAD_R3);
+		if (cfg.ffwd == 3 && zlzr)
+			ffwdMask &= ~((1u << RETRO_DEVICE_ID_JOYPAD_L2) | (1u << RETRO_DEVICE_ID_JOYPAD_R2));
+
+		if (ff) {
+			ffMuted = 1;
+			for (int i = 1; i < cfg.ffspeed; i++) retro_run();
+			ffMuted = 0;
+		}
 		retro_run();
 		video_draw_game(0);
+		if (ff) video_osd(">> Fast forward");
 		video_present();
 		if (!pump_events()) break;
 
 		/* pacing: audio sync when sound is on, timer otherwise */
-		if (cfg.audio) {
+		if (ff) {
+			/* run as fast as the extra frames allow */
+		} else if (cfg.audio) {
 			size_t target = audio_target_frames();
 			int guard = 0;
 			while (audio_queued_frames() > target && guard++ < 40)
@@ -708,6 +1024,7 @@ static void run_game(void)
 		}
 	}
 
+	ffwdMask = 0xffffffffu;
 	audio_pause(1);
 	for (int i = 0; i < WIIU_MAX_PADS; i++) wiiu_input_rumble(i, 0);
 	wiiu_home_button_ingame(0);
