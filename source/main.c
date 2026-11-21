@@ -551,6 +551,36 @@ static bool rumble_cb(unsigned port, enum retro_rumble_effect effect, uint16_t s
 	return true;
 }
 
+/* The core's options and their defaults, as it declares them (legacy
+ * variables: "Description; default|other|..."). Options WiiUStation sets
+ * itself are answered by core_var; every other one gets its default, so the
+ * core never runs with an option missing (the memory card was "none"). */
+#define MAXDEF 160
+static struct { char key[64]; char def[48]; } coreDefs[MAXDEF];
+static int nCoreDefs;
+
+static void core_defaults_set(const struct retro_variable *v)
+{
+	nCoreDefs = 0;
+	for (; v && v->key && nCoreDefs < MAXDEF; v++) {
+		const char *semi = v->value ? strchr(v->value, ';') : NULL;
+		if (!semi) continue;
+		semi++;
+		while (*semi == ' ') semi++;
+		size_t n = strcspn(semi, "|");
+		snprintf(coreDefs[nCoreDefs].key, sizeof(coreDefs[0].key), "%s", v->key);
+		snprintf(coreDefs[nCoreDefs].def, sizeof(coreDefs[0].def), "%.*s", (int)n, semi);
+		nCoreDefs++;
+	}
+}
+
+static const char *core_default(const char *key)
+{
+	for (int i = 0; i < nCoreDefs; i++)
+		if (!strcmp(coreDefs[i].key, key)) return coreDefs[i].def;
+	return NULL;
+}
+
 static bool environment(unsigned cmd, void *data)
 {
 	switch (cmd) {
@@ -569,6 +599,7 @@ static bool environment(unsigned cmd, void *data)
 	case RETRO_ENVIRONMENT_GET_VARIABLE: {
 		struct retro_variable *v = data;
 		v->value = core_var(v->key);
+		if (!v->value) v->value = core_default(v->key);   /* the core's own default */
 		return v->value != NULL;
 	}
 	case RETRO_ENVIRONMENT_GET_VARIABLE_UPDATE:
@@ -616,6 +647,8 @@ static bool environment(unsigned cmd, void *data)
 		*(int *)data = 3;
 		return true;
 	case RETRO_ENVIRONMENT_SET_VARIABLES:
+		core_defaults_set((const struct retro_variable *)data);
+		return true;
 	case RETRO_ENVIRONMENT_SET_INPUT_DESCRIPTORS:
 	case RETRO_ENVIRONMENT_SET_CONTROLLER_INFO:
 	case RETRO_ENVIRONMENT_SET_PERFORMANCE_LEVEL:
