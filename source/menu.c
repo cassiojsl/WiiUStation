@@ -3820,11 +3820,22 @@ static void intro(void)
 	static const SDL_Color tint[4] = {
 		{ 120, 235, 190, 255 }, { 255, 140, 140, 255 }, { 150, 190, 255, 255 }, { 255, 150, 235, 255 }
 	};
-	const uint32_t T0 = SDL_GetTicks(), LEN = 2600;
 	int chimed = 0;
 	menu_fonts();
 	draw_header(NULL, 0);              /* loads the logo */
+	/* everything the animation needs is made before it starts, so it runs
+	 * without a stall: the sounds and audio device, the caption's text and
+	 * the first shapes drawn */
+	sfx_prepare();
+	text_wrap(fontSmall, 640, 560, 1000, "PlayStation (PS1) emulator for the Wii U, based on PCSX-ReARMed", GREY);
+	bgNV = bgNI = 0;
+	bg_ngon(640, 330, 60, 28, 7, 0, (SDL_Color){ 0, 0, 0, 0 });
+	SDL_RenderGeometry(R, NULL, bgV, bgNV, bgIdx, bgNI);
+	SDL_SetRenderDrawColor(R, 4, 6, 18, 255);
+	SDL_RenderClear(R);
+	SDL_RenderPresent(R);
 	poll_buttons();
+	const uint32_t T0 = SDL_GetTicks(), LEN = 2600;
 	for (;;) {
 		uint32_t now = SDL_GetTicks() - T0;
 		float t = now / 1000.0f;

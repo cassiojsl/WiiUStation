@@ -110,6 +110,7 @@ int emu_coll_has(const char *c, const char *p) { return strstr(p, "Metal") && !s
 void emu_coll_toggle(const char *c, const char *p) { (void)c; (void)p; }
 int net_status(void) { return getenv("NET") ? atoi(getenv("NET")) : 1; }
 void sfx_play(int id) { (void)id; }
+void sfx_prepare(void) {}
 const char *app_version(void) { return "v1.0.0"; }
 int update_check(char *t, size_t tn, char *e, size_t en) { snprintf(t, tn, "v1.1.0"); (void)e; (void)en; return 1; }
 int update_start(void) { return 1; }

@@ -171,6 +171,15 @@ void sfx_play(int id)
 	SDL_PauseAudio(0);
 }
 
+/* builds the sounds and opens the audio device ahead of time, so the first
+ * sound (the opening chime) does not stall the animation */
+void sfx_prepare(void)
+{
+	if (!cfg.menusfx) return;
+	sfx_build();
+	if (!opened) audio_init(44100.0);
+}
+
 int audio_init(double rate)
 {
 	SDL_AudioSpec want, have;

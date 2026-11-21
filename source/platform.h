@@ -176,6 +176,7 @@ size_t audio_queued_frames(void);
 size_t audio_target_frames(void);
 /* menu sounds */
 enum { SFX_MOVE, SFX_OK, SFX_BACK, SFX_ERROR, SFX_INTRO, SFX_COUNT };
+void sfx_prepare(void);
 void sfx_play(int id);
 
 /* ---- input (input.c) ---- */
