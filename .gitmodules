@@ -1,0 +1,4 @@
+[submodule "vendor/pcsx_rearmed"]
+	path = vendor/pcsx_rearmed
+	url = https://github.com/libretro/pcsx_rearmed.git
+	ignore = dirty
