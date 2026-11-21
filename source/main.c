@@ -32,6 +32,7 @@ static void cheats_apply(void);
 static void cheats_clear(void);
 static int wsActive;   /* widescreen on and the game has a code for it */
 static int cheatsReady; /* the loaded game's cheats are read */
+static volatile int chtState;   /* cheat download: 0 idle, 1 running, 2 got a file (reload), 3 none */
 
 /* ------------------------------------------------------------------------ */
 /* helpers                                                                  */
@@ -1055,6 +1056,7 @@ void emu_unload_game(void)
 	audio_shutdown();
 	loaded = 0;
 	autofixMask = 0;
+	if (chtState != 1) chtState = 0;
 	cheats_clear();
 	cheatsReady = 0;
 	wsActive = 0;
@@ -1285,6 +1287,83 @@ int emu_screenshot(void)
 	return video_save_frame(path, 0);
 }
 
+/* ---- cheats from the libretro database ----
+ * When a game has no .cht file, it is fetched in the background from
+ * github.com/libretro/libretro-database (cht/Sony - PlayStation): by its game
+ * ID through content/cheats_index.txt, else by the game's file name. */
+#define CHT_URL "https://raw.githubusercontent.com/libretro/libretro-database/master/cht/Sony%20-%20PlayStation/"
+static char chtNames[4][256], chtDest[512];
+static int nChtNames;
+
+static int cheat_index_lookup(const char *id, char *out, size_t n)
+{
+	char line[400];
+	size_t l = strlen(id);
+	FILE *f = id[0] ? fopen("fs:/vol/content/cheats_index.txt", "r") : NULL;
+	if (!f) return 0;
+	int found = 0;
+	while (fgets(line, sizeof(line), f))
+		if (!strncmp(line, id, l) && line[l] == '|') {
+			line[strcspn(line, "\r\n")] = 0;
+			snprintf(out, n, "%s", line + l + 1);
+			found = 1;
+			break;
+		}
+	fclose(f);
+	return found;
+}
+
+static void url_encode(const char *in, char *out, size_t n)
+{
+	size_t o = 0;
+	for (; *in && o + 4 < n; in++) {
+		unsigned char c = (unsigned char)*in;
+		if (isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~') out[o++] = (char)c;
+		else o += snprintf(out + o, n - o, "%%%02X", c);
+	}
+	out[o] = 0;
+}
+
+static int cheat_thread(void *ud)
+{
+	(void)ud;
+	for (int i = 0; i < nChtNames; i++) {
+		char url[900], enc[700];
+		url_encode(chtNames[i], enc, sizeof(enc));
+		snprintf(url, sizeof(url), "%s%s.cht", CHT_URL, enc);
+		int r = net_download(url, chtDest);
+		if (r == 1) { chtState = 2; return 0; }
+		if (r == 0) break;                     /* no network: don't try the others */
+	}
+	chtState = 3;
+	return 0;
+}
+
+static void cheats_fetch(const char *base)
+{
+	char idx[256];
+	if (chtState == 1 || !net_status()) return;
+	nChtNames = 0;
+	if (cheat_index_lookup(gameId, idx, sizeof(idx))) snprintf(chtNames[nChtNames++], 256, "%s", idx);
+	/* guesses from a No-Intro style file name */
+	snprintf(chtNames[nChtNames++], 256, "%s (GameShark)", base);
+	snprintf(chtNames[nChtNames++], 256, "%s (Game Buster)", base);
+	snprintf(chtNames[nChtNames++], 256, "%s", base);
+	wiiu_mkdirs(WIIU_APP_DIR "/cheats");
+	snprintf(chtDest, sizeof(chtDest), "%s/cheats/%s.cht", WIIU_APP_DIR, gameId[0] ? gameId : base);
+	chtState = 1;
+	SDL_Thread *t = SDL_CreateThread(cheat_thread, "cheats", NULL);
+	if (t) SDL_DetachThread(t); else chtState = 0;
+}
+
+int emu_cheats_downloading(void) { return chtState == 1; }
+
+/* read the cheats once their download has finished */
+void emu_cheats_poll(void)
+{
+	if (chtState == 2 && loaded) { chtState = 0; cheats_load(); }
+}
+
 /* ---- cheats: libretro .cht files in WiiUStation/cheats ---- */
 #define MAX_CHEATS 128
 static struct { char desc[96]; char code[512]; int on; } cheats[MAX_CHEATS];
@@ -1342,7 +1421,14 @@ static void cheats_load(void)
 		snprintf(chtPath, sizeof(chtPath), "%s/cheats/%s.cht", WIIU_APP_DIR, gameId);
 		f = fopen(chtPath, "r");
 	}
-	if (!f) { chtPath[0] = 0; return; }
+	if (!f) {
+		/* none on the SD card: fetch it from the libretro database */
+		chtPath[0] = 0;
+		cheats_apply();
+		cheatsReady = 1;
+		if (chtState != 3) cheats_fetch(base);
+		return;
+	}
 	while (fgets(line, sizeof(line), f)) {
 		int idx;
 		char field[16];
@@ -1618,6 +1704,9 @@ static void run_game(void)
 	while (!wiiu_quit) {
 		wiiu_input_update();
 		if (hotkey_pressed()) break;
+
+		/* cheats downloaded in the background: read them now */
+		emu_cheats_poll();
 
 		/* ---- hotkeys: hold the hotkey button, press an action ---- */
 		{

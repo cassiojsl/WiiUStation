@@ -393,3 +393,4 @@
 { "Information...", "Informations..." },
 { "Automatic fix for this game: %s", "Correction automatique pour ce jeu : %s" },
 { "System (%s)", "Système (%s)" },
+{ "Downloading the cheats for this game...", "Téléchargement des codes de ce jeu..." },

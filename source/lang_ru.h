@@ -406,3 +406,4 @@
 { "Collections...", "Коллекции..." },
 { "Automatic fix for this game: %s", "Автоисправление для этой игры: %s" },
 { "System (%s)", "Системный (%s)" },
+{ "Downloading the cheats for this game...", "Загрузка читов для этой игры..." },

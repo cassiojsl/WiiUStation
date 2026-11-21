@@ -76,7 +76,10 @@ controllers.
   "Settings for" to "This game only".
 - **Players**: up to 5 with a multitap. Player 1 and the other players can
   each use a Digital pad or a DualShock. Every button can be remapped.
-- **Cheats**: GameShark codes from libretro `.cht` files.
+- **Cheats**: GameShark codes from libretro `.cht` files. When a game has
+  none, they are downloaded from the libretro cheat database
+  (`content/cheats_index.txt`, made by `tools/cheats/make_index.py`, maps
+  game IDs to its files).
 - **Favourites and search**: in the game browser, Y marks a favourite, −
   shows favourites only, + searches by name. **Screenshots** can be taken
   from the menu.

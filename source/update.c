@@ -96,6 +96,11 @@ static long vnum(const char *v)
 
 static char latestTag[32], latestUrl[512];
 
+static size_t file_write_cb(void *p, size_t sz, size_t n, void *ud)
+{
+	return fwrite(p, sz, n, (FILE *)ud);
+}
+
 /* 1 newer version available, 0 up to date, -1 error (message in err) */
 int update_check(char *tag, size_t tn, char *err, size_t en)
 {
@@ -139,6 +144,33 @@ int update_check(char *tag, size_t tn, char *err, size_t en)
 	return have < 0 || want > have ? 1 : 0;
 }
 
+/* a small file to disk: 1 ok, -1 not found (404), 0 failed */
+int net_download(const char *url, const char *path)
+{
+	char tmp[600];
+	long code = 0;
+	if (!net_init()) return 0;
+	snprintf(tmp, sizeof(tmp), "%s.part", path);
+	FILE *f = fopen(tmp, "wb");
+	if (!f) return 0;
+	CURL *c = new_handle(url);
+	if (!c) { fclose(f); remove(tmp); return 0; }
+	curl_easy_setopt(c, CURLOPT_WRITEFUNCTION, file_write_cb);
+	curl_easy_setopt(c, CURLOPT_WRITEDATA, f);
+	curl_easy_setopt(c, CURLOPT_TIMEOUT, 30L);
+	curl_easy_setopt(c, CURLOPT_MAXFILESIZE, 4L * 1024 * 1024);
+	CURLcode rc = curl_easy_perform(c);
+	curl_easy_getinfo(c, CURLINFO_RESPONSE_CODE, &code);
+	curl_easy_cleanup(c);
+	fclose(f);
+	if (rc == CURLE_OK && code == 200) {
+		remove(path);
+		if (rename(tmp, path) == 0) return 1;
+	}
+	remove(tmp);
+	return rc == CURLE_OK && code == 404 ? -1 : 0;
+}
+
 /* ---- the download ---- */
 static volatile int dlState;           /* 0 idle, 1 running, 2 done, -1 failed */
 static volatile double dlNow, dlTotal;
@@ -151,10 +183,7 @@ static int progress_cb(void *ud, curl_off_t total, curl_off_t now, curl_off_t ut
 	return 0;
 }
 
-static size_t file_write(void *p, size_t sz, size_t n, void *ud)
-{
-	return fwrite(p, sz, n, (FILE *)ud);
-}
+
 
 static int download_thread(void *ud)
 {
@@ -166,7 +195,7 @@ static int download_thread(void *ud)
 	FILE *f = fopen(tmp, "wb");
 	CURL *c = f ? new_handle(latestUrl) : NULL;
 	if (!c) { if (f) fclose(f); dlState = -1; return 0; }
-	curl_easy_setopt(c, CURLOPT_WRITEFUNCTION, file_write);
+	curl_easy_setopt(c, CURLOPT_WRITEFUNCTION, file_write_cb);
 	curl_easy_setopt(c, CURLOPT_WRITEDATA, f);
 	curl_easy_setopt(c, CURLOPT_NOPROGRESS, 0L);
 	curl_easy_setopt(c, CURLOPT_XFERINFOFUNCTION, progress_cb);

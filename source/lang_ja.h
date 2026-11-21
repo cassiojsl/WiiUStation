@@ -406,3 +406,4 @@
 { "Collections...", "コレクション..." },
 { "Automatic fix for this game: %s", "このゲームの自動修正: %s" },
 { "System (%s)", "本体の設定 (%s)" },
+{ "Downloading the cheats for this game...", "このゲームのチートをダウンロード中..." },

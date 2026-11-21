@@ -245,6 +245,8 @@ long long emu_state_time(int slot);   /* mtime, 0 = empty */
 int  emu_screenshot(void);
 int  emu_player_count(void);
 int  emu_cheat_count(void);
+int  emu_cheats_downloading(void);        /* 1 while the cheat file is being fetched */
+void emu_cheats_poll(void);              /* load them once downloaded */
 const char *emu_cheat_name(int i);
 int  emu_cheat_enabled(int i);
 void emu_cheat_toggle(int i);
@@ -264,6 +266,7 @@ void emu_save_memcards(void);
 
 /* ---- updates from GitHub releases (update.c) ---- */
 const char *app_version(void);
+int  net_download(const char *url, const char *path);   /* 1 ok, -1 404, 0 failed */
 int  update_check(char *tag, size_t tn, char *err, size_t en);   /* 1 newer, 0 current, -1 error */
 int  update_start(void);
 int  update_progress(float *frac);       /* 1 running, 2 installed, -1 failed */

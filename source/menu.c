@@ -3386,12 +3386,22 @@ static int slot_picker(int save)
 static void cheats_screen(void)
 {
 	const char **labels, **values;
+	emu_cheats_poll();
 	int n = emu_cheat_count();
 	list_t L = { 0, 0 };
 	labels = malloc((n + 1) * sizeof(char *));
 	values = malloc((n + 1) * sizeof(char *));
 	transition();
 	for (;;) {
+		if (!n) {                     /* the download may finish while this is open */
+			emu_cheats_poll();
+			int nn = emu_cheat_count();
+			if (nn) {
+				n = nn;
+				labels = realloc(labels, (n + 1) * sizeof(char *));
+				values = realloc(values, (n + 1) * sizeof(char *));
+			}
+		}
 		for (int i = 0; i < n; i++) {
 			labels[i] = emu_cheat_name(i);
 			values[i] = emu_cheat_enabled(i) ? "On" : "Off";
@@ -3406,7 +3416,10 @@ static void cheats_screen(void)
 		}
 		draw_background();
 		int back = draw_header("Cheats", 1);
-		if (!n) {
+		if (!n && emu_cheats_downloading()) {
+			text(fontItem, 640, 330, "Downloading the cheats for this game...", GREY, 1);
+			spinner(640, 420, 26, PS_BLUE);
+		} else if (!n) {
 			text(fontItem, 640, 330, "No cheats for this game.", GREY, 1);
 			text(fontSmall, 640, 380, "Copy a libretro .cht file to WiiUStation/cheats,", DIM, 1);
 			text(fontSmall, 640, 414, "named like the game file or its ID (e.g. SCUS-94244.cht).", DIM, 1);

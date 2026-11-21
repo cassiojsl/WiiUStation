@@ -389,3 +389,4 @@
 { "Collections...", "Collecties..." },
 { "Automatic fix for this game: %s", "Automatische correctie voor deze game: %s" },
 { "System (%s)", "Systeem (%s)" },
+{ "Downloading the cheats for this game...", "Cheats voor deze game downloaden..." },

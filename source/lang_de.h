@@ -383,3 +383,4 @@
 { "Information...", "Informationen..." },
 { "Collections...", "Sammlungen..." },
 { "Automatic fix for this game: %s", "Automatische Korrektur für dieses Spiel: %s" },
+{ "Downloading the cheats for this game...", "Cheats für dieses Spiel werden geladen..." },

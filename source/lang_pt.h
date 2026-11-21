@@ -129,6 +129,7 @@
 { "Download all covers...", "Baixar todas as capas..." },
 { "Downloaded %d   Already had %d   Not in the repository %d", "Baixadas %d   Já tinha %d   Fora do repositório %d" },
 { "Downloading %s...", "Baixando %s..." },
+{ "Downloading the cheats for this game...", "Baixando as trapaças deste jogo..." },
 { "Drag to scroll", "Arraste para rolar" },
 { "Draw quads as triangles", "Desenhar quadriláteros como triângulos" },
 { "Draws the picture on another CPU core. Faster. Applies on the next game.", "Desenha a imagem em outro núcleo da CPU. Mais rápido. Vale no próximo jogo." },
