@@ -51,12 +51,17 @@ const wiiu_pad_state *wiiu_input_get(int i) { (void)i; return &pad; }
 uint32_t wiiu_input_menu_held(void) { return pad.held; }
 uint32_t wiiu_input_menu_pressed(void) { return pad.pressed; }
 int jit_available(void) { return 1; }
+const int default_map[16] = { 1, 3, 13, 12, 4, 5, 6, 7, 0, 2, 8, 9, 10, 11, 14, 15 };
 int settings_save(void) { return 1; }
 void emu_apply_settings(void) {}
 static int loaded;
 int emu_game_loaded(void) { return loaded; }
 const char *emu_game_name(void) { return "Crash Bandicoot 3 (SCUS-94244).chd"; }
 const char *emu_game_id(void) { return "SCUS-94244"; }
+const char *emu_game_path(void) { return "x"; }
+static const char *rec[] = { SDROOT "/wiiu/apps/WiiUStation/games/Crash Bandicoot 3 (SCUS-94244).chd", SDROOT "/wiiu/apps/WiiUStation/games/Spyro the Dragon (SCUS-94228).chd", SDROOT "/wiiu/apps/WiiUStation/games/Final Fantasy VII (SCUS-94163).chd", SDROOT "/wiiu/apps/WiiUStation/games/Metal Gear Solid (SLUS-00594).chd", SDROOT "/wiiu/apps/WiiUStation/games/Tekken 3 (SCUS-94327).chd", SDROOT "/wiiu/apps/WiiUStation/games/Silent Hill (SLUS-00707).chd" };
+int emu_recent_count(void) { return 6; }
+const char *emu_recent(int i) { return rec[i]; }
 int emu_load_game(const char *p) { (void)p; return -1; }
 void emu_reset(void) {}
 int emu_state_save(int s) { (void)s; return 1; }
@@ -87,11 +92,12 @@ int main(int argc, char **argv)
 	SDL_Init(SDL_INIT_VIDEO); TTF_Init(); IMG_Init(IMG_INIT_JPG | IMG_INIT_PNG);
 	SDL_Window *w = SDL_CreateWindow("m", 0, 0, 1280, 720, SDL_WINDOW_HIDDEN);
 	ren = SDL_CreateRenderer(w, -1, SDL_RENDERER_SOFTWARE);
-	strcpy(cfg.games_dir, WIIU_ISO_DIR); cfg.dynarec = 1; cfg.gpu_thread = 1; cfg.bezel = 1;
+	strcpy(cfg.games_dir, WIIU_ISO_DIR); cfg.dynarec = 1; cfg.gpu_thread = 1; cfg.bezel = 1; memcpy(cfg.map, default_map, sizeof(cfg.map));
 	if (!strcmp(mode, "main")) { menu_run(); }
 	else if (!strcmp(mode, "ingame")) { loaded = 1; menu_run(); }
 	else if (!strcmp(mode, "grid")) { char o[512]; cfg.view = 0; R = ren; menu_fonts(); scriptBtn[10] = WIIU_BTN_RIGHT; scriptBtn[14] = WIIU_BTN_DOWN; browse("Load game", o, sizeof(o), 0); }
 	else if (!strcmp(mode, "list")) { char o[512]; cfg.view = 1; R = ren; menu_fonts(); browse("Load game", o, sizeof(o), 0); }
+	else if (!strcmp(mode, "controls")) { R = ren; menu_fonts(); controls(); }
 	else if (!strcmp(mode, "settings")) { R = ren; menu_fonts(); settings(); }
 	else if (!strcmp(mode, "credits")) { R = ren; menu_fonts(); shotAt = 200; quitAt = 202; credits(); }
 	else if (!strcmp(mode, "loading")) { R = ren; menu_fonts(); loading_screen(WIIU_ISO_DIR "/Crash Bandicoot 3 (SCUS-94244).chd");

@@ -18,6 +18,7 @@
 #include <string.h>
 #include <strings.h>
 #include <math.h>
+#include <time.h>
 #include <dirent.h>
 #include <sys/stat.h>
 
@@ -123,6 +124,54 @@ static void poly(const float *xy, int n, SDL_Color c, uint8_t a)
 	for (int i = 1; i + 1 < n; i++) { idx[k++] = 0; idx[k++] = i; idx[k++] = i + 1; }
 	SDL_SetRenderDrawBlendMode(R, SDL_BLENDMODE_BLEND);
 	SDL_RenderGeometry(R, NULL, v, n, idx, k);
+}
+
+/* Filled rounded rectangle (triangle fan per corner + 3 rects). */
+static void rrect(int x, int y, int w, int h, int r, SDL_Color c, uint8_t a)
+{
+	if (r * 2 > h) r = h / 2;
+	if (r * 2 > w) r = w / 2;
+	/* opaque shapes overlap their parts by a pixel to hide raster seams */
+	int o = a == 255 ? 1 : 0;
+	fill(x + r - o, y, w - 2 * r + 2 * o, h, c, a);
+	fill(x, y + r - o, r, h - 2 * r + 2 * o, c, a);
+	fill(x + w - r, y + r - o, r, h - 2 * r + 2 * o, c, a);
+	const int N = 8;
+	float cxs[4] = { x + r, x + w - r, x + w - r, x + r };
+	float cys[4] = { y + r, y + r, y + h - r, y + h - r };
+	for (int k = 0; k < 4; k++) {
+		float xy[2 * (N + 2)];
+		xy[0] = cxs[k]; xy[1] = cys[k];
+		for (int i = 0; i <= N; i++) {
+			float ang = 3.14159265f * (1.0f + k * 0.5f) + i * (1.5707963f / N);
+			xy[2 + i * 2] = cxs[k] + cosf(ang) * (r + o * 0.5f);
+			xy[3 + i * 2] = cys[k] + sinf(ang) * (r + o * 0.5f);
+		}
+		poly(xy, N + 2, c, a);
+	}
+}
+
+/* Rounded outline: a ring of thickness t drawn as two rrects would blend
+ * twice, so draw thin rounded strips instead. */
+static void rframe(int x, int y, int w, int h, int r, int t, SDL_Color c, uint8_t a)
+{
+	fill(x + r, y, w - 2 * r, t, c, a);
+	fill(x + r, y + h - t, w - 2 * r, t, c, a);
+	fill(x, y + r, t, h - 2 * r, c, a);
+	fill(x + w - t, y + r, t, h - 2 * r, c, a);
+	const int N = 8;
+	float cxs[4] = { x + r, x + w - r, x + w - r, x + r };
+	float cys[4] = { y + r, y + r, y + h - r, y + h - r };
+	for (int k = 0; k < 4; k++)
+		for (int i = 0; i < N; i++) {
+			float a0 = 3.14159265f * (1.0f + k * 0.5f) + i * (1.5707963f / N);
+			float a1 = a0 + 1.5707963f / N;
+			float q[8] = { cxs[k] + cosf(a0) * r, cys[k] + sinf(a0) * r,
+			               cxs[k] + cosf(a1) * r, cys[k] + sinf(a1) * r,
+			               cxs[k] + cosf(a1) * (r - t), cys[k] + sinf(a1) * (r - t),
+			               cxs[k] + cosf(a0) * (r - t), cys[k] + sinf(a0) * (r - t) };
+			poly(q, 4, c, a);
+		}
 }
 
 static void ring(float cx, float cy, float r, float t, SDL_Color c)
@@ -293,12 +342,11 @@ static int logoW, logoH;
 static int draw_header(const char *title, int showBack)
 {
 	SDL_Color hdr = { 0, 0, 0 };
-	fill(0, 0, 1280, 104, hdr, 150);
+	fill(0, 0, 1280, 104, hdr, 90);
 
 	if (showBack) {
-		SDL_Color panel = { 40, 48, 80 };
-		fill(BACK_X, BACK_Y, BACK_W, BACK_H, panel, 230);
-		outline(BACK_X, BACK_Y, BACK_W, BACK_H, GREY, 120, 2);
+		SDL_Color panel = { 44, 50, 78 };
+		rrect(BACK_X, BACK_Y, BACK_W, BACK_H, BACK_H / 2, panel, 255);
 		float ax = BACK_X + 30, ay = BACK_Y + BACK_H / 2.0f;
 		float tri[6] = { ax - 12, ay, ax + 8, ay - 14, ax + 8, ay + 14 };
 		poly(tri, 3, WHITE, 255);
@@ -321,6 +369,15 @@ static int draw_header(const char *title, int showBack)
 		}
 	}
 	if (title) text(fontTitle, 1240, 52, title, WHITE, 2);
+	else {
+		time_t now = time(NULL);
+		struct tm *tm = localtime(&now);
+		char clk[16];
+		if (tm) {
+			snprintf(clk, sizeof(clk), "%02d:%02d", tm->tm_hour, tm->tm_min);
+			text(fontTitle, 1240, 52, clk, GREY, 2);
+		}
+	}
 	return showBack && tap_in(BACK_X, BACK_Y, BACK_W, BACK_H);
 }
 
@@ -412,9 +469,9 @@ static void draw_cover(const char *id, const char *caption)
 {
 	int w = 0, h = 0;
 	SDL_Texture *t = id && id[0] ? (SDL_Texture *)covers_texture(R, id, &w, &h) : NULL;
-	SDL_Color panel = { 10, 14, 34 };
+	SDL_Color panel = { 14, 18, 40 };
 	int y = 128;
-	fill(COVER_X - 12, y - 8, COVER_W + 24, COVER_W + 80, panel, 170);
+	rrect(COVER_X - 12, y - 8, COVER_W + 24, COVER_W + 80, 18, panel, 190);
 	if (t && w > 0 && h > 0) {
 		int dw = COVER_W, dh = COVER_W * h / w;
 		if (dh > COVER_W) { dh = COVER_W; dw = COVER_W * w / h; }
@@ -483,17 +540,16 @@ static int list_run(list_t *L, const char **labels, const char **values, int cou
 	int first = (int)L->scroll;
 	float frac = L->scroll - first;
 
-	SDL_Color panel = { 10, 14, 34 };
-	fill(LIST_X - 20, LIST_Y - 8, LIST_W + 40, ROWS * ROW_H + 16, panel, 170);
+	SDL_Color panel = { 14, 18, 40 };
+	rrect(LIST_X - 20, LIST_Y - 8, LIST_W + 40, ROWS * ROW_H + 16, 18, panel, 190);
 	SDL_RenderSetClipRect(R, &(SDL_Rect){ LIST_X - 20, LIST_Y - 8, LIST_W + 40, ROWS * ROW_H + 16 });
 	{
 		/* highlight glides to the selected row */
 		float ty = LIST_Y + (L->sel - L->scroll) * ROW_H;
 		if (!L->hyInit) { L->hy = ty; L->hyInit = 1; }
 		L->hy += (ty - L->hy) * 0.4f;
-		SDL_Color hl = { 52, 84, 168 };
-		fill(LIST_X - 12, (int)L->hy + 3, LIST_W + 24, ROW_H - 6, hl, 220);
-		outline(LIST_X - 12, (int)L->hy + 3, LIST_W + 24, ROW_H - 6, PS_BLUE, 200, 2);
+		SDL_Color hl = { 0, 110, 190 };
+		rrect(LIST_X - 12, (int)L->hy + 4, LIST_W + 24, ROW_H - 8, 14, hl, 255);
 	}
 
 	for (int i = 0; i <= ROWS && first + i < count; i++) {
@@ -681,9 +737,8 @@ static int grid_run(grid_t *G, entry_t *list, const char **labels, int count, co
 		if (!G->hInit) { G->hx = tx; G->hy = ty; G->hInit = 1; }
 		G->hx += (tx - G->hx) * 0.4f;
 		G->hy += (ty - G->hy) * 0.4f;
-		SDL_Color hl = { 52, 84, 168 };
-		fill((int)G->hx, (int)G->hy, CELL_W - 12, CELL_H - 10, hl, 200);
-		outline((int)G->hx, (int)G->hy, CELL_W - 12, CELL_H - 10, PS_BLUE, 220, 3);
+		SDL_Color hl = { 0, 110, 190 };
+		rrect((int)G->hx, (int)G->hy, CELL_W - 12, CELL_H - 10, 18, hl, 255);
 	}
 	int firstRow = (int)G->scroll;
 	for (int r = firstRow; r <= firstRow + GRID_ROWS_VIS && r < rows; r++) {
@@ -900,14 +955,15 @@ rescan:
 /* settings                                                                 */
 /* ------------------------------------------------------------------------ */
 static void advanced(void);
+static void controls(void);
 
 static void settings(void)
 {
 	enum { S_GAMES, S_VIEW, S_CORE, S_SKIP, S_FPS, S_AUDIO, S_ASPECT, S_FILTER, S_BEZEL, S_SCAN, S_CRT,
-	       S_DITHER, S_PAD, S_RUMBLE, S_BIOS, S_LOGO, S_ADV, S_COUNT };
+	       S_DITHER, S_PAD, S_CONTROLS, S_RUMBLE, S_BIOS, S_LOGO, S_ADV, S_COUNT };
 	const char *labels[S_COUNT] = {
 		"Games folder", "Game list", "CPU core", "Frame skip", "Show FPS", "Sound", "Screen", "Picture", "Border",
-		"Scanlines", "CRT mask", "Dithering", "Controller", "Vibration",
+		"Scanlines", "CRT mask", "Dithering", "Controller", "Button mapping...", "Vibration",
 		"BIOS", "PlayStation boot logo", "Advanced..."
 	};
 	const char *values[S_COUNT];
@@ -931,6 +987,7 @@ static void settings(void)
 		values[S_FPS]    = cfg.show_fps ? "On" : "Off";
 		values[S_AUDIO]  = cfg.audio ? "On" : "Off";
 		values[S_ASPECT] = cfg.aspect == WIIU_ASPECT_4_3 ? "4:3" :
+		                   cfg.aspect == WIIU_ASPECT_ZOOM ? "4:3 Auto zoom" :
 		                   cfg.aspect == WIIU_ASPECT_STRETCH ? "Stretch" : "Integer";
 		values[S_FILTER] = cfg.filter == WIIU_FILTER_LINEAR ? "Smooth" :
 		                   cfg.filter == WIIU_FILTER_NEAREST ? "Pixel" : "Sharp smooth";
@@ -938,6 +995,7 @@ static void settings(void)
 		values[S_CRT]    = cfg.crt ? "On" : "Off";
 		values[S_DITHER] = cfg.dithering == 0 ? "Off" : cfg.dithering == 1 ? "On" : "Force";
 		values[S_PAD]    = cfg.analog ? "DualShock" : "Digital";
+		values[S_CONTROLS] = NULL;
 		values[S_RUMBLE] = cfg.rumble ? "On" : "Off";
 		values[S_BIOS]   = cfg.bios_hle ? "Built-in" : "Auto";
 		values[S_LOGO]   = cfg.bootlogo ? "On" : "Off";
@@ -996,7 +1054,15 @@ static void settings(void)
 		case S_SKIP:   cfg.frameskip = !cfg.frameskip; break;
 		case S_FPS:    cfg.show_fps = !cfg.show_fps; break;
 		case S_AUDIO:  cfg.audio = !cfg.audio; break;
-		case S_ASPECT: cfg.aspect = (cfg.aspect + 3 + dir) % 3; break;
+		case S_ASPECT: {
+			/* order shown: 4:3, Auto zoom, Stretch, Integer */
+			static const int ord[4] = { WIIU_ASPECT_4_3, WIIU_ASPECT_ZOOM, WIIU_ASPECT_STRETCH, WIIU_ASPECT_INTEGER };
+			int k = 0;
+			while (k < 4 && ord[k] != cfg.aspect) k++;
+			cfg.aspect = ord[(k + 4 + dir) % 4];
+			if (cfg.aspect == WIIU_ASPECT_ZOOM) status("Crops the black borders the game draws, then fills the height.");
+			break;
+		}
 		case S_FILTER: cfg.filter = (cfg.filter + 3 + dir) % 3; break;
 		case S_SCAN:   cfg.scanlines = !cfg.scanlines; break;
 		case S_CRT:    cfg.crt = !cfg.crt; break;
@@ -1004,6 +1070,7 @@ static void settings(void)
 		case S_PAD:    cfg.analog = !cfg.analog;
 		               if (cfg.analog) status("DualShock: some older games only work with Digital.");
 		               break;
+		case S_CONTROLS: controls(); transition(); break;
 		case S_RUMBLE: cfg.rumble = !cfg.rumble; break;
 		case S_BIOS:   cfg.bios_hle = !cfg.bios_hle; status("Applies the next time a game is loaded."); break;
 		case S_LOGO:   cfg.bootlogo = !cfg.bootlogo; break;
@@ -1169,18 +1236,136 @@ static void menu_fonts(void)
 /* ------------------------------------------------------------------------ */
 static int slot = 0;
 
+/* ------------------------------------------------------------------------ */
+/* controls: button mapping                                                 */
+/* ------------------------------------------------------------------------ */
+extern const int default_map[16];
+static const char *wiiu_btn_name(int bit)
+{
+	static const char *n[] = { "A", "B", "X", "Y", "D-Pad Up", "D-Pad Down", "D-Pad Left",
+	                           "D-Pad Right", "L", "R", "ZL", "ZR", "+ (Plus)", "- (Minus)",
+	                           "L-Stick click", "R-Stick click" };
+	return bit >= 0 && bit < 16 ? n[bit] : "None";
+}
+
+static void controls(void)
+{
+	/* display order of the PlayStation buttons -> RETRO_DEVICE_ID_JOYPAD_* */
+	static const int order[16] = { 9, 8, 0, 1, 10, 11, 12, 13, 14, 15, 3, 2, 4, 5, 6, 7 };
+	static const char *psx[16] = { "Triangle", "Circle", "Cross", "Square", "L1", "R1", "L2", "R2",
+	                               "L3", "R3", "Start", "Select", "Up", "Down", "Left", "Right" };
+	const char *labels[18], *values[18];
+	list_t L = { 0, 0 };
+	transition();
+	for (;;) {
+		for (int i = 0; i < 16; i++) {
+			labels[i] = psx[i];
+			values[i] = wiiu_btn_name(cfg.map[order[i]]);
+		}
+		labels[16] = "Reset to default";
+		values[16] = NULL;
+		poll_touch();
+		uint32_t b = poll_buttons();
+		int dir = 0;
+		if (b & WIIU_BTN_UP)   L.sel = L.sel > 0 ? L.sel - 1 : 16;
+		if (b & WIIU_BTN_DOWN) L.sel = L.sel < 16 ? L.sel + 1 : 0;
+		if (b & (WIIU_BTN_RIGHT | WIIU_BTN_A)) dir = 1;
+		if (b & WIIU_BTN_LEFT) dir = -1;
+
+		draw_background();
+		int back = draw_header("Controls", 1);
+		int arrow = 0;
+		int t = list_run(&L, labels, values, 17, 1, &arrow, NULL);
+		if (t >= 0) dir = 1;
+		if (arrow) dir = arrow;
+		draw_footer("Same layout for every controller");
+		present();
+		if (back || (b & WIIU_BTN_B) || wiiu_quit) { settings_save(); return; }
+		if (!dir) continue;
+		if (L.sel == 16) {
+			memcpy(cfg.map, default_map, sizeof(cfg.map));
+			status("Default layout restored.");
+		} else {
+			int id = order[L.sel];
+			cfg.map[id] = (cfg.map[id] + 16 + dir) % 16;
+		}
+	}
+}
+
+/* ------------------------------------------------------------------------ */
+/* home screen                                                              */
+/* ------------------------------------------------------------------------ */
+enum { H_RESUME, H_SAVE, H_LOAD, H_SLOT, H_RESET, H_DISC, H_RECENT,
+       H_GAMES, H_SETTINGS, H_CREDITS, H_EXIT };
+typedef struct { SDL_Rect r; int kind, arg; } hitem_t;
+
+static void icon(int kind, float cx, float cy, float s, SDL_Color c)
+{
+	switch (kind) {
+	case H_GAMES:     /* 2x2 tiles */
+		for (int i = 0; i < 4; i++)
+			rrect((int)(cx - s / 2 + (i & 1) * s * 0.55f), (int)(cy - s / 2 + (i >> 1) * s * 0.55f),
+			      (int)(s * 0.45f), (int)(s * 0.45f), (int)(s * 0.1f), c, 255);
+		break;
+	case H_SETTINGS:  /* gear */
+		for (int i = 0; i < 8; i++) {
+			float a = i * 0.785398f;
+			bar(cx + cosf(a) * s * 0.28f, cy + sinf(a) * s * 0.28f,
+			    cx + cosf(a) * s * 0.5f, cy + sinf(a) * s * 0.5f, s * 0.16f, c);
+		}
+		ring(cx, cy, s * 0.36f, s * 0.14f, c);
+		break;
+	case H_CREDITS:   /* "i" in a circle */
+		ring(cx, cy, s * 0.48f, s * 0.08f, c);
+		rrect((int)(cx - s * 0.06f), (int)(cy - s * 0.08f), (int)(s * 0.12f), (int)(s * 0.36f), 3, c, 255);
+		rrect((int)(cx - s * 0.06f), (int)(cy - s * 0.28f), (int)(s * 0.12f), (int)(s * 0.12f), 6, c, 255);
+		break;
+	case H_EXIT: {    /* power symbol */
+		const int N = 20;
+		for (int i = 2; i < N - 2; i++) {
+			float a0 = -1.5707963f + i * 6.2831853f / N, a1 = a0 + 6.2831853f / N;
+			float r = s * 0.42f, t = s * 0.1f;
+			float q[8] = { cx + cosf(a0) * r, cy + sinf(a0) * r, cx + cosf(a1) * r, cy + sinf(a1) * r,
+			               cx + cosf(a1) * (r - t), cy + sinf(a1) * (r - t), cx + cosf(a0) * (r - t), cy + sinf(a0) * (r - t) };
+			poly(q, 4, c, 255);
+		}
+		bar(cx, cy - s * 0.5f, cx, cy - s * 0.05f, s * 0.1f, c);
+		break;
+	}
+	default: break;
+	}
+}
+
+/* d-pad spatial navigation between the items */
+static int nav(const hitem_t *it, int n, int cur, int dx, int dy)
+{
+	int best = cur;
+	float bestScore = 1e9f;
+	float cx = it[cur].r.x + it[cur].r.w / 2.0f, cy = it[cur].r.y + it[cur].r.h / 2.0f;
+	for (int i = 0; i < n; i++) {
+		if (i == cur) continue;
+		float x = it[i].r.x + it[i].r.w / 2.0f - cx, y = it[i].r.y + it[i].r.h / 2.0f - cy;
+		float along = x * dx + y * dy, across = fabsf(x * dy) + fabsf(y * dx);
+		if (along <= 4) continue;
+		float score = along + across * 2.2f;
+		if (score < bestScore) { bestScore = score; best = i; }
+	}
+	return best;
+}
+
+static void pill(const SDL_Rect *r, const char *label, int focused)
+{
+	SDL_Color bg = { 40, 46, 74 };
+	if (!focused) rrect(r->x, r->y, r->w, r->h, r->h / 2, bg, 255);
+	text(fontSmall, r->x + r->w / 2, r->y + r->h / 2, label, WHITE, 1);
+}
+
 int menu_run(void)
 {
-	enum { M_RESUME, M_LOAD, M_RESET, M_DISC, M_SAVE, M_LOADST, M_SLOT, M_SETTINGS, M_CREDITS, M_EXIT, M_COUNT };
-	static const char *allLabels[M_COUNT] = {
-		"Resume game", "Load game", "Reset game", "Change disc", "Save state",
-		"Load state", "State slot", "Settings", "Credits", "Exit to Wii U Menu"
-	};
-	int map[M_COUNT];
-	const char *labels[M_COUNT];
-	const char *values[M_COUNT];
-	char slotStr[8], discStr[16];
-	list_t L = { 0, 0 };
+	hitem_t it[40];
+	int sel = -1, n;
+	float fx = 0, fy = 0, fw = 0, fh = 0;
+	char path[512], m[128];
 
 	menu_fonts();
 	poll_buttons();
@@ -1188,112 +1373,202 @@ int menu_run(void)
 	transition();
 
 	for (;;) {
-		int n = 0, loaded = emu_game_loaded();
-		for (int i = 0; i < M_COUNT; i++) {
-			if (!loaded && (i == M_RESUME || i == M_RESET || i == M_DISC ||
-			                i == M_SAVE || i == M_LOADST || i == M_SLOT))
-				continue;
-			map[n] = i;
-			labels[n] = allLabels[i];
-			values[n] = NULL;
-			if (i == M_SLOT) { snprintf(slotStr, sizeof(slotStr), "%d", slot); values[n] = slotStr; }
-			if (i == M_DISC && emu_disk_count() > 1) {
-				snprintf(discStr, sizeof(discStr), "%d / %d", emu_disk_index() + 1, emu_disk_count());
-				values[n] = discStr;
+		int loaded = emu_game_loaded();
+		int nrec = emu_recent_count();
+		n = 0;
+
+		/* ---- layout ---- */
+		int tileY, tileH;
+		if (loaded) {
+			const char *labels[6] = { "Resume", "Save state", "Load state", "", "Reset", "Change disc" };
+			static const int widths[6] = { 130, 142, 142, 140, 108, 152 };
+			int x = 330;
+			for (int i = 0; i < 6; i++) {
+				it[n++] = (hitem_t){ { x, 278, widths[i], 58 }, i, 0 };
+				x += widths[i] + 12;
+				(void)labels;
 			}
-			n++;
+			int rx = 60;
+			for (int i = 0; i < nrec && i < 9; i++) {
+				it[n++] = (hitem_t){ { rx, 404, 112, 112 }, H_RECENT, i };
+				rx += 128;
+			}
+			tileY = 562; tileH = 84;
+		} else {
+			int rx = 60;
+			for (int i = 0; i < nrec && i < 6; i++) {
+				it[n++] = (hitem_t){ { rx, 168, 170, 170 }, H_RECENT, i };
+				rx += 196;
+			}
+			tileY = 436; tileH = 190;
 		}
-		if (L.sel >= n) L.sel = n - 1;
+		for (int i = 0; i < 4; i++)
+			it[n++] = (hitem_t){ { 60 + i * 295, tileY, 275, tileH }, H_GAMES + i, 0 };
+		if (sel < 0 || sel >= n) {
+			sel = 0;
+			for (int i = 0; i < n; i++) if (it[i].kind == (loaded ? H_RESUME : nrec ? H_RECENT : H_GAMES)) { sel = i; break; }
+			fx = it[sel].r.x; fy = it[sel].r.y; fw = it[sel].r.w; fh = it[sel].r.h;
+		}
 		if (wiiu_quit) return 0;
 
+		/* ---- input ---- */
 		poll_touch();
 		uint32_t b = poll_buttons();
-		int activate = 0, dir = 0;
-		if (b & WIIU_BTN_UP)    L.sel = L.sel > 0 ? L.sel - 1 : n - 1;
-		if (b & WIIU_BTN_DOWN)  L.sel = L.sel < n - 1 ? L.sel + 1 : 0;
-		if (b & WIIU_BTN_A)     activate = 1;
-		if (b & WIIU_BTN_LEFT)  dir = -1;
-		if (b & WIIU_BTN_RIGHT) dir = 1;
-
-		draw_background();
-		int back = draw_header(NULL, 0);
-		if (loaded) {
-			char sub[300];
-			snprintf(sub, sizeof(sub), "Now playing: %s", emu_game_name());
-			text(fontSmall, LIST_X, 116, sub, GREY, 0);
-		}
-		int arrow = 0;
-		if (loaded) listW = 700;
-		int t = list_run(&L, labels, values, n, 0, &arrow, NULL);
-		listW = 1060;
-		if (loaded) draw_cover(emu_game_id(), emu_game_id());
-		if (t >= 0) activate = 1;
-		/* touch on the slot / disc value cycles it */
-		draw_footer(loaded ? "HOME  Wii U HOME Menu    In game: HOME / touch / L3+R3 = menu" :
-		                     "Games go in sd:/wiiu/apps/WiiUStation/games");
-		{
-			char info[96];
-			snprintf(info, sizeof(info), "PCSX-ReARMed  |  %s", cfg.dynarec ? "Lightrec" : "Interpreter");
-			text(fontSmall, 1240, 642, info, DIM, 2);
-		}
-		present();
-		(void)back;
-
+		int activate = 0;
+		if (b & WIIU_BTN_LEFT)  sel = nav(it, n, sel, -1, 0);
+		if (b & WIIU_BTN_RIGHT) sel = nav(it, n, sel, 1, 0);
+		if (b & WIIU_BTN_UP)    sel = nav(it, n, sel, 0, -1);
+		if (b & WIIU_BTN_DOWN)  sel = nav(it, n, sel, 0, 1);
+		if (b & WIIU_BTN_A) activate = 1;
 		if ((b & WIIU_BTN_B) && loaded) return 1;
-
-		int item = map[L.sel];
-		if (item == M_SLOT && (dir || activate)) {
-			slot = (slot + 10 + (dir ? dir : 1)) % 10;
-		} else if (item == M_DISC && dir && emu_disk_count() > 1) {
-			int c = emu_disk_count();
-			emu_disk_set((emu_disk_index() + c + dir) % c);
-		} else if (activate) {
-			char path[512], m[96];
-			switch (item) {
-			case M_RESUME:
-				return 1;
-			case M_LOAD:
-				if (browse("Load game", path, sizeof(path), 0)) {
-					loading_screen(path);
-					if (emu_load_game(path) == 0) { video_fade_in(); return 1; }
-					status("Could not load the game (bad image or missing BIOS?).");
-				}
-				break;
-			case M_RESET:
-				emu_reset();
-				return 1;
-			case M_DISC:
-				if (emu_disk_count() > 1) {
-					int c = emu_disk_count();
-					emu_disk_set((emu_disk_index() + 1) % c);
-					snprintf(m, sizeof(m), "Disc %d of %d inserted.", emu_disk_index() + 1, c);
-					status(m);
-				} else if (browse("Change disc", path, sizeof(path), 0)) {
-					if (emu_disk_append(path)) return 1;
-					status("Disc change failed.");
-				}
-				break;
-			case M_SAVE:
-				snprintf(m, sizeof(m), emu_state_save(slot) ? "State saved to slot %d."
-				                                            : "Could not save the state (slot %d).", slot);
-				status(m);
-				break;
-			case M_LOADST:
-				if (emu_state_load(slot)) return 1;
-				snprintf(m, sizeof(m), "No state in slot %d.", slot);
-				status(m);
-				break;
-			case M_SETTINGS:
-				settings();
-				transition();
-				break;
-			case M_CREDITS:
-				credits();
-				transition();
-				break;
-			case M_EXIT:
-				return 0;
+		for (int i = 0; i < n; i++)
+			if (tap_in(it[i].r.x, it[i].r.y, it[i].r.w, it[i].r.h)) {
+				if (it[i].kind == H_SLOT) {   /* left / right half of the slot pill */
+					slot = (slot + (T.tx < it[i].r.x + it[i].r.w / 2 ? 9 : 1)) % 10;
+					sel = i;
+				} else { sel = i; activate = 1; }
 			}
+		if (it[sel].kind == H_SLOT && (b & (WIIU_BTN_L | WIIU_BTN_R)))
+			slot = (slot + ((b & WIIU_BTN_L) ? 9 : 1)) % 10;
+
+		/* ---- draw ---- */
+		draw_background();
+		draw_header(NULL, 0);
+		SDL_Color card = { 14, 18, 40 };
+		if (loaded) {
+			rrect(50, 120, 1180, 236, 22, card, 200);
+			const char *id = emu_game_id();
+			cover_or_disc(id, 74, 140, 196);
+			char nm[96];
+			pretty_name(emu_game_name(), nm, sizeof(nm));
+			text(fontSmall, 330, 160, "NOW PLAYING", PS_BLUE, 0);
+			text(fontTitle, 330, 210, nm, WHITE, 0);
+			text(fontSmall, 1210, 160, "Player 1: GamePad   Player 2: next controller", DIM, 2);
+			text(fontSmall, 60, 384, "Recently played", GREY, 0);
+		} else {
+			text(fontItem, 60, 140, nrec ? "Recently played" : "Welcome", WHITE, 0);
+			if (!nrec) {
+				rrect(50, 168, 1180, 170, 22, card, 200);
+				text(fontItem, 640, 230, "Tap Games to choose a game.", WHITE, 1);
+				text(fontSmall, 640, 280, "Put your games in sd:/wiiu/apps/WiiUStation/games", GREY, 1);
+			}
+		}
+
+		/* animated focus frame */
+		{
+			SDL_Rect r = it[sel].r;
+			fx += (r.x - fx) * 0.35f; fy += (r.y - fy) * 0.35f;
+			fw += (r.w - fw) * 0.35f; fh += (r.h - fh) * 0.35f;
+			SDL_Color hl = { 0, 140, 220 };
+			int rad = it[sel].kind <= H_DISC ? (int)(fh / 2) : 18;
+			rrect((int)fx - 6, (int)fy - 6, (int)fw + 12, (int)fh + 12, rad + 6, hl, 255);
+		}
+
+		for (int i = 0; i < n; i++) {
+			SDL_Rect r = it[i].r;
+			int f = i == sel;
+			switch (it[i].kind) {
+			case H_RESUME: pill(&r, "Resume", f); break;
+			case H_SAVE:   pill(&r, "Save state", f); break;
+			case H_LOAD:   pill(&r, "Load state", f); break;
+			case H_SLOT:
+				snprintf(m, sizeof(m), "<  Slot %d  >", slot);
+				pill(&r, m, f);
+				break;
+			case H_RESET:  pill(&r, "Reset", f); break;
+			case H_DISC:
+				if (emu_disk_count() > 1) snprintf(m, sizeof(m), "Disc %d/%d", emu_disk_index() + 1, emu_disk_count());
+				else snprintf(m, sizeof(m), "Change disc");
+				pill(&r, m, f);
+				break;
+			case H_RECENT: {
+				const char *p = emu_recent(it[i].arg);
+				char id[16] = "";
+				covers_detect_id(p, id);
+				cover_or_disc(id, r.x, r.y, r.w);
+				if (!loaded) {
+					char nm[48], sh[32];
+					pretty_name(p, nm, sizeof(nm));
+					if (strlen(nm) > 16) snprintf(sh, sizeof(sh), "%.14s...", nm); else snprintf(sh, sizeof(sh), "%s", nm);
+					text(fontSmall, r.x + r.w / 2, r.y + r.h + 26, sh, f ? WHITE : GREY, 1);
+				}
+				break;
+			}
+			default: {
+				static const char *tl[4] = { "Games", "Settings", "Credits", "Exit" };
+				int k = it[i].kind - H_GAMES;
+				rrect(r.x, r.y, r.w, r.h, 18, card, 210);
+				if (r.h > 120) {
+					icon(it[i].kind, r.x + r.w / 2.0f, r.y + r.h / 2.0f - 22, 64, WHITE);
+					text(fontItem, r.x + r.w / 2, r.y + r.h - 34, tl[k], WHITE, 1);
+				} else {
+					icon(it[i].kind, r.x + 50, r.y + r.h / 2.0f, 40, WHITE);
+					text(fontItem, r.x + 92, r.y + r.h / 2, tl[k], WHITE, 0);
+				}
+				break;
+			}
+			}
+		}
+		draw_footer(loaded ? "In game: HOME / touch / L3+R3 = this menu" : NULL);
+		present();
+
+		if (!activate) continue;
+		switch (it[sel].kind) {
+		case H_RESUME:
+			return 1;
+		case H_SAVE:
+			snprintf(m, sizeof(m), emu_state_save(slot) ? "State saved to slot %d." : "Could not save the state (slot %d).", slot);
+			status(m);
+			break;
+		case H_LOAD:
+			if (emu_state_load(slot)) return 1;
+			snprintf(m, sizeof(m), "No state in slot %d.", slot);
+			status(m);
+			break;
+		case H_SLOT:
+			slot = (slot + 1) % 10;
+			break;
+		case H_RESET:
+			emu_reset();
+			return 1;
+		case H_DISC:
+			if (emu_disk_count() > 1) {
+				int c = emu_disk_count();
+				emu_disk_set((emu_disk_index() + 1) % c);
+				snprintf(m, sizeof(m), "Disc %d of %d inserted.", emu_disk_index() + 1, c);
+				status(m);
+			} else if (browse("Change disc", path, sizeof(path), 0)) {
+				if (emu_disk_append(path)) return 1;
+				status("Disc change failed.");
+			}
+			transition();
+			break;
+		case H_RECENT:
+			snprintf(path, sizeof(path), "%s", emu_recent(it[sel].arg));
+			if (loaded && !strcmp(path, emu_game_path())) return 1;
+			loading_screen(path);
+			if (emu_load_game(path) == 0) { video_fade_in(); return 1; }
+			status("Could not load the game.");
+			transition();
+			break;
+		case H_GAMES:
+			if (browse("Games", path, sizeof(path), 0)) {
+				loading_screen(path);
+				if (emu_load_game(path) == 0) { video_fade_in(); return 1; }
+				status("Could not load the game (bad image or missing BIOS?).");
+			}
+			transition();
+			break;
+		case H_SETTINGS:
+			settings();
+			transition();
+			break;
+		case H_CREDITS:
+			credits();
+			transition();
+			break;
+		case H_EXIT:
+			return 0;
 		}
 	}
 }

@@ -33,7 +33,8 @@ extern "C" {
 int wiiu_mkdirs(const char *path);
 
 /* ---- settings ---- */
-enum { WIIU_ASPECT_4_3 = 0, WIIU_ASPECT_STRETCH, WIIU_ASPECT_INTEGER };
+/* ZOOM: 4:3 with the black borders the game itself draws cropped away */
+enum { WIIU_ASPECT_4_3 = 0, WIIU_ASPECT_STRETCH, WIIU_ASPECT_INTEGER, WIIU_ASPECT_ZOOM };
 enum { BEZEL_OFF = 0, BEZEL_AMBIENT, BEZEL_CUSTOM };
 enum { WIIU_FILTER_LINEAR = 0, WIIU_FILTER_NEAREST, WIIU_FILTER_SHARP_BILINEAR };
 
@@ -56,6 +57,7 @@ typedef struct {
 	int audio;
 	int bezel;          /* 0 off, 1 ambient, 2 custom image */
 	int view;           /* game browser: 0 grid, 1 list */
+	int map[16];        /* PSX button (RETRO_DEVICE_ID_JOYPAD_*) -> WIIU_BTN bit index */
 	char games_dir[256];  /* folder the game browser opens */
 } wiiu_settings;
 
@@ -137,6 +139,9 @@ int  jit_available(void);
 int  emu_load_game(const char *path);
 void emu_unload_game(void);
 int  emu_game_loaded(void);
+const char *emu_game_path(void);
+int  emu_recent_count(void);
+const char *emu_recent(int i);   /* full path, newest first */
 const char *emu_game_name(void);
 void emu_reset(void);
 int  emu_state_save(int slot);

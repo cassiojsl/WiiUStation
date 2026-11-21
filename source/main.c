@@ -22,6 +22,8 @@
 #include "libretro.h"
 
 wiiu_settings cfg;
+extern const int default_map[16];
+static void recent_add(const char *path);
 
 /* ------------------------------------------------------------------------ */
 /* helpers                                                                  */
@@ -66,7 +68,7 @@ static struct { const char *key; int *val; int min, max; } OPTS[] = {
 	{ "spu_thread", &cfg.spu_thread, 0, 1 },
 	{ "frameskip",  &cfg.frameskip,  0, 1 },
 	{ "show_fps",   &cfg.show_fps,   0, 1 },
-	{ "aspect",     &cfg.aspect,     0, 2 },
+	{ "aspect",     &cfg.aspect,     0, 3 },
 	{ "filter",     &cfg.filter,     0, 2 },
 	{ "scanlines",  &cfg.scanlines,  0, 1 },
 	{ "crt",        &cfg.crt,        0, 1 },
@@ -104,6 +106,7 @@ void settings_load(void)
 	cfg.bezel = BEZEL_AMBIENT;
 	cfg.view = 0;
 	strcpy(cfg.games_dir, WIIU_ISO_DIR);
+	memcpy(cfg.map, default_map, sizeof(cfg.map));
 	f = fopen(WIIU_CONFIG_FILE, "r");
 	if (!f) f = fopen(WIIU_OLD_DIR "/wiiustation.cfg", "r");   /* older builds */
 	if (f) {
@@ -130,6 +133,11 @@ void settings_load(void)
 					strncpy(cfg.games_dir, v, sizeof(cfg.games_dir) - 1);
 				continue;
 			}
+			if (!strncmp(k, "map", 3) && k[3] >= '0' && k[3] <= '9') {
+				int id = atoi(k + 3), v = atoi(eq + 1);
+				if (id >= 0 && id < 16 && v >= 0 && v < 16) cfg.map[id] = v;
+				continue;
+			}
 			int v = atoi(eq + 1);
 			if (version < 2 && (!strcmp(k, "gpu_thread") || !strcmp(k, "analog")))
 				continue;
@@ -154,6 +162,7 @@ int settings_save(void)
 	for (unsigned i = 0; i < sizeof(OPTS) / sizeof(OPTS[0]); i++)
 		fprintf(f, "%s = %d\n", OPTS[i].key, *OPTS[i].val);
 	fprintf(f, "games_dir = %s\n", cfg.games_dir);
+	for (int i = 0; i < 16; i++) fprintf(f, "map%d = %d\n", i, cfg.map[i]);
 	fclose(f);
 	return 1;
 }
@@ -341,32 +350,34 @@ static void input_poll_cb(void)
 	wiiu_input_update();
 }
 
+/* Default mapping, by position: A=Circle B=Cross X=Triangle Y=Square.
+ * Index = RETRO_DEVICE_ID_JOYPAD_*, value = WIIU_BTN_* bit number. */
+const int default_map[16] = {
+	1,   /* B      (Cross)    <- B  */
+	3,   /* Y      (Square)   <- Y  */
+	13,  /* SELECT            <- -  */
+	12,  /* START             <- +  */
+	4, 5, 6, 7,                     /* d-pad */
+	0,   /* A      (Circle)   <- A  */
+	2,   /* X      (Triangle) <- X  */
+	8, 9,                           /* L1 R1 <- L R */
+	10, 11,                         /* L2 R2 <- ZL ZR */
+	14, 15,                         /* L3 R3 */
+};
+
 static uint32_t psx_mask(const wiiu_pad_state *p)
 {
-	/* Nintendo face buttons by position: A=Circle B=Cross X=Triangle Y=Square */
 	uint32_t b = p->held, m = 0;
-	if (b & WIIU_BTN_B)      m |= 1 << RETRO_DEVICE_ID_JOYPAD_B;      /* Cross    */
-	if (b & WIIU_BTN_A)      m |= 1 << RETRO_DEVICE_ID_JOYPAD_A;      /* Circle   */
-	if (b & WIIU_BTN_Y)      m |= 1 << RETRO_DEVICE_ID_JOYPAD_Y;      /* Square   */
-	if (b & WIIU_BTN_X)      m |= 1 << RETRO_DEVICE_ID_JOYPAD_X;      /* Triangle */
-	if (b & WIIU_BTN_UP)     m |= 1 << RETRO_DEVICE_ID_JOYPAD_UP;
-	if (b & WIIU_BTN_DOWN)   m |= 1 << RETRO_DEVICE_ID_JOYPAD_DOWN;
-	if (b & WIIU_BTN_LEFT)   m |= 1 << RETRO_DEVICE_ID_JOYPAD_LEFT;
-	if (b & WIIU_BTN_RIGHT)  m |= 1 << RETRO_DEVICE_ID_JOYPAD_RIGHT;
-	if (b & WIIU_BTN_L)      m |= 1 << RETRO_DEVICE_ID_JOYPAD_L;
-	if (b & WIIU_BTN_R)      m |= 1 << RETRO_DEVICE_ID_JOYPAD_R;
-	if (b & WIIU_BTN_ZL)     m |= 1 << RETRO_DEVICE_ID_JOYPAD_L2;
-	if (b & WIIU_BTN_ZR)     m |= 1 << RETRO_DEVICE_ID_JOYPAD_R2;
-	if (b & WIIU_BTN_STICKL) m |= 1 << RETRO_DEVICE_ID_JOYPAD_L3;
-	if (b & WIIU_BTN_STICKR) m |= 1 << RETRO_DEVICE_ID_JOYPAD_R3;
-	if (b & WIIU_BTN_PLUS)   m |= 1 << RETRO_DEVICE_ID_JOYPAD_START;
-	if (b & WIIU_BTN_MINUS)  m |= 1 << RETRO_DEVICE_ID_JOYPAD_SELECT;
-	/* Digital-only pads: left stick also drives the d-pad */
+	/* Digital pad: the left stick also drives the d-pad */
 	if (!cfg.analog) {
-		if (p->ly > 0.5f)  m |= 1 << RETRO_DEVICE_ID_JOYPAD_UP;
-		if (p->ly < -0.5f) m |= 1 << RETRO_DEVICE_ID_JOYPAD_DOWN;
-		if (p->lx < -0.5f) m |= 1 << RETRO_DEVICE_ID_JOYPAD_LEFT;
-		if (p->lx > 0.5f)  m |= 1 << RETRO_DEVICE_ID_JOYPAD_RIGHT;
+		if (p->ly > 0.5f)  b |= WIIU_BTN_UP;
+		if (p->ly < -0.5f) b |= WIIU_BTN_DOWN;
+		if (p->lx < -0.5f) b |= WIIU_BTN_LEFT;
+		if (p->lx > 0.5f)  b |= WIIU_BTN_RIGHT;
+	}
+	for (int id = 0; id < 16; id++) {
+		int bit = cfg.map[id];
+		if (bit >= 0 && bit < 16 && (b & (1u << bit))) m |= 1u << id;
 	}
 	return m;
 }
@@ -494,6 +505,7 @@ int emu_load_game(const char *path)
 	covers_set_loaded_id(path, CdromId);
 	if (!covers_detect_id(path, gameId)) gameId[0] = 0;
 	video_set_game_id(gameId);
+	recent_add(path);
 	return 0;
 }
 
@@ -507,7 +519,48 @@ void emu_unload_game(void)
 	gameName[0] = 0;
 }
 
+/* ---- recently played (recent.txt, newest first) ---- */
+#define RECENT_FILE WIIU_APP_DIR "/recent.txt"
+#define RECENT_MAX  12
+static char recent[RECENT_MAX][512];
+static int nrecent = -1;
+
+static void recent_load(void)
+{
+	FILE *f;
+	char line[512];
+	if (nrecent >= 0) return;
+	nrecent = 0;
+	f = fopen(RECENT_FILE, "r");
+	if (!f) return;
+	while (nrecent < RECENT_MAX && fgets(line, sizeof(line), f)) {
+		line[strcspn(line, "\r\n")] = 0;
+		struct stat st;
+		if (line[0] && !stat(line, &st)) strcpy(recent[nrecent++], line);
+	}
+	fclose(f);
+}
+
+static void recent_add(const char *path)
+{
+	recent_load();
+	int i, n = nrecent;
+	for (i = 0; i < n; i++) if (!strcmp(recent[i], path)) break;
+	if (i == n) { if (n < RECENT_MAX) n++; i = n - 1; }
+	for (; i > 0; i--) strcpy(recent[i], recent[i - 1]);
+	strncpy(recent[0], path, sizeof(recent[0]) - 1);
+	nrecent = n;
+	FILE *f = fopen(RECENT_FILE, "w");
+	if (!f) return;
+	for (i = 0; i < nrecent; i++) fprintf(f, "%s\n", recent[i]);
+	fclose(f);
+}
+
+int emu_recent_count(void) { recent_load(); return nrecent; }
+const char *emu_recent(int i) { recent_load(); return i >= 0 && i < nrecent ? recent[i] : ""; }
+
 int emu_game_loaded(void) { return loaded; }
+const char *emu_game_path(void) { return gamePath; }
 const char *emu_game_id(void) { return gameId; }
 const char *emu_game_name(void) { return gameName; }
 void emu_reset(void) { if (loaded) retro_reset(); }

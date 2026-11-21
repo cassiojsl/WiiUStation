@@ -109,8 +109,79 @@ void video_set_pixel_format(int fmt)
 	pixfmt = fmt;
 }
 
+/* ---- auto zoom: find the black borders the game draws itself ---- */
+static float cropL, cropT, cropR, cropB;      /* smoothed, in source pixels */
+static int   wantL, wantT, wantR, wantB;      /* last measurement */
+
+static int px_dark(const void *row, unsigned x)
+{
+	unsigned r, g, b;
+	if (pixfmt == RETRO_PIXEL_FORMAT_XRGB8888) {
+		uint32_t v = ((const uint32_t *)row)[x];
+		r = (v >> 16) & 0xff; g = (v >> 8) & 0xff; b = v & 0xff;
+	} else {
+		uint16_t v = ((const uint16_t *)row)[x];
+		r = (v >> 11) << 3; g = ((v >> 5) & 0x3f) << 2; b = (v & 0x1f) << 3;
+	}
+	return r + g + b < 40;
+}
+
+static void measure_borders(const void *data, unsigned w, unsigned h, size_t pitch)
+{
+	/* sample 32 points per row/column; a line is "border" when all are dark */
+	#define ROW(y) ((const uint8_t *)data + (size_t)(y) * pitch)
+	unsigned t = 0, b = h, l = 0, r = w;
+	while (t < h / 4) {
+		int dark = 1;
+		for (unsigned i = 0; i < 32 && dark; i++) dark = px_dark(ROW(t), i * w / 32);
+		if (!dark) break;
+		t++;
+	}
+	while (b > h - h / 4) {
+		int dark = 1;
+		for (unsigned i = 0; i < 32 && dark; i++) dark = px_dark(ROW(b - 1), i * w / 32);
+		if (!dark) break;
+		b--;
+	}
+	while (l < w / 4) {
+		int dark = 1;
+		for (unsigned i = 0; i < 32 && dark; i++) dark = px_dark(ROW(t + i * (b - t) / 32), l);
+		if (!dark) break;
+		l++;
+	}
+	while (r > w - w / 4) {
+		int dark = 1;
+		for (unsigned i = 0; i < 32 && dark; i++) dark = px_dark(ROW(t + i * (b - t) / 32), r - 1);
+		if (!dark) break;
+		r--;
+	}
+	/* an all-black frame (fades, loading) says nothing: keep the old crop */
+	if (t >= h / 4 || b <= h - h / 4 || l >= w / 4 || r <= w - w / 4) {
+		if (t >= h / 4 && b <= h - h / 4) return;
+	}
+	wantT = t; wantB = h - b; wantL = l; wantR = w - r;
+	#undef ROW
+}
+
+static void crop_rect(SDL_Rect *src)
+{
+	src->x = 0; src->y = 0; src->w = frameW; src->h = frameH;
+	if (cfg.aspect != WIIU_ASPECT_ZOOM) return;
+	cropL += (wantL - cropL) * 0.1f;
+	cropT += (wantT - cropT) * 0.1f;
+	cropR += (wantR - cropR) * 0.1f;
+	cropB += (wantB - cropB) * 0.1f;
+	src->x = (int)(cropL + 0.5f);
+	src->y = (int)(cropT + 0.5f);
+	src->w = frameW - src->x - (int)(cropR + 0.5f);
+	src->h = frameH - src->y - (int)(cropB + 0.5f);
+	if (src->w < frameW / 2) { src->x = 0; src->w = frameW; }
+	if (src->h < frameH / 2) { src->y = 0; src->h = frameH; }
+}
+
 void video_upload(const void *data, unsigned w, unsigned h, size_t pitch)
 {
+	static unsigned n;
 	if (!data || !w || !h) { framesNull++; return; }   /* duped frame */
 	framesIn++;
 	if (w > TEX_W) w = TEX_W;
@@ -130,6 +201,8 @@ void video_upload(const void *data, unsigned w, unsigned h, size_t pitch)
 		}
 	}
 	SDL_UpdateTexture(frameTex, &r, conv, (int)(w * 4));
+	if (cfg.aspect == WIIU_ASPECT_ZOOM && (n++ % 15) == 0)
+		measure_borders(data, w, h, pitch);
 	frameW = w;
 	frameH = h;
 	haveFrame = 1;
@@ -147,10 +220,20 @@ void video_set_fps_text(const char *txt)
 	strncpy(fpsText, txt, sizeof(fpsText) - 1);
 }
 
-static void compute_dest(SDL_Rect *r)
+static void compute_dest(SDL_Rect *r, const SDL_Rect *src)
 {
 	const int W = 1280, H = 720;
 	switch (cfg.aspect) {
+	case WIIU_ASPECT_ZOOM: {
+		/* keep the 4:3 pixel shape of the cropped area, fill the height */
+		float aspect = (4.0f / 3.0f) * ((float)src->w / frameW) / ((float)src->h / frameH);
+		r->h = H;
+		r->w = (int)(H * aspect);
+		if (r->w > W) { r->w = W; r->h = (int)(W / aspect); }
+		r->x = (W - r->w) / 2;
+		r->y = (H - r->h) / 2;
+		break;
+	}
 	case WIIU_ASPECT_STRETCH:
 		r->x = 0; r->y = 0; r->w = W; r->h = H;
 		break;
@@ -322,8 +405,9 @@ void video_draw_game(int dim)
 	SDL_RenderClear(renderer);
 	if (!haveFrame) return;
 
-	SDL_Rect src = { 0, 0, frameW, frameH }, dst;
-	compute_dest(&dst);
+	SDL_Rect src, dst;
+	crop_rect(&src);
+	compute_dest(&dst, &src);
 	if (cfg.bezel == BEZEL_AMBIENT) draw_ambient(&src, &dst);
 
 	if (cfg.filter == WIIU_FILTER_SHARP_BILINEAR) {
