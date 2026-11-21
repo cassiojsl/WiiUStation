@@ -1767,53 +1767,86 @@ static void thumbs_load(void)
 	}
 }
 
+static void slot_date(int i, char *out, size_t n)
+{
+	time_t t = (time_t)emu_state_time(i);
+	struct tm *tm = t ? localtime(&t) : NULL;
+	if (!tm) { snprintf(out, n, "Empty"); return; }
+	snprintf(out, n, "%02d/%02d/%04d  %02d:%02d", tm->tm_mday, tm->tm_mon + 1,
+	         tm->tm_year + 1900, tm->tm_hour, tm->tm_min);
+}
+
 /* save = 1: pick a slot to save to; 0: pick a slot to load.
+ * Left: the 10 slots with a small picture and the date. Right: a big
+ * capture of the selected slot, so you can see where in the game it is.
  * Returns 1 when a state was loaded (go back to the game). */
 static int slot_picker(int save)
 {
+	enum { LX = 40, LY = 118, LW = 420, RH = 52, PX = 500, PY = 118, PW = 740, PH = 518 };
 	int sel = 0;
-	float fx = 0, fy = 0;
+	float fy = 0;
 	int finit = 0;
-	char m[96];
+	char m[96], date[10][32];
 	thumbs_load();
+	for (int i = 0; i < 10; i++) slot_date(i, date[i], sizeof(date[i]));
 	transition();
 	for (;;) {
 		poll_touch();
 		uint32_t b = poll_buttons();
 		int activate = 0;
-		if (b & WIIU_BTN_LEFT)  sel = (sel + 9) % 10;
-		if (b & WIIU_BTN_RIGHT) sel = (sel + 1) % 10;
-		if (b & (WIIU_BTN_UP | WIIU_BTN_DOWN)) sel = (sel + 5) % 10;
+		if (b & WIIU_BTN_UP)   sel = (sel + 9) % 10;
+		if (b & WIIU_BTN_DOWN) sel = (sel + 1) % 10;
 		if (b & WIIU_BTN_A) activate = 1;
 
 		draw_background();
 		int back = draw_header(save ? "Save state" : "Load state", 1);
-		SDL_Color card = { 14, 18, 40 }, hl = { 0, 140, 220 };
+		SDL_Color card = { 14, 18, 40 }, hl = { 0, 140, 220 }, slotc = { 26, 32, 60 };
+
+		/* ---- slot list ---- */
 		for (int i = 0; i < 10; i++) {
-			int x = 60 + (i % 5) * 236, y = 128 + (i / 5) * 262;
-			SDL_Rect r = { x, y, 216, 236 };
-			if (tap_in(r.x, r.y, r.w, r.h)) { sel = i; activate = 1; }
-			if (i == sel) {
-				if (!finit) { fx = x; fy = y; finit = 1; }
-				fx += (x - fx) * 0.4f; fy += (y - fy) * 0.4f;
-			}
+			int y = LY + i * RH;
+			if (tap_in(LX, y, LW, RH - 6)) { if (sel == i) activate = 1; sel = i; }
 		}
-		rrect((int)fx - 6, (int)fy - 6, 228, 248, 22, hl, 255);
+		if (!finit) { fy = LY + sel * RH; finit = 1; }
+		fy += (LY + sel * RH - fy) * 0.35f;
+		rrect(LX, (int)fy, LW, RH - 6, 14, hl, 255);
 		for (int i = 0; i < 10; i++) {
-			int x = 60 + (i % 5) * 236, y = 128 + (i / 5) * 262;
-			rrect(x, y, 216, 236, 18, card, 255);
-			if (thumbs[i]) {
-				SDL_Rect d = { x + 12, y + 12, 192, 144 };
-				SDL_RenderCopy(R, thumbs[i], NULL, &d);
-			} else {
-				SDL_Color slot = { 26, 32, 60 };
-				rrect(x + 12, y + 12, 192, 144, 10, slot, 255);
-				text(fontSmall, x + 108, y + 84, emu_state_exists(i) ? "Saved" : "Empty", DIM, 1);
-			}
+			int y = LY + i * RH, on = i == sel;
+			if (!on) rrect(LX, y, LW, RH - 6, 14, card, 200);
+			/* mini picture, 4:3 */
+			SDL_Rect d = { LX + 8, y + 5, 48, 36 };
+			if (thumbs[i]) SDL_RenderCopy(R, thumbs[i], NULL, &d);
+			else rrect(d.x, d.y, d.w, d.h, 6, slotc, 255);
 			snprintf(m, sizeof(m), "Slot %d", i);
-			text(fontItem, x + 108, y + 196, m, i == sel ? WHITE : GREY, 1);
+			text(fontSmall, LX + 72, y + (RH - 6) / 2, m, on ? WHITE : GREY, 0);
+			text(fontSmall, LX + LW - 16, y + (RH - 6) / 2, date[i], on ? WHITE : DIM, 2);
 		}
-		draw_footer(save ? "Choose a slot to save to" : "Choose a slot to load");
+
+		/* ---- big preview of the selected slot ---- */
+		rrect(PX, PY, PW, PH, 22, card, 255);
+		{
+			int ih = PH - 78, iw = ih * 4 / 3;           /* 4:3 picture */
+			int ix = PX + (PW - iw) / 2, iy = PY + 14;
+			if (thumbs[sel]) {
+				SDL_Rect d = { ix, iy, iw, ih };
+				SDL_SetTextureScaleMode(thumbs[sel], SDL_ScaleModeLinear);
+				SDL_RenderCopy(R, thumbs[sel], NULL, &d);
+			} else {
+				rrect(ix, iy, iw, ih, 14, slotc, 255);
+				text(fontItem, ix + iw / 2, iy + ih / 2,
+				     emu_state_time(sel) ? "No picture for this slot" : "Empty slot", DIM, 1);
+			}
+			if (tap_in(ix, iy, iw, ih)) activate = 1;
+			snprintf(m, sizeof(m), "Slot %d", sel);
+			text(fontItem, PX + 28, PY + PH - 32, m, WHITE, 0);
+			text(fontSmall, PX + PW - 28, PY + PH - 32,
+			     emu_state_time(sel) ? date[sel] : "Empty", GREY, 2);
+		}
+
+		if (save)
+			draw_footer(emu_state_time(sel) ? "A: overwrite this slot" : "A: save here");
+		else
+			draw_footer(emu_state_time(sel) ? "A: load this slot" : "This slot is empty");
 		present();
 
 		if (back || (b & WIIU_BTN_B) || wiiu_quit) { thumbs_free(); return 0; }
@@ -1822,6 +1855,7 @@ static int slot_picker(int save)
 			snprintf(m, sizeof(m), emu_state_save(sel) ? "Saved to slot %d." : "Could not save to slot %d.", sel);
 			status(m);
 			thumbs_load();
+			slot_date(sel, date[sel], sizeof(date[sel]));
 		} else {
 			if (emu_state_load(sel)) { thumbs_free(); return 1; }
 			snprintf(m, sizeof(m), "Slot %d is empty.", sel);

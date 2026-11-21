@@ -71,7 +71,10 @@ int emu_state_save(int s) { (void)s; return 1; }
 int emu_state_load(int s) { (void)s; return 0; }
 int emu_disk_count(void) { return 1; }
 int emu_state_exists(int s) { return s == 0 || s == 3 || s == -1; }
-void emu_state_thumb(int s, char *o, size_t n) { snprintf(o, n, "%s/covers/SCUS-94244.jpg", WIIU_APP_DIR); (void)s; }
+const char *bezel_name(int b) { (void)b; return "Tube TV"; }
+int bezel_next(int b, int d) { return (b + d + BEZEL_COUNT) % BEZEL_COUNT; }
+long long emu_state_time(int s) { return emu_state_exists(s) ? 1795000000LL + s * 86400LL : 0; }
+void emu_state_thumb(int s, char *o, size_t n) { snprintf(o, n, "%s/states/thumb%d.png", WIIU_APP_DIR, s); }
 int emu_screenshot(void) { return 1; }
 int emu_player_count(void) { return 2; }
 static int chon[3];

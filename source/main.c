@@ -729,7 +729,7 @@ int emu_state_save(int slot)
 		if (ok && slot >= 0) {            /* thumbnail for the slot picker */
 			char png[600];
 			snprintf(png, sizeof(png), "%s.png", path);
-			video_save_frame(png, 160);
+			video_save_frame(png, 320);   /* 320x240: big enough for the preview */
 		}
 	}
 	free(buf);
@@ -760,6 +760,16 @@ int emu_state_exists(int slot)
 	if (!loaded) return 0;
 	state_path(slot, path, sizeof(path));
 	return stat(path, &st) == 0;
+}
+
+/* when the slot was saved (0 = empty) */
+long long emu_state_time(int slot)
+{
+	char path[512];
+	struct stat st;
+	if (!loaded) return 0;
+	state_path(slot, path, sizeof(path));
+	return stat(path, &st) == 0 ? (long long)st.st_mtime : 0;
 }
 
 /* path of a slot's thumbnail (may not exist) */

@@ -174,6 +174,7 @@ int  emu_state_save(int slot);
 int  emu_state_load(int slot);      /* slot -1 = automatic resume state */
 int  emu_state_exists(int slot);
 void emu_state_thumb(int slot, char *out, size_t n);
+long long emu_state_time(int slot);   /* mtime, 0 = empty */
 int  emu_screenshot(void);
 int  emu_player_count(void);
 int  emu_cheat_count(void);
