@@ -175,6 +175,7 @@ int main(int argc, char **argv)
 	else if (!strcmp(mode, "advanced")) { R = ren; menu_fonts(); scriptBtn[8] = WIIU_BTN_DOWN; scriptBtn[12] = WIIU_BTN_DOWN; scriptBtn[16] = WIIU_BTN_DOWN; scriptBtn[20] = WIIU_BTN_DOWN; advanced(); }
 	else if (!strcmp(mode, "cards")) { R = ren; menu_fonts(); scriptBtn[8] = WIIU_BTN_DOWN; scriptBtn[12] = WIIU_BTN_A; memcards(); }
 	else if (!strcmp(mode, "update")) { R = ren; menu_fonts(); update_screen(); }
+	else if (!strcmp(mode, "info")) { R = ren; menu_fonts(); entry_t e; memset(&e, 0, sizeof(e)); strcpy(e.name, "Metal Gear Solid (SLUS-00594).chd"); game_info(&e, WIIU_ISO_DIR); }
 	else if (!strcmp(mode, "gallery")) { R = ren; menu_fonts(); scriptBtn[8] = WIIU_BTN_RIGHT; gallery(); }
 	else if (!strcmp(mode, "options")) { R = ren; menu_fonts(); entry_t e; memset(&e, 0, sizeof(e)); strcpy(e.name, "Metal Gear Solid (SLUS-00594).chd"); strcpy(e.id, "SLUS-00594"); game_options(&e, WIIU_ISO_DIR); }
 	else if (!strcmp(mode, "settings")) { R = ren; menu_fonts(); settings(); }

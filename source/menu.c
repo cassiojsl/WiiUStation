@@ -2450,10 +2450,113 @@ static int pick_image(const char *title, const char *dir, const char *prefix, ch
 /* ------------------------------------------------------------------------ */
 /* game options (- in the game browser)                                     */
 /* ------------------------------------------------------------------------ */
+/* the game's details: ID, region, size, play time, saves, cheats, patch */
+static long long dir_size_prefix(const char *dir, const char *prefix)
+{
+	long long total = 0;
+	size_t pl = strlen(prefix);
+	struct stat st;
+	DIR *d = opendir(dir);
+	if (!d) return 0;
+	struct dirent *e;
+	while ((e = readdir(d))) {
+		char p[768];
+		if (strncmp(e->d_name, prefix, pl) || e->d_name[0] == '.') continue;
+		const char *x = strrchr(e->d_name, '.');
+		if (x && (!strcasecmp(x, ".ppf") || !strcasecmp(x, ".srm") || !strcasecmp(x, ".m3u") || !strcasecmp(x, ".cht"))) continue;
+		snprintf(p, sizeof(p), "%s/%s", dir, e->d_name);
+		if (stat(p, &st) == 0 && !S_ISDIR(st.st_mode)) total += st.st_size;
+	}
+	closedir(d);
+	return total;
+}
+
+static int file_there(const char *fmt, const char *a, const char *b)
+{
+	char p[768];
+	struct stat st;
+	snprintf(p, sizeof(p), fmt, a, b);
+	return stat(p, &st) == 0;
+}
+
+static void game_info(entry_t *e, const char *dir)
+{
+	enum { I_ID, I_REGION, I_DISCS, I_SIZE, I_TIME, I_LAST, I_STATES, I_RESUME, I_CARD, I_CHEATS, I_PATCH, I_OWN, I_COUNT };
+	const char *labels[I_COUNT] = { "Game ID", "Region", "Discs", "Size", "Play time", "Last played",
+		"Save states", "Continue where you left off", "Memory card", "Cheats", "Translation patch", "Own settings" };
+	static char v[I_COUNT][96];
+	const char *values[I_COUNT];
+	char key[256], title[96], full[768];
+	static uint8_t card[MC_SIZE];
+	entry_key(e->name, e->discs, key, sizeof(key));
+	pretty_name(key, title, sizeof(title));
+	snprintf(full, sizeof(full), "%s/%s", dir, e->name);
+	if (!e->idTried) { e->idTried = 1; if (!covers_detect_id(full, e->id)) e->id[0] = 0; }
+
+	snprintf(v[I_ID], 96, "%s", e->id[0] ? e->id : tr("Unknown"));
+	{ int r = entry_region(e->name, e->id); snprintf(v[I_REGION], 96, "%s", tr(r == 1 ? "USA" : r == 2 ? "Europe" : r == 3 ? "Japan" : "Unknown")); }
+	snprintf(v[I_DISCS], 96, "%d", e->discs > 1 ? e->discs : 1);
+	{
+		long long sz = dir_size_prefix(dir, key);
+		if (sz >= 1024LL * 1024 * 1024) snprintf(v[I_SIZE], 96, "%.2f GB", sz / (1024.0 * 1024 * 1024));
+		else snprintf(v[I_SIZE], 96, "%lld MB", sz / (1024 * 1024));
+	}
+	long long last = 0;
+	long secs = emu_playtime(key, &last);
+	if (secs) fmt_playtime(secs, v[I_TIME], 96); else snprintf(v[I_TIME], 96, "%s", tr("Never played"));
+	if (last) {
+		time_t t = (time_t)last;
+		struct tm *tm = localtime(&t);
+		if (tm) snprintf(v[I_LAST], 96, "%02d/%02d/%04d %02d:%02d", tm->tm_mday, tm->tm_mon + 1, tm->tm_year + 1900, tm->tm_hour, tm->tm_min);
+		else v[I_LAST][0] = 0;
+	} else snprintf(v[I_LAST], 96, "-");
+	{
+		int n = 0;
+		for (int i = 0; i < 10; i++) {
+			char p[600];
+			struct stat st;
+			snprintf(p, sizeof(p), "%s/%s.state%d", WIIU_STATE_DIR, key, i);
+			if (stat(p, &st) == 0) n++;
+		}
+		snprintf(v[I_STATES], 96, tr("%d of 10 slots"), n);
+	}
+	snprintf(v[I_RESUME], 96, "%s", tr(file_there("%s/%s.auto", WIIU_STATE_DIR, key) ? "Yes" : "No"));
+	{
+		char p[600];
+		snprintf(p, sizeof(p), "%s/%s.srm", WIIU_SAVE_DIR, key);
+		if (mc_load(p, card)) snprintf(v[I_CARD], 96, tr("%d / 15 used"), 15 - mc_free_blocks(card));
+		else snprintf(v[I_CARD], 96, "%s", tr("None yet"));
+	}
+	snprintf(v[I_CHEATS], 96, "%s", tr(file_there("%s/cheats/%s.cht", WIIU_APP_DIR, key) ||
+	                                  (e->id[0] && file_there("%s/cheats/%s.cht", WIIU_APP_DIR, e->id)) ? "Yes" : "No"));
+	snprintf(v[I_PATCH], 96, "%s", tr(file_there("%s/patches/%s.ppf", WIIU_APP_DIR, key) || file_there("%s/%s.ppf", dir, key) ||
+	                                 (e->id[0] && file_there("%s/patches/%s.ppf", WIIU_APP_DIR, e->id)) ? "Yes" : "No"));
+	snprintf(v[I_OWN], 96, "%s", tr(file_there("%s/gamesettings/%s.cfg", WIIU_APP_DIR, key) ? "Yes" : "No"));
+	for (int i = 0; i < I_COUNT; i++) values[i] = v[i];
+
+	list_t L = { 0, 0 };
+	transition();
+	for (;;) {
+		poll_touch();
+		uint32_t b = poll_buttons();
+		if (b & WIIU_BTN_UP)   L.sel = L.sel > 0 ? L.sel - 1 : I_COUNT - 1;
+		if (b & WIIU_BTN_DOWN) L.sel = L.sel < I_COUNT - 1 ? L.sel + 1 : 0;
+		draw_background();
+		int back = draw_header(title, 1);
+		listW = 700;
+		list_run(&L, labels, values, I_COUNT, 0, NULL, NULL);
+		listW = 1060;
+		draw_cover(ecover(e), NULL);
+		draw_footer(NULL);
+		present();
+		if (back || (b & (WIIU_BTN_B | WIIU_BTN_A)) || wiiu_quit) return;
+	}
+}
+
 static void game_options(entry_t *e, const char *dir)
 {
-	enum { O_ID, O_SHOT, O_IMAGE, O_REMOVE, O_RESETTIME, O_COUNT };
-	const char *labels[O_COUNT] = { "Type the game ID...", "Cover from a screenshot...",
+	enum { O_INFO, O_ID, O_SHOT, O_IMAGE, O_REMOVE, O_RESETTIME, O_COUNT };
+	const char *labels[O_COUNT] = { "Information...", "Type the game ID...", "Cover from a screenshot...",
 		"Cover from an image in covers/import...", "Remove custom cover", "Reset play time" };
 	const char *values[O_COUNT] = { 0 };
 	char key[256], full[768], title[96], img[768], pt[48];
@@ -2467,6 +2570,7 @@ static void game_options(entry_t *e, const char *dir)
 		long long last = 0;
 		long secs = emu_playtime(key, &last);
 		values[O_ID] = e->id[0] ? e->id : "?";
+		values[O_INFO] = NULL;
 		fmt_playtime(secs, pt, sizeof(pt));
 		values[O_RESETTIME] = secs ? pt : NULL;
 		values[O_REMOVE] = NULL;
@@ -2484,6 +2588,10 @@ static void game_options(entry_t *e, const char *dir)
 		present();
 		if (back || (b & WIIU_BTN_B) || wiiu_quit) return;
 		switch (act) {
+		case O_INFO:
+			game_info(e, dir);
+			transition();
+			break;
 		case O_ID: {
 			char in[32], id[16];
 			if (text_prompt("Game ID (e.g. SLUS-00594)", e->id, in, sizeof(in))) {
