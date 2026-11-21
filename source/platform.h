@@ -265,6 +265,10 @@ int  update_check(char *tag, size_t tn, char *err, size_t en);   /* 1 newer, 0 c
 int  update_start(void);
 int  update_progress(float *frac);       /* 1 running, 2 installed, -1 failed */
 
+/* ---- BIOS check (bios.c) ---- */
+/* 1 known dump (region 1 USA, 2 Europe, 3 Japan, 0 other), 0 unknown, -1 not a BIOS */
+int bios_identify(const char *path, char *model, size_t mn, char *version, size_t vn, int *region);
+
 /* ---- memory cards (memcard.c) ---- */
 #define MC_SIZE 131072
 typedef struct {

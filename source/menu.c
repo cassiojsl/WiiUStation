@@ -1777,18 +1777,19 @@ static void controls(void);
 static void hotkeys(void);
 static void update_screen(void);
 static void all_covers(void);
+static void bios_screen(void);
 
 static void settings(void)
 {
 	enum { S_SCOPE, S_LANG, S_SFX, S_AUTOSTART, S_GAMES, S_VIEW, S_COVERS, S_ALLCOVERS, S_RESUME, S_CORE, S_SKIP, S_FFWD, S_FFSPEED, S_FPS, S_AUDIO,
 	       S_ASPECT, S_FILTER, S_BEZEL, S_WIDE, S_SCAN, S_CRT, S_FX, S_DRC, S_DITHER, S_PAD, S_GYRO, S_PAD2, S_DEADZONE, S_MTAP,
-	       S_CONTROLS, S_HOTKEYS, S_RUMBLE, S_REGION, S_BIOS, S_LOGO, S_ADV, S_UPDATE, S_COUNT };
+	       S_CONTROLS, S_HOTKEYS, S_RUMBLE, S_REGION, S_BIOS, S_BIOSCHECK, S_LOGO, S_ADV, S_UPDATE, S_COUNT };
 	static const char *allLabels[S_COUNT] = {
 		"Settings for", "Language", "Menu sounds", "Open the last game at start", "Games folder", "Game list", "Covers", "Download all covers...", "Continue where you left off", "CPU core",
 		"Frame skip", "Fast forward", "Fast forward speed", "Show FPS", "Sound", "Screen",
 		"Picture", "Border", "Widescreen (16:9)", "Scanlines", "CRT mask", "Screen effect", "GamePad screen", "Dithering", "Player 1 controller", "Aim with GamePad motion",
 		"Player 2+ controller", "Analog dead zone", "Multitap (up to 5 players)", "Button mapping...", "Hotkeys...", "Vibration",
-		"Region", "BIOS", "PlayStation boot logo", "Advanced...", "Check for updates"
+		"Region", "BIOS", "Check BIOS files...", "PlayStation boot logo", "Advanced...", "Check for updates"
 	};
 	const char *labels[S_COUNT], *values[S_COUNT];
 	int map[S_COUNT];
@@ -1998,6 +1999,7 @@ static void settings(void)
 			break;
 		case S_UPDATE:   update_screen(); transition(); break;
 		case S_ALLCOVERS: all_covers(); transition(); break;
+		case S_BIOSCHECK: bios_screen(); transition(); break;
 		case S_LANG:     cfg.lang = (cfg.lang + LANG_COUNT + dir) % LANG_COUNT; video_lang_changed(); break;
 		case S_RUMBLE: cfg.rumble = !cfg.rumble; break;
 		case S_REGION: cfg.region = (cfg.region + 3 + dir) % 3; status("Applies the next time a game is loaded."); break;
@@ -2212,6 +2214,71 @@ static const char *wiiu_btn_name(int bit)
 	                           "D-Pad Right", "L", "R", "ZL", "ZR", "+ (Plus)", "- (Minus)",
 	                           "L-Stick click", "R-Stick click" };
 	return bit >= 0 && bit < 16 ? n[bit] : "None";
+}
+
+/* ------------------------------------------------------------------------ */
+/* BIOS check                                                               */
+/* ------------------------------------------------------------------------ */
+static void bios_screen(void)
+{
+	enum { MAXB = 40 };
+	static char names[MAXB][128], vals[MAXB][96];
+	const char *labels[MAXB], *values[MAXB];
+	int n = 0, have[4] = { 0 };
+	DIR *d = opendir(WIIU_BIOS_DIR);
+	if (d) {
+		struct dirent *e;
+		while ((e = readdir(d)) && n < MAXB) {
+			char p[600], model[32], ver[16];
+			int region;
+			if (e->d_name[0] == '.') continue;
+			snprintf(p, sizeof(p), "%s/%s", WIIU_BIOS_DIR, e->d_name);
+			int r = bios_identify(p, model, sizeof(model), ver, sizeof(ver), &region);
+			snprintf(names[n], 128, "%s", e->d_name);
+			if (r == 1) {
+				const char *rg = region == 1 ? "USA" : region == 2 ? "Europe" : region == 3 ? "Japan" : "Other";
+				snprintf(vals[n], 96, "%s  %s  v%s", tr(rg), model, ver);
+				if (region >= 1 && region <= 3) have[region] = 1;
+			} else if (r == 0) snprintf(vals[n], 96, "%s", tr("Unknown version (may still work)"));
+			else snprintf(vals[n], 96, "%s", tr("Not a BIOS file"));
+			labels[n] = names[n];
+			values[n] = vals[n];
+			n++;
+		}
+		closedir(d);
+	}
+	char summary[200];
+	if (!have[1] && !have[2] && !have[3])
+		snprintf(summary, sizeof(summary), "%s", tr("No known BIOS: games use the built-in one (HLE), which runs most games."));
+	else {
+		char miss[96] = "";
+		const char *rn[4] = { "", "USA", "Europe", "Japan" };
+		for (int i = 1; i <= 3; i++)
+			if (!have[i]) { if (miss[0]) strcat(miss, ", "); strcat(miss, tr(rn[i])); }
+		if (miss[0]) snprintf(summary, sizeof(summary), tr("Missing for: %s (those games use the built-in BIOS)"), miss);
+		else snprintf(summary, sizeof(summary), "%s", tr("You have a BIOS for every region."));
+	}
+	list_t L = { 0, 0 };
+	transition();
+	for (;;) {
+		poll_touch();
+		uint32_t b = poll_buttons();
+		if (n) {
+			if (b & WIIU_BTN_UP)   L.sel = L.sel > 0 ? L.sel - 1 : n - 1;
+			if (b & WIIU_BTN_DOWN) L.sel = L.sel < n - 1 ? L.sel + 1 : 0;
+		}
+		draw_background();
+		int back = draw_header("BIOS files", 1);
+		text(fontSmall, LIST_X, 116, summary, have[1] || have[2] || have[3] ? GREY : PS_YELLOW, 0);
+		if (n) list_run(&L, labels, values, n, 0, NULL, NULL);
+		else {
+			text(fontItem, 640, 330, "The bios folder is empty.", GREY, 1);
+			text(fontSmall, 640, 380, "Put BIOS files (e.g. scph5501.bin) in WiiUStation/bios.", DIM, 1);
+		}
+		draw_footer("Put BIOS files (e.g. scph5501.bin) in WiiUStation/bios.");
+		present();
+		if (back || (b & (WIIU_BTN_B | WIIU_BTN_A)) || wiiu_quit) return;
+	}
 }
 
 /* ------------------------------------------------------------------------ */
