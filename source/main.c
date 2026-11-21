@@ -129,6 +129,8 @@ static struct { const char *key; int *val; int min, max; } OPTS[] = {
 	{ "bezel",      &cfg.bezel,      0, BEZEL_COUNT - 1 },
 	{ "view",       &cfg.view,       0, 4 },
 	{ "cover3d",    &cfg.cover3d,    0, 1 },
+	{ "sort",       &cfg.sort,       0, 2 },
+	{ "regionf",    &cfg.regionf,    0, 3 },
 	{ "lang",       &cfg.lang,       0, LANG_COUNT - 1 },
 	{ "hk0", &cfg.hk[0], -1, 15 }, { "hk1", &cfg.hk[1], -1, 15 }, { "hk2", &cfg.hk[2], -1, 15 },
 	{ "hk3", &cfg.hk[3], -1, 15 }, { "hk4", &cfg.hk[4], -1, 15 }, { "hk5", &cfg.hk[5], -1, 15 },
@@ -229,7 +231,7 @@ void core_opt_cycle(int i, int dir)
 /* keys that only make sense globally (never in a per-game file) */
 static int global_only(const char *k)
 {
-	return !strcmp(k, "view") || !strcmp(k, "cover3d") || !strcmp(k, "lang") || !strncmp(k, "hk", 2) || !strcmp(k, "games_dir") || !strcmp(k, "gpu_thread") ||
+	return !strcmp(k, "view") || !strcmp(k, "cover3d") || !strcmp(k, "sort") || !strcmp(k, "regionf") || !strcmp(k, "lang") || !strncmp(k, "hk", 2) || !strcmp(k, "games_dir") || !strcmp(k, "gpu_thread") ||
 	       !strcmp(k, "spu_thread") || !strcmp(k, "resume") || !strcmp(k, "ffwd");
 }
 
@@ -977,6 +979,86 @@ void emu_unload_game(void)
 	settings_leave_game();
 }
 
+/* ---- play time (playtime.txt: "seconds|last played|key" per line) ---- */
+#define PLAYTIME_FILE WIIU_APP_DIR "/playtime.txt"
+#define PT_MAX 1024
+static struct { char key[200]; long secs; long long last; } ptime[PT_MAX];
+static int nptime = -1;
+
+static void playtime_load(void)
+{
+	char line[300];
+	if (nptime >= 0) return;
+	nptime = 0;
+	FILE *f = fopen(PLAYTIME_FILE, "r");
+	if (!f) return;
+	while (nptime < PT_MAX && fgets(line, sizeof(line), f)) {
+		long secs; long long last; int off = 0;
+		line[strcspn(line, "\r\n")] = 0;
+		if (sscanf(line, "%ld|%lld|%n", &secs, &last, &off) < 2 || !off || !line[off]) continue;
+		snprintf(ptime[nptime].key, sizeof(ptime[nptime].key), "%s", line + off);
+		ptime[nptime].secs = secs;
+		ptime[nptime].last = last;
+		nptime++;
+	}
+	fclose(f);
+}
+
+static void playtime_save(void)
+{
+	FILE *f = fopen(PLAYTIME_FILE, "w");
+	if (!f) return;
+	for (int i = 0; i < nptime; i++)
+		if (ptime[i].secs > 0) fprintf(f, "%ld|%lld|%s\n", ptime[i].secs, ptime[i].last, ptime[i].key);
+	fclose(f);
+}
+
+static int playtime_find(const char *key, int create)
+{
+	playtime_load();
+	for (int i = 0; i < nptime; i++)
+		if (!strcmp(ptime[i].key, key)) return i;
+	if (!create || nptime >= PT_MAX) return -1;
+	snprintf(ptime[nptime].key, sizeof(ptime[nptime].key), "%s", key);
+	ptime[nptime].secs = 0;
+	ptime[nptime].last = 0;
+	return nptime++;
+}
+
+long emu_playtime(const char *key, long long *lastPlayed)
+{
+	int i = playtime_find(key, 0);
+	if (lastPlayed) *lastPlayed = i >= 0 ? ptime[i].last : 0;
+	return i >= 0 ? ptime[i].secs : 0;
+}
+
+void emu_playtime_reset(const char *key)
+{
+	int i = playtime_find(key, 0);
+	if (i < 0) return;
+	ptime[i].secs = 0;
+	playtime_save();
+}
+
+static void game_key(char *out, size_t n)
+{
+	snprintf(out, n, "%s", gameName);
+	char *dot = strrchr(out, '.');
+	if (dot) *dot = 0;
+}
+
+static void playtime_add(long secs)
+{
+	char key[200];
+	if (!gameName[0] || secs <= 0) return;
+	game_key(key, sizeof(key));
+	int i = playtime_find(key, 1);
+	if (i < 0) return;
+	ptime[i].secs += secs;
+	ptime[i].last = (long long)time(NULL);
+	playtime_save();
+}
+
 /* ---- recently played (recent.txt, newest first) ---- */
 #define RECENT_FILE WIIU_APP_DIR "/recent.txt"
 #define RECENT_MAX  12
@@ -1371,6 +1453,7 @@ static void run_game(void)
 	hotkey_pressed();   /* arm the latch */
 
 	int ffToggle = 0, ffPrev = 0, paused = 0;
+	OSTime playStart = OSGetSystemTime(), playPaused = 0, pauseAt = 0;
 	uint32_t hkPrev = 0xffffffffu;   /* ignore buttons already held on entry */
 	while (!wiiu_quit) {
 		wiiu_input_update();
@@ -1407,6 +1490,8 @@ static void run_game(void)
 			wasDown = down;
 			video_panel_state(quickSlot, ffToggle, paused, gameName);
 		}
+		if (paused && !pauseAt) pauseAt = OSGetSystemTime();
+		if (!paused && pauseAt) { playPaused += OSGetSystemTime() - pauseAt; pauseAt = 0; }
 		if (paused) {
 			video_draw_game(1);
 			video_osd(tr("Paused"));
@@ -1468,6 +1553,8 @@ static void run_game(void)
 
 	ffwdMask = 0xffffffffu;
 	hkHide = 0;
+	if (pauseAt) playPaused += OSGetSystemTime() - pauseAt;
+	playtime_add((long)((OSGetSystemTime() - playStart - playPaused) / OSSecondsToTicks(1)));
 	audio_pause(1);
 	for (int i = 0; i < WIIU_MAX_PADS; i++) wiiu_input_rumble(i, 0);
 	wiiu_home_button_ingame(0);

@@ -97,6 +97,8 @@ typedef struct {
 	int audio;
 	int bezel;          /* BEZEL_* */
 	int lang;           /* LANG_* */
+	int sort;           /* game list: 0 name, 1 last played, 2 most played */
+	int regionf;        /* game list: 0 all, 1 USA, 2 Europe, 3 Japan */
 	int cover3d;        /* covers: 0 = 2D front, 1 = 3D box */
 	int view;           /* game browser: 0 grid, 1 list, 2 compact, 3 shelf, 4 carousel */
 	int core[32];       /* extra PCSX-ReARMed options, see core_opt_* */
@@ -214,6 +216,9 @@ int  jit_available(void);
 int  emu_load_game(const char *path);
 void emu_background_save(void);          /* before the HOME Menu */
 int  emu_ppf_active(void);
+/* play time, by game key (file name without folder, extension, disc tag) */
+long emu_playtime(const char *key, long long *lastPlayed);
+void emu_playtime_reset(const char *key);
 int  emu_widescreen_active(void);
 int  wiiu_battery(void);                 /* GamePad battery 0..6, -1 unknown */
 int  emu_load_game_disc(const char *m3u, int index, const char *disc_path);

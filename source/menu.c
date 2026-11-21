@@ -773,10 +773,63 @@ static int text_prompt(const char *title, const char *initial, char *out, size_t
 /* ------------------------------------------------------------------------ */
 /* file browser                                                             */
 /* ------------------------------------------------------------------------ */
-typedef struct { char name[256]; int dir; int idTried; char id[16]; int fav; int discs; } entry_t;
+typedef struct { char name[256]; int dir; int idTried; char id[16]; int fav; int discs; long secs; long long last; } entry_t;
 static int disc_tag(const char *name, char *base, size_t n);
 static char browsePath[512];
 static int favOnly;            /* show favourites only */
+
+/* play-time key of a list entry: file name without extension; for a
+ * multi-disc game, the shared name (the .m3u written for it has it too) */
+static void entry_key(const char *name, int discs, char *out, size_t n)
+{
+	char b[256];
+	if (discs > 1 && disc_tag(name, b, sizeof(b))) snprintf(out, n, "%s", b);
+	else {
+		snprintf(out, n, "%s", name);
+		char *dot = strrchr(out, '.');
+		if (dot) *dot = 0;
+	}
+}
+
+/* 1 USA, 2 Europe, 3 Japan, 0 unknown: from the game ID, else the name */
+static int entry_region(const char *name, const char *id)
+{
+	if (id && id[0]) {
+		if (!strncmp(id, "SCUS", 4) || !strncmp(id, "SLUS", 4) || !strncmp(id, "SCUD", 4) || !strncmp(id, "SLUD", 4)) return 1;
+		if (!strncmp(id, "SCES", 4) || !strncmp(id, "SLES", 4) || !strncmp(id, "SCED", 4) || !strncmp(id, "SLED", 4)) return 2;
+		if (!strncmp(id, "SCPS", 4) || !strncmp(id, "SLPS", 4) || !strncmp(id, "SLPM", 4) || !strncmp(id, "SCPM", 4) ||
+		    !strncmp(id, "SIPS", 4) || !strncmp(id, "PAPX", 4) || !strncmp(id, "ESPM", 4) || !strncmp(id, "SCZS", 4)) return 3;
+	}
+	if (contains_ci(name, "(USA") || contains_ci(name, "(US)") || contains_ci(name, "(U)")) return 1;
+	if (contains_ci(name, "(Europe") || contains_ci(name, "(E)") || contains_ci(name, "(PAL")) return 2;
+	if (contains_ci(name, "(Japan") || contains_ci(name, "(J)")) return 3;
+	return 0;
+}
+
+static const char *sort_name(int v) { return v == 1 ? "Last played" : v == 2 ? "Most played" : "Name"; }
+static const char *regionf_name(int v) { return v == 1 ? "USA" : v == 2 ? "Europe" : v == 3 ? "Japan" : "All regions"; }
+
+static int cmp_last(const void *a, const void *b)
+{
+	const entry_t *x = a, *y = b;
+	if (x->dir != y->dir) return y->dir - x->dir;
+	return x->last < y->last ? 1 : x->last > y->last ? -1 : strcasecmp(x->name, y->name);
+}
+
+static int cmp_most(const void *a, const void *b)
+{
+	const entry_t *x = a, *y = b;
+	if (x->dir != y->dir) return y->dir - x->dir;
+	return x->secs < y->secs ? 1 : x->secs > y->secs ? -1 : strcasecmp(x->name, y->name);
+}
+
+/* "12 h 30 min" */
+static void fmt_playtime(long secs, char *out, size_t n)
+{
+	if (secs < 60) snprintf(out, n, "%s", tr("less than 1 min"));
+	else if (secs < 3600) snprintf(out, n, tr("%ld min"), secs / 60);
+	else snprintf(out, n, tr("%ld h %ld min"), secs / 3600, (secs / 60) % 60);
+}
 static char searchText[64];    /* filter by name */
 
 static int is_game_file(const char *n)
@@ -1122,7 +1175,7 @@ static int carousel_run(grid_t *G, entry_t *list, const char **labels, int count
 
 	/* name and details of the middle game */
 	if (G->sel < count) {
-		char full[272], nm[64], info[64];
+		char full[272], nm[64], info[128];
 		entry_t *e = &list[G->sel];
 		entry_name(e, labels[G->sel], full, sizeof(full));
 		fit_text(fontTitle, full, 1160, nm, sizeof(nm));
@@ -1130,6 +1183,12 @@ static int carousel_run(grid_t *G, entry_t *list, const char **labels, int count
 		if (e->dir) snprintf(info, sizeof(info), "%s", tr("Folder"));
 		else if (e->discs > 1) snprintf(info, sizeof(info), tr("%s%s%d discs"), e->id, e->id[0] ? "   " : "", e->discs);
 		else snprintf(info, sizeof(info), "%s", e->id);
+		if (!e->dir && e->secs > 0) {
+			char pt[48], tmp[128];
+			fmt_playtime(e->secs, pt, sizeof(pt));
+			snprintf(tmp, sizeof(tmp), tr("%s%sPlayed %s"), info, info[0] ? "   \xc2\xb7   " : "", pt);
+			snprintf(info, sizeof(info), "%s", tmp);
+		}
 		{   /* position in the list, top right (next to the folder path) */
 			char pos[24];
 			snprintf(pos, sizeof(pos), "%d / %d", G->sel + 1, count);
@@ -1409,13 +1468,31 @@ rescan:
 				pretty_name(list[i].name, nm, sizeof(nm));
 				if (!contains_ci(nm, searchText)) continue;
 			}
+			if (!list[i].dir && cfg.regionf) {
+				/* the ID is read once and remembered (covers/ids.txt) */
+				if (!list[i].idTried) {
+					list[i].idTried = 1;
+					if (!covers_detect_id(full, list[i].id)) list[i].id[0] = 0;
+				}
+				if (entry_region(list[i].name, list[i].id) != cfg.regionf) continue;
+			}
+			{
+				char key[256];
+				entry_key(list[i].name, list[i].discs, key, sizeof(key));
+				list[i].secs = list[i].dir ? 0 : emu_playtime(key, &list[i].last);
+			}
 			list[m++] = list[i];
 		}
 		count = m;
-		/* favourites first */
-		int f = 0;
-		for (int i = 0; i < count; i++)
-			if (list[i].fav) { entry_t t = list[i]; memmove(list + f + 1, list + f, (i - f) * sizeof(entry_t)); list[f++] = t; }
+		if (cfg.sort) {
+			int start = (count && !strcmp(list[0].name, "..")) ? 1 : 0;
+			qsort(list + start, count - start, sizeof(entry_t), cfg.sort == 1 ? cmp_last : cmp_most);
+		} else {
+			/* favourites first */
+			int f = 0;
+			for (int i = 0; i < count; i++)
+				if (list[i].fav) { entry_t t = list[i]; memmove(list + f + 1, list + f, (i - f) * sizeof(entry_t)); list[f++] = t; }
+		}
 	}
 	if (pickDir) {
 		/* folders only, plus "use this folder" on top */
@@ -1508,6 +1585,22 @@ rescan:
 				goto rescan_keep;
 			}
 		}
+		if (!pickDir && (b & WIIU_BTN_ZL)) {
+			char m[96];
+			cfg.sort = (cfg.sort + 1) % 3;
+			settings_save();
+			snprintf(m, sizeof(m), tr("Sorted by: %s"), tr(sort_name(cfg.sort)));
+			status(m);
+			goto rescan;
+		}
+		if (!pickDir && (b & WIIU_BTN_ZR)) {
+			char m[96];
+			cfg.regionf = (cfg.regionf + 1) % 4;
+			settings_save();
+			snprintf(m, sizeof(m), tr("Region: %s"), tr(regionf_name(cfg.regionf)));
+			status(m);
+			goto rescan;
+		}
 		if (!pickDir && (b & WIIU_BTN_MINUS)) {
 			favOnly = !favOnly;
 			status(favOnly ? "Showing favourites only." : "Showing all games.");
@@ -1536,14 +1629,16 @@ rescan:
 		{
 			const char *p = browsePath + strlen(WIIU_SD_ROOT);
 			char sub[200];
-			snprintf(sub, sizeof(sub), "%s%s%s%s%s", *p ? p : "/", favOnly ? tr("   \xe2\x98\x85 Favourites") : "",
-			         searchText[0] ? tr("   Search: \"") : "", searchText, searchText[0] ? "\"" : "");
+			snprintf(sub, sizeof(sub), "%s%s%s%s%s%s%s%s%s", *p ? p : "/", favOnly ? tr("   \xe2\x98\x85 Favourites") : "",
+			         searchText[0] ? tr("   Search: \"") : "", searchText, searchText[0] ? "\"" : "",
+			         cfg.sort ? "   \xc2\xb7 " : "", cfg.sort ? tr(sort_name(cfg.sort)) : "",
+			         cfg.regionf ? "   \xc2\xb7 " : "", cfg.regionf ? tr(regionf_name(cfg.regionf)) : "");
 			text(fontSmall, LIST_X, 116, sub, DIM, 0);
 		}
 		int t = -1;
 		if (count == 0) {
-			text(fontItem, 640, 360, favOnly || searchText[0] ? "No games match." : "No games in this folder.", GREY, 1);
-			text(fontSmall, 640, 410, favOnly || searchText[0] ? "Press - or + to change the filter."
+			text(fontItem, 640, 360, favOnly || searchText[0] || cfg.regionf ? "No games match." : "No games in this folder.", GREY, 1);
+			text(fontSmall, 640, 410, favOnly || searchText[0] || cfg.regionf ? "Press -, + or ZR to change the filter."
 			                                                    : "Choose your games folder in Settings.", DIM, 1);
 		} else if (pickDir) {
 			t = list_run(&L, labels, NULL, count, 0, NULL, NULL);
@@ -1568,7 +1663,7 @@ rescan:
 		}
 		if (t >= 0) activate = t;
 		draw_footer(pickDir ? "Pick the folder with your games" :
-		            "X  Change view   Y Favourite   - Favourites only   + Search");
+		            "X  View   Y Favourite   - Favourites   + Search   ZL Sort   ZR Region");
 		present();
 
 		if (back) break;                                      /* leave now */
