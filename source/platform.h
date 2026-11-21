@@ -25,7 +25,7 @@ int wiiu_mkdirs(const char *path);
 
 /* ---- settings ---- */
 enum { WIIU_ASPECT_4_3 = 0, WIIU_ASPECT_STRETCH, WIIU_ASPECT_INTEGER };
-enum { WIIU_FILTER_LINEAR = 0, WIIU_FILTER_NEAREST };
+enum { WIIU_FILTER_LINEAR = 0, WIIU_FILTER_NEAREST, WIIU_FILTER_SHARP_BILINEAR };
 
 typedef struct {
 	int dynarec;        /* Lightrec */
@@ -36,6 +36,8 @@ typedef struct {
 	int aspect;
 	int filter;
 	int scanlines;
+	int crt;            /* CRT aperture-grille mask */
+	int reverb;         /* SPU reverb (costs CPU) */
 	int dithering;      /* 0 off, 1 on, 2 force */
 	int bios_hle;       /* 1 = always HLE */
 	int bootlogo;       /* show BIOS boot logo */

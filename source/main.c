@@ -67,8 +67,10 @@ static struct { const char *key; int *val; int min, max; } OPTS[] = {
 	{ "frameskip",  &cfg.frameskip,  0, 1 },
 	{ "show_fps",   &cfg.show_fps,   0, 1 },
 	{ "aspect",     &cfg.aspect,     0, 2 },
-	{ "filter",     &cfg.filter,     0, 1 },
+	{ "filter",     &cfg.filter,     0, 2 },
 	{ "scanlines",  &cfg.scanlines,  0, 1 },
+	{ "crt",        &cfg.crt,        0, 1 },
+	{ "reverb",     &cfg.reverb,     0, 1 },
 	{ "dithering",  &cfg.dithering,  0, 2 },
 	{ "bios_hle",   &cfg.bios_hle,   0, 1 },
 	{ "bootlogo",   &cfg.bootlogo,   0, 1 },
@@ -82,21 +84,31 @@ void settings_load(void)
 	char line[128];
 	FILE *f;
 	cfg.dynarec = 1;
-	cfg.gpu_thread = 0;   /* experimental on big-endian: off by default */
+	cfg.gpu_thread = 1;   /* renderer on core 2 */
 	cfg.spu_thread = 1;
 	cfg.frameskip = 0;
 	cfg.show_fps = 0;
 	cfg.aspect = WIIU_ASPECT_4_3;
 	cfg.filter = WIIU_FILTER_LINEAR;
 	cfg.scanlines = 0;
+	cfg.crt = 0;
+	cfg.reverb = 1;
 	cfg.dithering = 1;
 	cfg.bios_hle = 0;
 	cfg.bootlogo = 0;
-	cfg.analog = 1;
+	cfg.analog = 0;       /* digital pad: works with every game */
 	cfg.rumble = 1;
 	cfg.audio = 1;
 	f = fopen(WIIU_CONFIG_FILE, "r");
 	if (f) {
+		int version = 0;
+		long start;
+		/* settings files written before version 2 had the threaded GPU off
+		 * and DualShock on: ignore those two keys from old files. */
+		while (fgets(line, sizeof(line), f))
+			if (!strncmp(line, "version", 7)) version = atoi(strchr(line, '=') ? strchr(line, '=') + 1 : "0");
+		rewind(f);
+		(void)start;
 		while (fgets(line, sizeof(line), f)) {
 			char *eq = strchr(line, '=');
 			if (!eq || line[0] == '#') continue;
@@ -105,6 +117,9 @@ void settings_load(void)
 			while (*k == ' ') k++;
 			for (char *e = eq - 1; e >= k && *e == ' '; e--) *e = 0;
 			int v = atoi(eq + 1);
+			if (version < 2 && (!strcmp(k, "gpu_thread") || !strcmp(k, "analog") ||
+			                    !strcmp(k, "spu_thread")))
+				continue;
 			for (unsigned i = 0; i < sizeof(OPTS) / sizeof(OPTS[0]); i++)
 				if (!strcmp(OPTS[i].key, k) && v >= OPTS[i].min && v <= OPTS[i].max)
 					*OPTS[i].val = v;
@@ -120,7 +135,7 @@ int settings_save(void)
 	wiiu_mkdirs(WIIU_APP_DIR);
 	f = fopen(WIIU_CONFIG_FILE, "w");
 	if (!f) return 0;
-	fprintf(f, "# WiiUStation settings\n");
+	fprintf(f, "# WiiUStation settings\nversion = 2\n");
 	for (unsigned i = 0; i < sizeof(OPTS) / sizeof(OPTS[0]); i++)
 		fprintf(f, "%s = %d\n", OPTS[i].key, *OPTS[i].val);
 	fclose(f);
@@ -153,6 +168,7 @@ static const char *core_var(const char *key)
 		return cfg.dithering == 0 ? "disabled" : cfg.dithering == 1 ? "enabled" : "force";
 	if (!strcmp(key, "pcsx_rearmed_bios")) return cfg.bios_hle ? "HLE" : "auto";
 	if (!strcmp(key, "pcsx_rearmed_show_bios_bootlogo")) return cfg.bootlogo ? "enabled" : "disabled";
+	if (!strcmp(key, "pcsx_rearmed_spu_reverb")) return cfg.reverb ? "enabled" : "disabled";
 	if (!strcmp(key, "pcsx_rearmed_vibration")) return cfg.rumble ? "enabled" : "disabled";
 	if (!strcmp(key, "pcsx_rearmed_display_fps_v2")) return "disabled";
 	if (!strcmp(key, "pcsx_rearmed_rgb32_output")) return "disabled"; /* RGB565: cheapest upload */

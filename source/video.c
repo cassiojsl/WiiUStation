@@ -187,29 +187,111 @@ static void draw_text(int x, int y, const char *s, SDL_Color c)
 	SDL_FreeSurface(surf);
 }
 
+/* ---- post-processing (all done by the GPU, almost free for the CPU) ---- */
+static SDL_Texture *sharpTex;      /* integer-prescaled frame (sharp bilinear) */
+static SDL_Texture *crtTex;        /* aperture-grille mask, multiplied */
+static SDL_Texture *scanTex;       /* one dark line every 2nd texel, multiplied */
+
+static SDL_Texture *make_pattern(int w, int h, uint32_t (*px)(int x, int y), SDL_BlendMode bm)
+{
+	SDL_Texture *t = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888,
+	                                   SDL_TEXTUREACCESS_STATIC, w, h);
+	uint32_t *buf = (uint32_t *)SDL_malloc(w * h * 4);
+	if (!t || !buf) { SDL_free(buf); return t; }
+	for (int y = 0; y < h; y++)
+		for (int x = 0; x < w; x++) buf[y * w + x] = px(x, y);
+	SDL_UpdateTexture(t, NULL, buf, w * 4);
+	SDL_free(buf);
+	SDL_SetTextureBlendMode(t, bm);
+	return t;
+}
+
+static uint32_t crt_px(int x, int y)
+{
+	/* RGB aperture grille, 3 screen pixels per triad, soft */
+	(void)y;
+	switch (x % 3) {
+	case 0:  return 0xffffb4b4;
+	case 1:  return 0xffb4ffb4;
+	default: return 0xffb4b4ff;
+	}
+}
+
+static uint32_t scan_px(int x, int y)
+{
+	(void)x;
+	return (y & 1) ? 0xff8c8c8c : 0xffffffff;
+}
+
+static void draw_sharp_bilinear(const SDL_Rect *src, const SDL_Rect *dst)
+{
+	/* Nearest-neighbour upscale by an integer factor, then a bilinear
+	 * downscale to the final size: crisp pixels without shimmering. */
+	int kx = (dst->w + src->w - 1) / src->w;
+	int ky = (dst->h + src->h - 1) / src->h;
+	if (kx < 1) kx = 1;
+	if (ky < 1) ky = 1;
+	while (src->w * kx > 2048) kx--;
+	while (src->h * ky > 2048) ky--;
+	if (!sharpTex) {
+		sharpTex = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888,
+		                             SDL_TEXTUREACCESS_TARGET, 2048, 2048);
+		if (!sharpTex) { SDL_RenderCopy(renderer, frameTex, src, dst); return; }
+		SDL_SetTextureScaleMode(sharpTex, SDL_ScaleModeLinear);
+		SDL_SetTextureBlendMode(sharpTex, SDL_BLENDMODE_NONE);
+	}
+	SDL_Rect mid = { 0, 0, src->w * kx, src->h * ky };
+	SDL_SetTextureScaleMode(frameTex, SDL_ScaleModeNearest);
+	SDL_SetRenderTarget(renderer, sharpTex);
+	SDL_RenderSetLogicalSize(renderer, 0, 0);
+	SDL_RenderCopy(renderer, frameTex, src, &mid);
+	SDL_SetRenderTarget(renderer, NULL);
+	SDL_RenderSetLogicalSize(renderer, 1280, 720);
+	SDL_RenderCopy(renderer, sharpTex, &mid, dst);
+	lastFilter = -1;
+}
+
 void video_draw_game(int dim)
 {
 	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
 	SDL_RenderClear(renderer);
 	if (!haveFrame) return;
 
-	if (lastFilter != cfg.filter) {
-		SDL_SetTextureScaleMode(frameTex, cfg.filter == WIIU_FILTER_NEAREST ?
-		                        SDL_ScaleModeNearest : SDL_ScaleModeLinear);
-		lastFilter = cfg.filter;
-	}
 	SDL_Rect src = { 0, 0, frameW, frameH }, dst;
 	compute_dest(&dst);
-	SDL_RenderCopy(renderer, frameTex, &src, &dst);
+
+	if (cfg.filter == WIIU_FILTER_SHARP_BILINEAR) {
+		draw_sharp_bilinear(&src, &dst);
+	} else {
+		if (lastFilter != cfg.filter) {
+			SDL_SetTextureScaleMode(frameTex, cfg.filter == WIIU_FILTER_NEAREST ?
+			                        SDL_ScaleModeNearest : SDL_ScaleModeLinear);
+			lastFilter = cfg.filter;
+		}
+		SDL_RenderCopy(renderer, frameTex, &src, &dst);
+	}
 
 	if (cfg.scanlines) {
+		/* one texel per PSX line: 2 texels per line in the pattern */
 		int lines = frameH > 288 ? frameH / 2 : frameH;
-		int step = lines ? dst.h / lines : 0;
-		SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-		SDL_SetRenderDrawColor(renderer, 0, 0, 0, 70);
-		if (step >= 2)
-			for (int y = dst.y + step - 1; y < dst.y + dst.h; y += step)
-				SDL_RenderDrawLine(renderer, dst.x, y, dst.x + dst.w, y);
+		if (!scanTex) {
+			scanTex = make_pattern(1, 1024, scan_px, SDL_BLENDMODE_MOD);
+			if (scanTex) SDL_SetTextureScaleMode(scanTex, SDL_ScaleModeLinear);
+		}
+		if (scanTex) {
+			SDL_Rect s = { 0, 0, 1, lines * 2 > 1024 ? 1024 : lines * 2 };
+			SDL_RenderCopy(renderer, scanTex, &s, &dst);
+		}
+	}
+	if (cfg.crt) {
+		if (!crtTex) {
+			crtTex = make_pattern(1280, 1, crt_px, SDL_BLENDMODE_MOD);
+			if (crtTex) SDL_SetTextureScaleMode(crtTex, SDL_ScaleModeNearest);
+		}
+		if (crtTex) {
+			SDL_Rect s = { 0, 0, dst.w, 1 };
+			SDL_RenderCopy(renderer, crtTex, &s, &dst);
+		}
 	}
 	if (dim) {
 		SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
