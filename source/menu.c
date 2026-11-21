@@ -1783,13 +1783,13 @@ static void settings(void)
 {
 	enum { S_SCOPE, S_LANG, S_SFX, S_AUTOSTART, S_GAMES, S_VIEW, S_COVERS, S_ALLCOVERS, S_RESUME, S_CORE, S_SKIP, S_FFWD, S_FFSPEED, S_FPS, S_AUDIO,
 	       S_ASPECT, S_FILTER, S_BEZEL, S_WIDE, S_SCAN, S_CRT, S_FX, S_DRC, S_DITHER, S_PAD, S_GYRO, S_PAD2, S_DEADZONE, S_MTAP,
-	       S_CONTROLS, S_HOTKEYS, S_RUMBLE, S_REGION, S_BIOS, S_BIOSCHECK, S_LOGO, S_ADV, S_UPDATE, S_COUNT };
+	       S_CONTROLS, S_HOTKEYS, S_RUMBLE, S_REGION, S_BIOS, S_BIOSCHECK, S_LOGO, S_AUTOFIX, S_ADV, S_UPDATE, S_COUNT };
 	static const char *allLabels[S_COUNT] = {
 		"Settings for", "Language", "Menu sounds", "Open the last game at start", "Games folder", "Game list", "Covers", "Download all covers...", "Continue where you left off", "CPU core",
 		"Frame skip", "Fast forward", "Fast forward speed", "Show FPS", "Sound", "Screen",
 		"Picture", "Border", "Widescreen (16:9)", "Scanlines", "CRT mask", "Screen effect", "GamePad screen", "Dithering", "Player 1 controller", "Aim with GamePad motion",
 		"Player 2+ controller", "Analog dead zone", "Multitap (up to 5 players)", "Button mapping...", "Hotkeys...", "Vibration",
-		"Region", "BIOS", "Check BIOS files...", "PlayStation boot logo", "Advanced...", "Check for updates"
+		"Region", "BIOS", "Check BIOS files...", "PlayStation boot logo", "Automatic game fixes", "Advanced...", "Check for updates"
 	};
 	const char *labels[S_COUNT], *values[S_COUNT];
 	int map[S_COUNT];
@@ -1804,7 +1804,7 @@ static void settings(void)
 			/* app-wide options are hidden while editing one game's settings */
 			if (game && (i == S_GAMES || i == S_VIEW || i == S_COVERS || i == S_RESUME ||
 			             i == S_FFWD || i == S_LANG || i == S_HOTKEYS || i == S_SFX || i == S_UPDATE ||
-			             i == S_AUTOSTART || i == S_ALLCOVERS)) continue;
+			             i == S_AUTOSTART || i == S_ALLCOVERS || i == S_AUTOFIX)) continue;
 			map[n] = i;
 			labels[n] = allLabels[i];
 			values[n] = NULL;
@@ -1833,6 +1833,7 @@ static void settings(void)
 			case S_LANG:   values[k] = lang_name(cfg.lang); break;
 			case S_SFX:    values[k] = cfg.menusfx ? "On" : "Off"; break;
 			case S_AUTOSTART: values[k] = cfg.autostart ? "On" : "Off"; break;
+			case S_AUTOFIX: values[k] = cfg.autofix ? "On" : "Off"; break;
 			case S_UPDATE: values[k] = app_version(); break;
 			case S_RESUME: values[k] = cfg.resume ? "Ask" : "Off"; break;
 			case S_CORE:   values[k] = cfg.dynarec ? "Lightrec" : "Interpreter"; break;
@@ -2000,6 +2001,11 @@ static void settings(void)
 		case S_UPDATE:   update_screen(); transition(); break;
 		case S_ALLCOVERS: all_covers(); transition(); break;
 		case S_BIOSCHECK: bios_screen(); transition(); break;
+		case S_AUTOFIX:
+			cfg.autofix = !cfg.autofix;
+			status(cfg.autofix ? "Known games get the fixes they need. Applies the next time a game is loaded."
+			                   : "Applies the next time a game is loaded.");
+			break;
 		case S_LANG:     cfg.lang = (cfg.lang + LANG_COUNT + dir) % LANG_COUNT; video_lang_changed(); break;
 		case S_RUMBLE: cfg.rumble = !cfg.rumble; break;
 		case S_REGION: cfg.region = (cfg.region + 3 + dir) % 3; status("Applies the next time a game is loaded."); break;

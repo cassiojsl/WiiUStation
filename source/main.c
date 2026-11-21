@@ -133,6 +133,7 @@ static struct { const char *key; int *val; int min, max; } OPTS[] = {
 	{ "regionf",    &cfg.regionf,    0, 4 + 64 },
 	{ "menusfx",    &cfg.menusfx,    0, 1 },
 	{ "autostart",  &cfg.autostart,  0, 1 },
+	{ "autofix",    &cfg.autofix,    0, 1 },
 	{ "lang",       &cfg.lang,       0, LANG_COUNT - 1 },
 	{ "hk0", &cfg.hk[0], -1, 15 }, { "hk1", &cfg.hk[1], -1, 15 }, { "hk2", &cfg.hk[2], -1, 15 },
 	{ "hk3", &cfg.hk[3], -1, 15 }, { "hk4", &cfg.hk[4], -1, 15 }, { "hk5", &cfg.hk[5], -1, 15 },
@@ -230,10 +231,66 @@ void core_opt_cycle(int i, int dir)
 	cfg.core[i] = (cfg.core[i] + COREOPT[i].n + dir) % COREOPT[i].n;
 }
 
+/* ---- built-in fixes for known games ----
+ * The core has its own list (libpcsxcore/database.c); these are the
+ * P.E.Op.S. GPU fixes its options name, matched on the game's name or ID.
+ * They are only given to the core while the game runs and only when the
+ * option is left at its default, so the player's choice always wins. */
+static const struct { const char *match; const char *opt; } AUTOFIX[] = {
+	{ "chrono cross",         "gpu_peops_odd_even_bit" },
+	{ "SCUS-94536",           "gpu_peops_odd_even_bit" },
+	{ "SCUS-94537",           "gpu_peops_odd_even_bit" },
+	{ "lunar silver star",    "gpu_peops_ignore_brightness" },
+	{ "lunar - silver star",  "gpu_peops_ignore_brightness" },
+	{ "dark forces",          "gpu_peops_repeated_triangles" },
+	{ "dragon warrior vii",   "gpu_peops_lazy_screen_update" },
+	{ "dragon warrior 7",     "gpu_peops_lazy_screen_update" },
+	{ "pandemonium 2",        "gpu_peops_lazy_screen_update" },
+	{ "street fighter alpha", "gpu_peops_expand_screen_width" },
+	{ "street fighter zero",  "gpu_peops_expand_screen_width" },
+	{ "street fighter collection", "gpu_peops_expand_screen_width" },
+	{ "marvel super heroes",  "gpu_peops_expand_screen_width" },
+	{ "marvel vs. capcom",    "gpu_peops_expand_screen_width" },
+	{ "marvel vs capcom",     "gpu_peops_expand_screen_width" },
+	{ "x-men vs. street",     "gpu_peops_expand_screen_width" },
+	{ "x-men vs street",      "gpu_peops_expand_screen_width" },
+	{ "children of the atom", "gpu_peops_expand_screen_width" },
+	{ "darkstalkers",         "gpu_peops_expand_screen_width" },
+	{ "vampire savior",       "gpu_peops_expand_screen_width" },
+};
+static uint32_t autofixMask;     /* COREOPT indices on for the loaded game */
+
+static int ci_contains(const char *hay, const char *needle)
+{
+	size_t n = strlen(needle);
+	for (; *hay; hay++)
+		if (!strncasecmp(hay, needle, n)) return 1;
+	return 0;
+}
+
+static void autofix_detect(const char *name, const char *id)
+{
+	autofixMask = 0;
+	if (!cfg.autofix) return;
+	for (size_t k = 0; k < sizeof(AUTOFIX) / sizeof(AUTOFIX[0]); k++) {
+		if (!ci_contains(name, AUTOFIX[k].match) && !(id && id[0] && !strcmp(id, AUTOFIX[k].match))) continue;
+		for (int i = 0; i < NCOREOPT; i++)
+			if (!strcmp(COREOPT[i].key, AUTOFIX[k].opt)) autofixMask |= 1u << i;
+	}
+}
+
+/* the first automatic fix's name, for a message */
+const char *emu_autofix_name(void)
+{
+	for (int i = 0; i < NCOREOPT; i++)
+		if (autofixMask & (1u << i)) return COREOPT[i].label;
+	return NULL;
+}
+
 /* keys that only make sense globally (never in a per-game file) */
 static int global_only(const char *k)
 {
-	return !strcmp(k, "view") || !strcmp(k, "cover3d") || !strcmp(k, "menusfx") || !strcmp(k, "autostart") || !strcmp(k, "sort") || !strcmp(k, "regionf") || !strcmp(k, "lang") || !strncmp(k, "hk", 2) || !strcmp(k, "games_dir") || !strcmp(k, "gpu_thread") ||
+	return !strcmp(k, "view") || !strcmp(k, "cover3d") || !strcmp(k, "menusfx") || !strcmp(k, "autostart") || !strcmp(k, "autofix") || !strcmp(k, "sort") || !strcmp(k, "regionf") || !strcmp(k, "lang") || !strncmp(k, "hk", 2) || !strcmp(k, "games_dir") || !strcmp(k, "gpu_thread") ||
 	       !strcmp(k, "spu_thread") || !strcmp(k, "resume") || !strcmp(k, "ffwd");
 }
 
@@ -269,6 +326,7 @@ static void settings_defaults(void)
 	cfg.bezel = BEZEL_AMBIENT;
 	cfg.view = 4;         /* carousel */
 	cfg.menusfx = 1;
+	cfg.autofix = 1;
 	for (int i = 0; i < NCOREOPT; i++) cfg.core[i] = COREOPT[i].def;
 	memcpy(cfg.hk, default_hotkeys, sizeof(cfg.hk));
 	strcpy(cfg.games_dir, WIIU_ISO_DIR);
@@ -465,6 +523,8 @@ static const char *core_var(const char *key)
 		for (int i = 0; i < NCOREOPT; i++)
 			if (!strcmp(key + 13, COREOPT[i].key)) {
 				int v = cfg.core[i];
+				if ((autofixMask & (1u << i)) && v == COREOPT[i].def && COREOPT[i].n == 2)
+					v = 1;                      /* automatic fix: "enabled" */
 				return COREOPT[i].vals[v >= 0 && v < COREOPT[i].n ? v : 0];
 			}
 	return NULL;   /* core default */
@@ -956,6 +1016,11 @@ int emu_load_game(const char *path)
 		settings_enter_game(key);
 	}
 	varsDirty = 1;
+	{
+		char aid[16] = "";
+		covers_detect_id(path, aid);
+		autofix_detect(gameName, aid);
+	}
 	if (!ppfFromDisc) find_ppf(path);
 	ppfFromDisc = 0;
 	if (!retro_load_game(&gi)) { settings_leave_game(); return -1; }
@@ -970,6 +1035,11 @@ int emu_load_game(const char *path)
 	recent_add(path);
 	cheats_load();
 	if (ppfActive) video_osd(tr("Translation patch applied."));
+	else if (emu_autofix_name()) {
+		char m[160];
+		snprintf(m, sizeof(m), tr("Automatic fix for this game: %s"), tr(emu_autofix_name()));
+		video_osd(m);
+	}
 	return 0;
 }
 
@@ -981,6 +1051,7 @@ void emu_unload_game(void)
 	retro_unload_game();
 	audio_shutdown();
 	loaded = 0;
+	autofixMask = 0;
 	cheats_clear();
 	cheatsReady = 0;
 	wsActive = 0;
