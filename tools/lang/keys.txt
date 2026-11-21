@@ -293,3 +293,84 @@ neGcon twist dead zone
 neGcon: left stick steers, ZR / right stick up = I, ZL / down = II.
 with or endorsed by Sony or Nintendo.
 wut  -  devkitPro and the Wii U homebrew community
+Last played
+Most played
+Name
+USA
+Europe
+Japan
+Favourites
+less than 1 min
+%ld min
+%ld h %ld min
+%s%sPlayed %s
+Sorted by: %s
+Showing: %s
+Press + or ZR to change the filter.
+X  View   Y Favourite   - Options   + Search   ZL Sort   ZR Filter
+Menu sounds
+Widescreen (16:9)
+Aim with GamePad motion
+Check for updates
+Uses the game's widescreen code from its .cht file (a cheat named widescreen or 16:9).
+GunCon / Justifier: turn the GamePad to aim, L re-centres, ZR shoots.
+Version %s
+Checking GitHub...
+Version %s is available.
+You have %s. Press A to download it.
+WiiUStation is up to date.
+Downloading %s...
+Installed. Close WiiUStation and open it again to use the new version.
+The download failed. Nothing was changed.
+A: download and install
+No images here.
+Type the game ID...
+Cover from a screenshot...
+Cover from an image in covers/import...
+Remove custom cover
+Reset play time
+Covers you choose here replace the downloaded ones
+Game ID (e.g. SLUS-00594)
+Game ID saved. The cover is downloaded in the background.
+That is not a game ID (it looks like SLUS-00594).
+Screenshots
+Cover changed.
+Could not copy the image.
+Custom cover removed.
+Play time reset.
+No other memory cards.
+%d blocks
+%d block
+%d of 15 blocks free
+This memory card is empty.
+This card belongs to the game that is running: close the game to change it
+Y: delete   X: copy to another card
+Save deleted.
+Could not write the memory card.
+Press Y again to delete this save.
+Copy to which card?
+That card belongs to the game that is running.
+Could not read that memory card.
+Not enough free blocks on that card.
+That card already has this save.
+Save copied.
+%d / 15 used
+Memory cards
+No memory cards yet.
+Each game gets one in WiiUStation/saves. Cards from other emulators (.mcr, .mcd) can be copied there too.
+Cards from other emulators (.mcr, .mcd) can be copied to WiiUStation/saves
+Screenshot deleted.
+Press Y again to delete this screenshot.
+Gallery
+No screenshots yet.
+Take them from the menu during a game, or with a hotkey.
+Left / Right: previous / next   Y: delete
+A: view   Y: delete
+No widescreen code for this game: add one to its .cht file.
+Translation patch applied.
+No internet connection.
+Could not start the download.
+No release has been published yet.
+Could not reach GitHub.
+The latest release has no .wuhb file.
+Could not read the release version.

@@ -279,3 +279,84 @@
 291|Zona morta della torsione del neGcon
 292|neGcon: la levetta sinistra sterza, ZR / levetta destra su = I, ZL / giù = II.
 293|né approvato da Sony o Nintendo.
+295|Giocato di recente
+296|Più giocato
+297|Nome
+298|USA
+299|Europa
+300|Giappone
+301|Preferiti
+302|meno di 1 min
+303|%ld min
+304|%ld h %ld min
+305|%s%sGiocato %s
+306|Ordine: %s
+307|Mostro: %s
+308|Premi + o ZR per cambiare il filtro.
+309|X  Vista   Y Preferito   - Opzioni   + Cerca   ZL Ordina   ZR Filtro
+310|Suoni del menu
+311|Schermo largo (16:9)
+312|Mira muovendo il GamePad
+313|Cerca aggiornamenti
+314|Usa il codice schermo largo del file .cht del gioco (un trucco chiamato widescreen o 16:9).
+315|GunCon / Justifier: ruota il GamePad per mirare, L ricentra, ZR spara.
+316|Versione %s
+317|Controllo su GitHub...
+318|La versione %s è disponibile.
+319|Hai la %s. Premi A per scaricarla.
+320|WiiUStation è aggiornato.
+321|Download di %s...
+322|Installato. Chiudi WiiUStation e riaprilo per usare la nuova versione.
+323|Il download non è riuscito. Non è stato cambiato nulla.
+324|A: scarica e installa
+325|Nessuna immagine qui.
+326|Scrivi l'ID del gioco...
+327|Copertina da uno screenshot...
+328|Copertina da un'immagine in covers/import...
+329|Rimuovi copertina personale
+330|Azzera il tempo di gioco
+331|Le copertine scelte qui sostituiscono quelle scaricate
+332|ID del gioco (es. SLUS-00594)
+333|ID salvato. La copertina viene scaricata in background.
+334|Non è un ID di gioco (somiglia a SLUS-00594).
+335|Screenshot
+336|Copertina cambiata.
+337|Impossibile copiare l'immagine.
+338|Copertina personale rimossa.
+339|Tempo di gioco azzerato.
+340|Nessun'altra memory card.
+341|%d blocchi
+342|%d blocco
+343|%d blocchi liberi su 15
+344|Questa memory card è vuota.
+345|Questa scheda è del gioco aperto: chiudi il gioco per modificarla
+346|Y: elimina   X: copia su un'altra scheda
+347|Salvataggio eliminato.
+348|Impossibile scrivere la memory card.
+349|Premi di nuovo Y per eliminare questo salvataggio.
+350|Copiare su quale scheda?
+351|Quella scheda è del gioco aperto.
+352|Impossibile leggere quella memory card.
+353|Blocchi liberi insufficienti su quella scheda.
+354|Quella scheda ha già questo salvataggio.
+355|Salvataggio copiato.
+356|%d / 15 usati
+357|Memory card
+358|Ancora nessuna memory card.
+359|Ogni gioco ne ha una in WiiUStation/saves. Anche le schede di altri emulatori (.mcr, .mcd) possono essere copiate lì.
+360|Le schede di altri emulatori (.mcr, .mcd) possono essere copiate in WiiUStation/saves
+361|Screenshot eliminato.
+362|Premi di nuovo Y per eliminare questo screenshot.
+363|Galleria
+364|Ancora nessuno screenshot.
+365|Scattali dal menu durante un gioco o con una scorciatoia.
+366|Sinistra / Destra: precedente / successivo   Y: elimina
+367|A: guarda   Y: elimina
+368|Nessun codice schermo largo per questo gioco: aggiungine uno al suo file .cht.
+369|Patch di traduzione applicata.
+370|Nessuna connessione a internet.
+371|Impossibile avviare il download.
+372|Non è ancora stata pubblicata nessuna versione.
+373|Impossibile raggiungere GitHub.
+374|L'ultima versione non ha un file .wuhb.
+375|Impossibile leggere la versione pubblicata.

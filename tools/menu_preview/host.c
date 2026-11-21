@@ -99,6 +99,10 @@ long emu_playtime(const char *k, long long *l) { if (l) *l = 0; return strlen(k)
 void emu_playtime_reset(const char *k) { (void)k; }
 int wiiu_battery(void) { return 4; }
 void sfx_play(int id) { (void)id; }
+const char *app_version(void) { return "v1.0.0"; }
+int update_check(char *t, size_t tn, char *e, size_t en) { snprintf(t, tn, "v1.1.0"); (void)e; (void)en; return 1; }
+int update_start(void) { return 1; }
+int update_progress(float *f) { *f = 0.4f; return 1; }
 int emu_memcard_path(char *o, size_t n) { (void)o; (void)n; return 0; }
 int wiiu_mkdirs(const char *p) { (void)p; return 0; }
 void covers_request(const char *i) { (void)i; }
@@ -169,6 +173,7 @@ int main(int argc, char **argv)
 	else if (!strcmp(mode, "controls")) { R = ren; menu_fonts(); controls(); }
 	else if (!strcmp(mode, "advanced")) { R = ren; menu_fonts(); scriptBtn[8] = WIIU_BTN_DOWN; scriptBtn[12] = WIIU_BTN_DOWN; scriptBtn[16] = WIIU_BTN_DOWN; scriptBtn[20] = WIIU_BTN_DOWN; advanced(); }
 	else if (!strcmp(mode, "cards")) { R = ren; menu_fonts(); scriptBtn[8] = WIIU_BTN_DOWN; scriptBtn[12] = WIIU_BTN_A; memcards(); }
+	else if (!strcmp(mode, "update")) { R = ren; menu_fonts(); update_screen(); }
 	else if (!strcmp(mode, "gallery")) { R = ren; menu_fonts(); scriptBtn[8] = WIIU_BTN_RIGHT; gallery(); }
 	else if (!strcmp(mode, "options")) { R = ren; menu_fonts(); entry_t e; memset(&e, 0, sizeof(e)); strcpy(e.name, "Metal Gear Solid (SLUS-00594).chd"); strcpy(e.id, "SLUS-00594"); game_options(&e, WIIU_ISO_DIR); }
 	else if (!strcmp(mode, "settings")) { R = ren; menu_fonts(); settings(); }

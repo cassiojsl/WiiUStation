@@ -279,3 +279,84 @@
 291|neGcon-Totzone beim Drehen
 292|neGcon: linker Stick lenkt, ZR / rechter Stick hoch = I, ZL / runter = II.
 293|Sony noch Nintendo verbunden oder von ihnen unterstützt.
+295|Zuletzt gespielt
+296|Meistgespielt
+297|Name
+298|USA
+299|Europa
+300|Japan
+301|Favoriten
+302|weniger als 1 Min.
+303|%ld Min.
+304|%ld Std. %ld Min.
+305|%s%sGespielt: %s
+306|Sortiert nach: %s
+307|Anzeige: %s
+308|Drücke + oder ZR, um den Filter zu ändern.
+309|X  Ansicht   Y Favorit   - Optionen   + Suche   ZL Sortieren   ZR Filter
+310|Menütöne
+311|Breitbild (16:9)
+312|Zielen durch Bewegen des GamePads
+313|Nach Updates suchen
+314|Nutzt den Breitbild-Code aus der .cht-Datei des Spiels (ein Cheat namens widescreen oder 16:9).
+315|GunCon / Justifier: GamePad drehen zum Zielen, L zentriert, ZR schießt.
+316|Version %s
+317|GitHub wird abgefragt...
+318|Version %s ist verfügbar.
+319|Du hast %s. Drücke A zum Herunterladen.
+320|WiiUStation ist aktuell.
+321|%s wird heruntergeladen...
+322|Installiert. Schließe WiiUStation und öffne es neu, um die neue Version zu nutzen.
+323|Der Download ist fehlgeschlagen. Nichts wurde geändert.
+324|A: herunterladen und installieren
+325|Hier sind keine Bilder.
+326|Spiel-ID eingeben...
+327|Cover aus einem Screenshot...
+328|Cover aus einem Bild in covers/import...
+329|Eigenes Cover entfernen
+330|Spielzeit zurücksetzen
+331|Hier gewählte Cover ersetzen die geladenen
+332|Spiel-ID (z. B. SLUS-00594)
+333|ID gespeichert. Das Cover wird im Hintergrund geladen.
+334|Das ist keine Spiel-ID (sie sieht aus wie SLUS-00594).
+335|Screenshots
+336|Cover geändert.
+337|Bild konnte nicht kopiert werden.
+338|Eigenes Cover entfernt.
+339|Spielzeit zurückgesetzt.
+340|Keine anderen Memory Cards.
+341|%d Blöcke
+342|%d Block
+343|%d von 15 Blöcken frei
+344|Diese Memory Card ist leer.
+345|Diese Karte gehört zum laufenden Spiel: schließe es, um sie zu ändern
+346|Y: löschen   X: auf andere Karte kopieren
+347|Spielstand gelöscht.
+348|Memory Card konnte nicht geschrieben werden.
+349|Drücke Y erneut, um diesen Spielstand zu löschen.
+350|Auf welche Karte kopieren?
+351|Diese Karte gehört zum laufenden Spiel.
+352|Diese Memory Card konnte nicht gelesen werden.
+353|Nicht genug freie Blöcke auf dieser Karte.
+354|Diese Karte hat den Spielstand schon.
+355|Spielstand kopiert.
+356|%d / 15 belegt
+357|Memory Cards
+358|Noch keine Memory Cards.
+359|Jedes Spiel bekommt eine in WiiUStation/saves. Karten anderer Emulatoren (.mcr, .mcd) können auch dorthin kopiert werden.
+360|Karten anderer Emulatoren (.mcr, .mcd) können nach WiiUStation/saves kopiert werden
+361|Screenshot gelöscht.
+362|Drücke Y erneut, um diesen Screenshot zu löschen.
+363|Galerie
+364|Noch keine Screenshots.
+365|Erstelle sie im Spiel über das Menü oder mit einem Hotkey.
+366|Links / Rechts: vorheriger / nächster   Y: löschen
+367|A: ansehen   Y: löschen
+368|Kein Breitbild-Code für dieses Spiel: füge einen in seine .cht-Datei ein.
+369|Übersetzungspatch angewendet.
+370|Keine Internetverbindung.
+371|Download konnte nicht gestartet werden.
+372|Es wurde noch keine Version veröffentlicht.
+373|GitHub ist nicht erreichbar.
+374|Die neueste Version hat keine .wuhb-Datei.
+375|Die Versionsnummer konnte nicht gelesen werden.

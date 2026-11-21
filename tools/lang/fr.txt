@@ -279,3 +279,84 @@
 291|Zone morte de torsion du neGcon
 292|neGcon : le stick gauche dirige, ZR / stick droit haut = I, ZL / bas = II.
 293|ni approuvé par Sony ou Nintendo.
+295|Joué récemment
+296|Le plus joué
+297|Nom
+298|États-Unis
+299|Europe
+300|Japon
+301|Favoris
+302|moins d'1 min
+303|%ld min
+304|%ld h %ld min
+305|%s%sJoué %s
+306|Tri : %s
+307|Affichage : %s
+308|Appuyez sur + ou ZR pour changer le filtre.
+309|X  Affichage   Y Favori   - Options   + Recherche   ZL Tri   ZR Filtre
+310|Sons du menu
+311|Écran large (16:9)
+312|Viser en bougeant le GamePad
+313|Rechercher des mises à jour
+314|Utilise le code écran large du fichier .cht du jeu (un code nommé widescreen ou 16:9).
+315|GunCon / Justifier : tournez le GamePad pour viser, L recentre, ZR tire.
+316|Version %s
+317|Vérification sur GitHub...
+318|La version %s est disponible.
+319|Vous avez la %s. Appuyez sur A pour la télécharger.
+320|WiiUStation est à jour.
+321|Téléchargement de %s...
+322|Installé. Fermez WiiUStation et rouvrez-le pour utiliser la nouvelle version.
+323|Le téléchargement a échoué. Rien n'a été modifié.
+324|A : télécharger et installer
+325|Aucune image ici.
+326|Saisir l'ID du jeu...
+327|Jaquette à partir d'une capture...
+328|Jaquette d'une image dans covers/import...
+329|Retirer la jaquette personnelle
+330|Remettre le temps de jeu à zéro
+331|Les jaquettes choisies ici remplacent celles téléchargées
+332|ID du jeu (ex. SLUS-00594)
+333|ID enregistré. La jaquette se télécharge en arrière-plan.
+334|Ce n'est pas un ID de jeu (il ressemble à SLUS-00594).
+335|Captures d'écran
+336|Jaquette modifiée.
+337|Impossible de copier l'image.
+338|Jaquette personnelle retirée.
+339|Temps de jeu remis à zéro.
+340|Aucune autre carte mémoire.
+341|%d blocs
+342|%d bloc
+343|%d blocs libres sur 15
+344|Cette carte mémoire est vide.
+345|Cette carte appartient au jeu en cours : fermez le jeu pour la modifier
+346|Y : supprimer   X : copier sur une autre carte
+347|Sauvegarde supprimée.
+348|Impossible d'écrire la carte mémoire.
+349|Appuyez à nouveau sur Y pour supprimer cette sauvegarde.
+350|Copier sur quelle carte ?
+351|Cette carte appartient au jeu en cours.
+352|Impossible de lire cette carte mémoire.
+353|Pas assez de blocs libres sur cette carte.
+354|Cette carte contient déjà cette sauvegarde.
+355|Sauvegarde copiée.
+356|%d / 15 utilisés
+357|Cartes mémoire
+358|Pas encore de carte mémoire.
+359|Chaque jeu en a une dans WiiUStation/saves. Les cartes d'autres émulateurs (.mcr, .mcd) peuvent aussi y être copiées.
+360|Les cartes d'autres émulateurs (.mcr, .mcd) peuvent être copiées dans WiiUStation/saves
+361|Capture supprimée.
+362|Appuyez à nouveau sur Y pour supprimer cette capture.
+363|Galerie
+364|Pas encore de capture.
+365|Prenez-les depuis le menu pendant un jeu, ou avec un raccourci.
+366|Gauche / Droite : précédente / suivante   Y : supprimer
+367|A : voir   Y : supprimer
+368|Pas de code écran large pour ce jeu : ajoutez-en un à son fichier .cht.
+369|Patch de traduction appliqué.
+370|Pas de connexion Internet.
+371|Impossible de lancer le téléchargement.
+372|Aucune version n'a encore été publiée.
+373|Impossible de joindre GitHub.
+374|La dernière version n'a pas de fichier .wuhb.
+375|Impossible de lire la version publiée.

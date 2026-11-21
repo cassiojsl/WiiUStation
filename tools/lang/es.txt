@@ -279,3 +279,84 @@
 291|Zona muerta del giro del neGcon
 292|neGcon: el stick izquierdo gira, ZR / stick derecho arriba = I, ZL / abajo = II.
 293|ni respaldado por Sony ni por Nintendo.
+295|Jugado por última vez
+296|Más jugado
+297|Nombre
+298|EE. UU.
+299|Europa
+300|Japón
+301|Favoritos
+302|menos de 1 min
+303|%ld min
+304|%ld h %ld min
+305|%s%sJugado %s
+306|Orden: %s
+307|Mostrando: %s
+308|Pulsa + o ZR para cambiar el filtro.
+309|X  Vista   Y Favorito   - Opciones   + Buscar   ZL Orden   ZR Filtro
+310|Sonidos del menú
+311|Pantalla ancha (16:9)
+312|Apuntar moviendo el GamePad
+313|Buscar actualizaciones
+314|Usa el código de pantalla ancha del archivo .cht del juego (un truco llamado widescreen o 16:9).
+315|GunCon / Justifier: gira el GamePad para apuntar, L centra, ZR dispara.
+316|Versión %s
+317|Consultando GitHub...
+318|La versión %s está disponible.
+319|Tienes la %s. Pulsa A para descargarla.
+320|WiiUStation está actualizado.
+321|Descargando %s...
+322|Instalado. Cierra WiiUStation y ábrelo de nuevo para usar la nueva versión.
+323|La descarga falló. No se cambió nada.
+324|A: descargar e instalar
+325|No hay imágenes aquí.
+326|Escribir el ID del juego...
+327|Portada a partir de una captura...
+328|Portada de una imagen en covers/import...
+329|Quitar portada propia
+330|Reiniciar tiempo de juego
+331|Las portadas elegidas aquí sustituyen a las descargadas
+332|ID del juego (p. ej. SLUS-00594)
+333|ID guardado. La portada se descarga en segundo plano.
+334|Eso no es un ID de juego (se parece a SLUS-00594).
+335|Capturas
+336|Portada cambiada.
+337|No se pudo copiar la imagen.
+338|Portada propia quitada.
+339|Tiempo de juego reiniciado.
+340|No hay otras tarjetas de memoria.
+341|%d bloques
+342|%d bloque
+343|%d de 15 bloques libres
+344|Esta tarjeta de memoria está vacía.
+345|Esta tarjeta es del juego abierto: cierra el juego para cambiarla
+346|Y: borrar   X: copiar a otra tarjeta
+347|Partida borrada.
+348|No se pudo escribir la tarjeta de memoria.
+349|Pulsa Y otra vez para borrar esta partida.
+350|¿Copiar a qué tarjeta?
+351|Esa tarjeta es del juego abierto.
+352|No se pudo leer esa tarjeta de memoria.
+353|No hay bloques libres suficientes en esa tarjeta.
+354|Esa tarjeta ya tiene esta partida.
+355|Partida copiada.
+356|%d / 15 usados
+357|Tarjetas de memoria
+358|Aún no hay tarjetas de memoria.
+359|Cada juego tiene una en WiiUStation/saves. También puedes copiar allí tarjetas de otros emuladores (.mcr, .mcd).
+360|Las tarjetas de otros emuladores (.mcr, .mcd) se pueden copiar a WiiUStation/saves
+361|Captura borrada.
+362|Pulsa Y otra vez para borrar esta captura.
+363|Galería
+364|Aún no hay capturas.
+365|Hazlas desde el menú durante un juego o con un atajo.
+366|Izquierda / Derecha: anterior / siguiente   Y: borrar
+367|A: ver   Y: borrar
+368|No hay código de pantalla ancha para este juego: añade uno a su archivo .cht.
+369|Parche de traducción aplicado.
+370|Sin conexión a internet.
+371|No se pudo iniciar la descarga.
+372|Aún no se ha publicado ninguna versión.
+373|No se pudo conectar con GitHub.
+374|La última versión no tiene archivo .wuhb.
+375|No se pudo leer la versión publicada.

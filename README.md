@@ -92,7 +92,39 @@ controllers.
   panel (game on the TV, touch buttons on the GamePad).
 - **Language**: English, Português, Español, Français, Deutsch or Italiano
   (Settings → Language).
+- **Game browser**: ZL sorts by name, last played or most played; ZR shows
+  all games, favourites, or one region (USA, Europe, Japan). − opens the
+  game's options: type its game ID, pick a cover from a screenshot or from an
+  image in `covers/import`, reset its play time. The play time of each game
+  is shown in the carousel.
+- **Translation patches**: put `<game file name>.ppf` (or `<GAME-ID>.ppf`) in
+  `WiiUStation/patches` or next to the game, and it is applied when the game
+  starts.
+- **Widescreen**: Settings → Widescreen (16:9) turns on the game's
+  widescreen code from its `.cht` file (a cheat named "widescreen" or "16:9")
+  and shows the picture in 16:9.
+- **Light gun by motion**: with GunCon or Justifier, "Aim with GamePad
+  motion" aims by turning the GamePad (L re-centres, ZR shoots).
+- **Memory cards**: view the saves of each card with their icons, delete
+  them and copy them between cards. Cards from other emulators (`.mcr`,
+  `.mcd`) copied to `WiiUStation/saves` show up too.
+- **Gallery** of screenshots, **menu sounds** and an opening animation, the
+  GamePad **battery** next to the clock.
+- The game is saved when you go to the HOME Menu, in case the app is closed
+  from there.
+- **Updates**: Settings → Check for updates downloads the latest release from
+  GitHub and installs it to `sd:/wiiu/apps/WiiUStation.wuhb`.
 - Multi-disc games are supported (`.m3u`, or "Change disc").
+
+## Releases
+
+Push a version tag and GitHub Actions builds the app and publishes a release
+with `WiiUStation.wuhb`, which is what "Check for updates" downloads:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
 
 ## Building
 
