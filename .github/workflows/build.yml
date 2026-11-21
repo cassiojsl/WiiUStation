@@ -4,9 +4,14 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Publish a release with this version (e.g. v1.0.0); empty = only build"
+        required: false
+        default: ""
 
 permissions:
-  contents: write   # to publish releases from version tags
+  contents: write   # to publish releases
 
 jobs:
   wuhb:
@@ -17,21 +22,32 @@ jobs:
         with:
           submodules: recursive
       - name: Build
+        env:
+          RELEASE_VERSION: ${{ github.event.inputs.version }}
         run: |
           git config --global --add safe.directory '*'
           git fetch --tags --force || true
-          make -j$(nproc)
+          # a release run builds with its version number inside, so the app
+          # knows it is up to date after installing it
+          if [ -n "$RELEASE_VERSION" ]; then
+            make -j$(nproc) APP_VERSION="$RELEASE_VERSION"
+          else
+            make -j$(nproc)
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: WiiUStation
           path: |
             WiiUStation.wuhb
             WiiUStation.rpx
-      # a version tag (v1.2.0) publishes a release with the .wuhb: the app's
-      # "Check for updates" downloads it from there
+      # a release (a version tag pushed, or a manual run with a version)
+      # publishes the .wuhb: the app's "Check for updates" downloads it
       - name: Release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.version != ''
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ github.event.inputs.version || github.ref_name }}
+          name: WiiUStation ${{ github.event.inputs.version || github.ref_name }}
+          target_commitish: ${{ github.sha }}
           files: WiiUStation.wuhb
           generate_release_notes: true
