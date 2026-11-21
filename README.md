@@ -1,94 +1,105 @@
 # WiiUStation
 
-Standalone PlayStation emulator for the Wii U (Aroma `.wuhb`). It uses
-[PCSX-ReARMed](https://github.com/libretro/pcsx_rearmed) as its core. The core
-is linked into the app through the libretro API, so RetroArch is not needed.
-The menu, video, controllers and saves are WiiUStation's own.
+A standalone PlayStation emulator for the Wii U, for the Aroma environment
+(`.wuhb`). The emulator core is
+[PCSX-ReARMed](https://github.com/libretro/pcsx_rearmed), linked into the app
+through the libretro API, so RetroArch is not needed. The menu, video,
+controllers, covers and saves are WiiUStation's own.
 
 ## Install
 
 1. Copy `WiiUStation.wuhb` to `sd:/wiiu/apps/`.
-2. Put your games in `sd:/wiisxrx/isos/`, or in any folder you choose in
-   Settings → Games folder. Supported formats: `.cue/.bin`,
-   `.chd`, `.pbp`, `.iso`, `.img`, `.m3u` (multi-disc) and more.
-3. Optional: put a BIOS (`scph1001.bin`, `scph5501.bin`, ...) in
-   `sd:/wiisxrx/bios/`. Without one, the built-in HLE BIOS is used.
+2. Start WiiUStation once. It creates its folder:
 
-Memory cards are stored in `sd:/wiisxrx/saves/<game>.srm`, save states in
-`sd:/wiisxrx/savestates/`, and settings in `sd:/wiisxrx/wiiustation.cfg`.
+```
+sd:/wiiu/apps/WiiUStation/
+├── games/      your games (.cue/.bin, .chd, .pbp, .iso, .img, .m3u, ...)
+├── bios/       optional: scph1001.bin, scph5501.bin, ...
+├── saves/      memory cards (<game>.srm)
+├── states/     save states
+├── covers/     downloaded covers (<GAME-ID>.jpg) - you can add your own
+├── bezels/     your borders: default.png or <GAME-ID>.png (1280x720)
+└── settings.cfg
+```
 
-## Covers
-
-The game browser shows the cover of the selected game. The main menu shows
-the cover of the running game. The game ID (for example `SCUS-94244`) is
-found in one of these ways:
-- read from `SYSTEM.CNF` inside the disc image (`.bin`, `.iso`, `.img`,
-  `.cue`, `.m3u`);
-- read from the `DISC_ID` of a `.pbp`;
-- taken from the file name;
-- for `.chd`, reported by the emulator the first time the game is loaded.
-
-Covers are downloaded in the background over HTTPS from
-[xlenore/psx-covers](https://github.com/xlenore/psx-covers) (`covers/default`)
-and cached in `sd:/wiisxrx/covers/`. You can also put your own
-`<ID>.jpg` files there. Certificates are checked against Mozilla's root store
-(`content/cacert.pem`, taken from the certifi package).
+The games folder can be anywhere on the SD card: set it in
+**Settings → Games folder**. Without a BIOS, the built-in HLE BIOS is used.
 
 ## Controls
 
-GamePad, Pro Controller, Classic Controller and Wii Remote (sideways).
-Players are assigned in this order: GamePad first, then the other controllers.
+The GamePad, Pro Controller, Classic Controller and Wii Remote (sideways)
+all work. Players are assigned in this order: GamePad first, then the other
+controllers.
 
 | Wii U | PlayStation |
 |---|---|
 | A / B / X / Y | ○ / ✕ / △ / □ |
 | L / R / ZL / ZR | L1 / R1 / L2 / R2 |
-| Sticks, stick clicks | DualShock analog, L3 / R3 |
+| Sticks, stick clicks | analog sticks, L3 / R3 (DualShock mode) |
 | + / − | Start / Select |
 
-In a game, **HOME**, **L3 + R3** or **touching the GamePad** opens the menu.
-In the menu, HOME opens the Wii U HOME Menu.
+- In a game, **HOME**, **L3 + R3** or **touching the GamePad** opens the menu.
+  In the menu, HOME opens the Wii U HOME Menu.
+- The menu is built for touch. A single tap opens an item and dragging
+  scrolls. In the settings, tap the ◀ ▶ arrows to change a value. **X**
+  switches the game browser between the cover grid and the list.
 
-## Use of the Wii U hardware
+## Features
 
-- **CPU core 1** runs the PlayStation CPU with **Lightrec**, which recompiles
-  MIPS code into PowerPC code. The generated code lives in Cafe OS's codegen
-  (JIT) area, which is either writable or executable (W^X). Every write by
-  Lightrec is wrapped in RW→RX switches (see `patches/`).
-- **Core 2** can run the GPU renderer (gpulib + P.E.Op.S. soft GPU, threaded;
-  experimental on big-endian, off by default).
-- **Core 0** runs CD-ROM prefetch, and SPU mixing when that option is enabled
-  (Advanced; it is off by default and uses native Cafe OS semaphores).
-- **GX2** scales the picture to the TV (720p/1080p) and the GamePad at the
-  same time, with bilinear or sharp filtering, 4:3, stretch or integer
-  scaling, and optional scanlines.
-
-If the hosting title has no codegen area, Lightrec is disabled and the
-interpreter is used. Settings → CPU core shows which one is active.
+- **Lightrec** dynarec, running in the Cafe OS codegen (JIT) area.
+- **Threaded GPU** on Espresso core 2. Optional threaded sound on core 0.
+- **Covers**: the game ID is read from the disc image (SYSTEM.CNF), the PBP
+  header, the file name, or the running game (CHD). The cover is downloaded
+  over HTTPS from [xlenore/psx-covers](https://github.com/xlenore/psx-covers).
+- **Picture**:
+  - filters: Smooth, Pixel, Sharp smooth;
+  - effects: scanlines, CRT mask;
+  - screen: 4:3, stretch, integer scale;
+  - borders: **Ambient**, a soft, dimmed copy of the game behind it, or
+    **Custom image**, your own PNG bezels.
+- **Saves**: memory cards are saved automatically, plus 10 save-state slots.
+  Multi-disc games are supported (`.m3u`, or "Change disc").
 
 ## Building
 
 ```bash
 git submodule update --init --recursive
-make -C WiiUStation
+make
 ```
 
-This needs devkitPro with `wiiu-dev`, `wiiu-sdl2` and `wiiu-sdl2_ttf`. The
-Makefile applies `patches/*.patch` to `vendor/pcsx_rearmed` and builds the
-core (`platform=wiiu`, Lightrec, threaded GPU/SPU, P.E.Op.S. GPU), then links the
-frontend.
+This needs devkitPro with `wiiu-dev`, `wiiu-sdl2`, `wiiu-sdl2_ttf`,
+`wiiu-sdl2_image` and `wiiu-curl`. The Makefile applies `patches/*.patch` to
+`vendor/pcsx_rearmed`, builds the core (`platform=wiiu`, Lightrec, threaded
+GPU/SPU, P.E.Op.S. GPU), then links the app.
 
-The patches do three things:
-- point Lightrec's code buffer at the codegen area and add the W^X hooks;
-- enable the native Wii U threads in libretro-common, pinned to cores 0 and 2;
-- fix a big-endian build error in gpulib's threaded renderer;
-- fix the GTE (3D geometry coprocessor) on big-endian hosts. MVMVA and the
-  light-colour matrix in NCS/NCT/NCCS/NCDS read 16-bit matrix and vector
-  elements as a flat array, which swaps every pair on PowerPC. The result was
-  collapsed or invisible polygons in 3D games.
-  `tools/gte_endian_test.sh` checks the GTE output against a little-endian
-  build (it needs qemu-ppc).
+Patches to the core:
+- point Lightrec's code buffer at the codegen area and wrap every write in
+  RW/RX switches (W^X). The fixed RWX window at `0x00802000` only exists under
+  the legacy Homebrew Launcher.
+- enable native Wii U threads in libretro-common, pinned to cores 0 and 2,
+  and use Cafe OS semaphores for the SPU thread.
+- fix the **GTE on big-endian** hosts. MVMVA and the NCS/NCT/NCCS/NCDS
+  light-colour step read the 16-bit matrices as flat arrays, which swaps
+  every pair on PowerPC.
+- fix a big-endian build error in gpulib's threaded renderer.
+
+Tools:
+- `tools/gte_endian_test.sh` checks the GTE output against a little-endian
+  build. It needs `qemu-ppc` and `powerpc-linux-gnu-gcc`.
+- `tools/menu_preview/run.sh` renders the menu screens on a PC and saves
+  screenshots.
+
+## Credits
+
+The **PCSX-ReARMed** team (notaz, Exophase, senquack, pcercuei and the
+contributors) and the PCSX / PCSX-df / PCSX-Reloaded teams. **Lightrec** and
+**GNU lightning**. **P.E.Op.S.** GPU. **wut**, **devkitPro** and the Wii U
+homebrew community. **Aroma**. **SDL2** for Wii U, **libcurl**, **Mbed TLS**,
+**FreeType**, **HarfBuzz**. Covers from **xlenore/psx-covers**. The full list
+is in the app under **Credits**.
 
 ## Licence
 
-GPL-2.0-or-later, the same as PCSX-ReARMed.
+GPL-2.0-or-later, the same as PCSX-ReARMed. PlayStation is a trademark of
+Sony Interactive Entertainment, and Wii U is a trademark of Nintendo. This
+project is not affiliated with or endorsed by either company.

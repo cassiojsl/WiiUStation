@@ -12,7 +12,7 @@
 
 #include "platform.h"
 
-#define COVER_DIR   WIIU_APP_DIR "/covers"
+#define COVER_DIR   WIIU_COVER_DIR
 #define ID_FILE     COVER_DIR "/ids.txt"
 
 /* ------------------------------------------------------------------------ */

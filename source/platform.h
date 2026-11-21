@@ -12,19 +12,29 @@
 extern "C" {
 #endif
 
-/* ---- SD card layout (same folders as WiiStation on the Wii) ---- */
+/* ---- SD card layout: everything lives next to the app ----
+ *   sd:/wiiu/apps/WiiUStation.wuhb
+ *   sd:/wiiu/apps/WiiUStation/{games,bios,saves,states,covers,bezels}
+ */
+#ifndef WIIU_SD_ROOT
 #define WIIU_SD_ROOT     "fs:/vol/external01"
-#define WIIU_APP_DIR     WIIU_SD_ROOT "/wiisxrx"
-#define WIIU_ISO_DIR     WIIU_APP_DIR "/isos"
+#endif
+#define WIIU_APP_DIR     WIIU_SD_ROOT "/wiiu/apps/WiiUStation"
+#define WIIU_ISO_DIR     WIIU_APP_DIR "/games"
 #define WIIU_BIOS_DIR    WIIU_APP_DIR "/bios"
 #define WIIU_SAVE_DIR    WIIU_APP_DIR "/saves"
-#define WIIU_STATE_DIR   WIIU_APP_DIR "/savestates"
-#define WIIU_CONFIG_FILE WIIU_APP_DIR "/wiiustation.cfg"
+#define WIIU_STATE_DIR   WIIU_APP_DIR "/states"
+#define WIIU_COVER_DIR   WIIU_APP_DIR "/covers"
+#define WIIU_BEZEL_DIR   WIIU_APP_DIR "/bezels"
+#define WIIU_CONFIG_FILE WIIU_APP_DIR "/settings.cfg"
+/* used by test builds before the folder move */
+#define WIIU_OLD_DIR     WIIU_SD_ROOT "/wiisxrx"
 
 int wiiu_mkdirs(const char *path);
 
 /* ---- settings ---- */
 enum { WIIU_ASPECT_4_3 = 0, WIIU_ASPECT_STRETCH, WIIU_ASPECT_INTEGER };
+enum { BEZEL_OFF = 0, BEZEL_AMBIENT, BEZEL_CUSTOM };
 enum { WIIU_FILTER_LINEAR = 0, WIIU_FILTER_NEAREST, WIIU_FILTER_SHARP_BILINEAR };
 
 typedef struct {
@@ -44,6 +54,8 @@ typedef struct {
 	int analog;         /* pad type: 1 = DualShock */
 	int rumble;
 	int audio;
+	int bezel;          /* 0 off, 1 ambient, 2 custom image */
+	int view;           /* game browser: 0 grid, 1 list */
 	char games_dir[256];  /* folder the game browser opens */
 } wiiu_settings;
 
@@ -61,6 +73,8 @@ void video_draw_game(int dim);
 void video_present(void);
 void video_osd(const char *msg);
 void video_set_fps_text(const char *txt);
+void video_set_game_id(const char *id);
+void video_fade_in(void);                 /* fade the game in from black */   /* for per-game bezels */
 void *video_open_font(int size);       /* TTF_Font* (system font) */
 
 /* events: 0 when the app must quit (HOME Menu -> Close) */

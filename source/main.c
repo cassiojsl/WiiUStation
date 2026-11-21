@@ -77,6 +77,8 @@ static struct { const char *key; int *val; int min, max; } OPTS[] = {
 	{ "analog",     &cfg.analog,     0, 1 },
 	{ "rumble",     &cfg.rumble,     0, 1 },
 	{ "audio",      &cfg.audio,      0, 1 },
+	{ "bezel",      &cfg.bezel,      0, 2 },
+	{ "view",       &cfg.view,       0, 1 },
 };
 
 void settings_load(void)
@@ -99,8 +101,11 @@ void settings_load(void)
 	cfg.analog = 0;       /* digital pad: works with every game */
 	cfg.rumble = 1;
 	cfg.audio = 1;
+	cfg.bezel = BEZEL_AMBIENT;
+	cfg.view = 0;
 	strcpy(cfg.games_dir, WIIU_ISO_DIR);
 	f = fopen(WIIU_CONFIG_FILE, "r");
+	if (!f) f = fopen(WIIU_OLD_DIR "/wiiustation.cfg", "r");   /* older builds */
 	if (f) {
 		int version = 0;
 		long start;
@@ -165,6 +170,24 @@ static char gamePath[512], gameName[256], gameId[16];
 extern char CdromId[];   /* PCSX-ReARMed: e.g. "SCUS94244" */
 static int loaded;
 
+/* BIOS: the app folder, or the folder older builds used if it has one */
+static const char *bios_dir(void)
+{
+	static const char *names[] = { "scph1001.bin", "SCPH1001.BIN", "scph5501.bin", "SCPH5501.BIN",
+	                               "scph7001.bin", "SCPH7001.BIN", "scph5500.bin", "scph5502.bin", NULL };
+	char p[256];
+	struct stat st;
+	for (int i = 0; names[i]; i++) {
+		snprintf(p, sizeof(p), "%s/%s", WIIU_BIOS_DIR, names[i]);
+		if (!stat(p, &st)) return WIIU_BIOS_DIR;
+	}
+	for (int i = 0; names[i]; i++) {
+		snprintf(p, sizeof(p), "%s/bios/%s", WIIU_OLD_DIR, names[i]);
+		if (!stat(p, &st)) return WIIU_OLD_DIR "/bios";
+	}
+	return WIIU_BIOS_DIR;
+}
+
 static const char *core_var(const char *key)
 {
 	if (!strcmp(key, "pcsx_rearmed_drc"))
@@ -208,7 +231,7 @@ static bool environment(unsigned cmd, void *data)
 {
 	switch (cmd) {
 	case RETRO_ENVIRONMENT_GET_SYSTEM_DIRECTORY:
-		*(const char **)data = WIIU_BIOS_DIR;
+		*(const char **)data = bios_dir();
 		return true;
 	case RETRO_ENVIRONMENT_GET_SAVE_DIRECTORY:
 		*(const char **)data = WIIU_SAVE_DIR;
@@ -420,7 +443,20 @@ static void load_memcard(void)
 	srmShadow = NULL;
 	if (!size || !data) return;
 	srm_path(path, sizeof(path));
-	if (read_file(path, data, size) > 0) {
+	if (read_file(path, data, size) <= 0) {
+		/* memory card written by an older build */
+		char old[512], base[256];
+		strncpy(base, gameName, sizeof(base) - 1);
+		base[sizeof(base) - 1] = 0;
+		char *dot = strrchr(base, '.');
+		if (dot) *dot = 0;
+		snprintf(old, sizeof(old), "%s/saves/%s.srm", WIIU_OLD_DIR, base);
+		/* if found, srmShadow stays NULL so the next save writes it to the
+		 * new folder */
+		read_file(old, data, size);
+		return;
+	}
+	{
 		srmShadow = malloc(size);
 		if (srmShadow) memcpy(srmShadow, data, size);
 	}
@@ -457,6 +493,7 @@ int emu_load_game(const char *path)
 	audio_init(av.timing.sample_rate);
 	covers_set_loaded_id(path, CdromId);
 	if (!covers_detect_id(path, gameId)) gameId[0] = 0;
+	video_set_game_id(gameId);
 	return 0;
 }
 
@@ -635,6 +672,8 @@ int main(int argc, char **argv)
 	wiiu_mkdirs(WIIU_BIOS_DIR);
 	wiiu_mkdirs(WIIU_SAVE_DIR);
 	wiiu_mkdirs(WIIU_STATE_DIR);
+	wiiu_mkdirs(WIIU_COVER_DIR);
+	wiiu_mkdirs(WIIU_BEZEL_DIR);
 	jit_available();          /* probe codegen on the main core */
 	settings_load();
 

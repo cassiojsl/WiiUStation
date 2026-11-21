@@ -4,8 +4,8 @@
  *  1. Game ID: read SYSTEM.CNF from the disc image (ISO9660 inside .bin /
  *     .iso / .img, following .cue and .m3u), the DISC_ID of a .pbp, an ID in
  *     the file name, or the ID PCSX-ReARMed reports after loading (.chd).
- *     Results are remembered in sd:/wiisxrx/covers/ids.txt.
- *  2. Cover: sd:/wiisxrx/covers/<ID>.jpg, downloaded in the background from
+ *     Results are remembered in sd:/wiiu/apps/WiiUStation/covers/ids.txt.
+ *  2. Cover: sd:/wiiu/apps/WiiUStation/covers/<ID>.jpg, downloaded in the background from
  *     github.com/xlenore/psx-covers (covers/default/<ID>.jpg) over HTTPS,
  *     verified against Mozilla's root store (content/cacert.pem).
  *  3. Textures are cached for the menu.
@@ -23,7 +23,7 @@
 
 #include "platform.h"
 
-#define COVER_DIR   WIIU_APP_DIR "/covers"
+#define COVER_DIR   WIIU_COVER_DIR
 #define ID_FILE     COVER_DIR "/ids.txt"
 #define COVER_URL   "https://raw.githubusercontent.com/xlenore/psx-covers/main/covers/default/%s.jpg"
 #define CA_FILE     "fs:/vol/content/cacert.pem"

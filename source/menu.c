@@ -350,14 +350,59 @@ static void draw_footer(const char *hint)
 	x += text(fontSmall, x, 692, "OK", GREY, 0) + 34;
 	wiiu_button(x, 692, "B"); x += 24;
 	x += text(fontSmall, x, 692, "Back", GREY, 0) + 34;
+	if (hint && hint[0] == 'X' && hint[1] == ' ') {     /* "X  ..." -> X glyph */
+		wiiu_button(x, 692, "X"); x += 24;
+		hint += 3;
+	}
 	if (hint) text(fontSmall, x, 692, hint, DIM, 0);
 }
 
+/* Screen transitions: every new screen fades in from black. */
+static uint32_t fadeStart;
+static void transition(void) { fadeStart = SDL_GetTicks(); }
+
 static void present(void)
 {
+	uint32_t dt = SDL_GetTicks() - fadeStart;
+	if (dt < 220) {
+		SDL_Color k = { 0, 0, 0 };
+		fill(0, 0, 1280, 720, k, (uint8_t)(255 - dt * 255 / 220));
+	}
 	SDL_RenderPresent(R);
 	pump_events();
 	SDL_Delay(1);
+}
+
+/* "Crash Bandicoot 3 (USA) (SCUS-94244).chd" -> "Crash Bandicoot 3" */
+static void pretty_name(const char *file, char *out, size_t n)
+{
+	const char *b = strrchr(file, '/');
+	b = b ? b + 1 : file;
+	snprintf(out, n, "%s", b);
+	char *dot = strrchr(out, '.');
+	if (dot && strlen(dot) <= 5) *dot = 0;
+	for (char *p = out; *p; p++)
+		if ((*p == '(' || *p == '[') && p > out) {
+			char *e = p;
+			while (e > out && e[-1] == ' ') e--;
+			*e = 0;
+			break;
+		}
+	if (!out[0]) snprintf(out, n, "%s", b);
+}
+
+/* Smooth loading indicator: a rotating arc with a fading tail. */
+static void spinner(float cx, float cy, float r, SDL_Color c)
+{
+	float base = SDL_GetTicks() * 0.006f;
+	for (int i = 0; i < 12; i++) {
+		float a0 = base + i * 0.22f, a1 = a0 + 0.2f, t = r * 0.3f;
+		float q[8] = {
+			cx + cosf(a0) * r, cy + sinf(a0) * r, cx + cosf(a1) * r, cy + sinf(a1) * r,
+			cx + cosf(a1) * (r - t), cy + sinf(a1) * (r - t), cx + cosf(a0) * (r - t), cy + sinf(a0) * (r - t)
+		};
+		poly(q, 4, c, (uint8_t)(40 + i * 17));
+	}
 }
 
 /* Cover art panel on the right side (PS1 jewel-case look). */
@@ -378,12 +423,16 @@ static void draw_cover(const char *id, const char *caption)
 		SDL_RenderCopy(R, t, NULL, &d);
 		outline(d.x - 2, d.y - 2, d.w + 4, d.h + 4, GREY, 160, 2);
 	} else {
-		/* placeholder: a CD with the PlayStation colours */
 		float cx = COVER_X + COVER_W / 2.0f, cy = y + COVER_W / 2.0f;
-		ring(cx, cy, 130, 100, (SDL_Color){ 60, 66, 92, 255 });
-		ring(cx, cy, 30, 6, GREY);
-		ring(cx, cy, 128, 4, PS_BLUE);
-		text(fontSmall, (int)cx, (int)cy + 160, id && id[0] ? "Downloading cover..." : "No cover", DIM, 1);
+		if (id && id[0]) {
+			spinner(cx, cy, 46, PS_BLUE);
+			text(fontSmall, (int)cx, (int)cy + 90, "Loading cover", DIM, 1);
+		} else {
+			/* no ID: a plain disc */
+			ring(cx, cy, 130, 100, (SDL_Color){ 60, 66, 92, 255 });
+			ring(cx, cy, 30, 6, GREY);
+			text(fontSmall, (int)cx, (int)cy + 160, "No cover", DIM, 1);
+		}
 	}
 	if (caption && caption[0]) text(fontSmall, COVER_X + COVER_W / 2, y + COVER_W + 40, caption, GREY, 1);
 }
@@ -401,6 +450,8 @@ static int listW = 1060;
 typedef struct {
 	int sel;
 	float scroll;      /* first visible row, fractional while dragging */
+	float hy;          /* animated highlight position (screen y) */
+	int hyInit;
 } list_t;
 
 static int clampi(int v, int lo, int hi) { return v < lo ? lo : v > hi ? hi : v; }
@@ -419,10 +470,12 @@ static int list_run(list_t *L, const char **labels, const char **values, int cou
 	if (T.down && T.dragging && T.sy >= LIST_Y && T.sy < LIST_Y + ROWS * ROW_H)
 		L->scroll -= (float)T.dy / ROW_H;
 	if (!T.down) {
-		/* keep the selection visible when using buttons */
-		if (L->sel < (int)(L->scroll + 0.5f)) L->scroll = L->sel;
-		if (L->sel >= (int)(L->scroll + 0.5f) + ROWS) L->scroll = L->sel - ROWS + 1;
-		L->scroll = (float)(int)(L->scroll + 0.5f);
+		/* keep the selection visible when using buttons; glide there */
+		float target = (float)(int)(L->scroll + 0.5f);
+		if (L->sel < target) target = L->sel;
+		if (L->sel >= target + ROWS) target = L->sel - ROWS + 1;
+		L->scroll += (target - L->scroll) * 0.35f;
+		if (fabsf(target - L->scroll) < 0.01f) L->scroll = target;
 	}
 	if (L->scroll < 0) L->scroll = 0;
 	if (L->scroll > maxFirst) L->scroll = maxFirst;
@@ -433,16 +486,21 @@ static int list_run(list_t *L, const char **labels, const char **values, int cou
 	SDL_Color panel = { 10, 14, 34 };
 	fill(LIST_X - 20, LIST_Y - 8, LIST_W + 40, ROWS * ROW_H + 16, panel, 170);
 	SDL_RenderSetClipRect(R, &(SDL_Rect){ LIST_X - 20, LIST_Y - 8, LIST_W + 40, ROWS * ROW_H + 16 });
+	{
+		/* highlight glides to the selected row */
+		float ty = LIST_Y + (L->sel - L->scroll) * ROW_H;
+		if (!L->hyInit) { L->hy = ty; L->hyInit = 1; }
+		L->hy += (ty - L->hy) * 0.4f;
+		SDL_Color hl = { 52, 84, 168 };
+		fill(LIST_X - 12, (int)L->hy + 3, LIST_W + 24, ROW_H - 6, hl, 220);
+		outline(LIST_X - 12, (int)L->hy + 3, LIST_W + 24, ROW_H - 6, PS_BLUE, 200, 2);
+	}
 
 	for (int i = 0; i <= ROWS && first + i < count; i++) {
 		int idx = first + i;
 		int y = LIST_Y + (int)((i - frac) * ROW_H);
 		int selected = idx == L->sel;
-		if (selected) {
-			SDL_Color hl = { 52, 84, 168 };
-			fill(LIST_X - 12, y + 3, LIST_W + 24, ROW_H - 6, hl, 220);
-			outline(LIST_X - 12, y + 3, LIST_W + 24, ROW_H - 6, PS_BLUE, 200, 2);
-		} else {
+		if (!selected) {
 			SDL_Color sep = { 60, 70, 110 };
 			fill(LIST_X, y + ROW_H - 1, LIST_W, 1, sep, 120);
 		}
@@ -555,6 +613,125 @@ static int scan_dir(const char *path, entry_t **out)
 	return n;
 }
 
+
+/* ------------------------------------------------------------------------ */
+/* game grid (covers)                                                       */
+/* ------------------------------------------------------------------------ */
+#define GRID_X     64
+#define GRID_Y     124
+#define GRID_COLS  5
+#define CELL_W     230
+#define CELL_H     268
+#define COVER_SZ   190
+#define GRID_ROWS_VIS 2
+
+typedef struct {
+	int sel;
+	float scroll;      /* first visible row */
+	float hx, hy;      /* animated highlight */
+	int hInit;
+} grid_t;
+
+static void cover_or_disc(const char *id, int x, int y, int sz)
+{
+	int w = 0, h = 0;
+	SDL_Texture *t = id && id[0] ? (SDL_Texture *)covers_texture(R, id, &w, &h) : NULL;
+	if (t && w > 0 && h > 0) {
+		int dw = sz, dh = sz * h / w;
+		if (dh > sz) { dh = sz; dw = sz * w / h; }
+		SDL_Rect d = { x + (sz - dw) / 2, y + (sz - dh) / 2, dw, dh };
+		SDL_SetTextureBlendMode(t, SDL_BLENDMODE_NONE);
+		SDL_RenderCopy(R, t, NULL, &d);
+	} else {
+		SDL_Color slot = { 26, 32, 60 };
+		fill(x, y, sz, sz, slot, 220);
+		if (id && id[0]) spinner(x + sz / 2.0f, y + sz / 2.0f, 26, PS_BLUE);
+		else {
+			ring(x + sz / 2.0f, y + sz / 2.0f, sz * 0.36f, sz * 0.26f, (SDL_Color){ 60, 66, 92, 255 });
+			ring(x + sz / 2.0f, y + sz / 2.0f, sz * 0.09f, 3, GREY);
+		}
+	}
+}
+
+/* Draws the grid of entries; returns the tapped entry or -1.
+ * Detects the game ID of at most one visible entry per frame. */
+static int grid_run(grid_t *G, entry_t *list, const char **labels, int count, const char *dir)
+{
+	int rows = (count + GRID_COLS - 1) / GRID_COLS;
+	int maxFirst = rows > GRID_ROWS_VIS ? rows - GRID_ROWS_VIS : 0;
+	int tapped = -1, detected = 0;
+
+	if (T.down && T.dragging && T.sy >= GRID_Y)
+		G->scroll -= (float)T.dy / CELL_H;
+	if (!T.down) {
+		int selRow = G->sel / GRID_COLS;
+		float target = (float)(int)(G->scroll + 0.5f);
+		if (selRow < target) target = selRow;
+		if (selRow >= target + GRID_ROWS_VIS) target = selRow - GRID_ROWS_VIS + 1;
+		G->scroll += (target - G->scroll) * 0.3f;
+		if (fabsf(target - G->scroll) < 0.01f) G->scroll = target;
+	}
+	if (G->scroll < 0) G->scroll = 0;
+	if (G->scroll > maxFirst) G->scroll = maxFirst;
+
+	SDL_RenderSetClipRect(R, &(SDL_Rect){ 0, GRID_Y - 6, 1280, 664 - GRID_Y + 6 });
+	{
+		float tx = GRID_X + (G->sel % GRID_COLS) * CELL_W;
+		float ty = GRID_Y + (G->sel / GRID_COLS - G->scroll) * CELL_H;
+		if (!G->hInit) { G->hx = tx; G->hy = ty; G->hInit = 1; }
+		G->hx += (tx - G->hx) * 0.4f;
+		G->hy += (ty - G->hy) * 0.4f;
+		SDL_Color hl = { 52, 84, 168 };
+		fill((int)G->hx, (int)G->hy, CELL_W - 12, CELL_H - 10, hl, 200);
+		outline((int)G->hx, (int)G->hy, CELL_W - 12, CELL_H - 10, PS_BLUE, 220, 3);
+	}
+	int firstRow = (int)G->scroll;
+	for (int r = firstRow; r <= firstRow + GRID_ROWS_VIS && r < rows; r++) {
+		for (int c = 0; c < GRID_COLS; c++) {
+			int i = r * GRID_COLS + c;
+			if (i >= count) break;
+			entry_t *e = &list[i];
+			int x = GRID_X + c * CELL_W;
+			int y = GRID_Y + (int)((r - G->scroll) * CELL_H);
+			int cx = x + (CELL_W - 12 - COVER_SZ) / 2;
+			if (!e->dir && !e->idTried && !detected && !T.down) {
+				char full[768];
+				snprintf(full, sizeof(full), "%s/%s", dir, e->name);
+				e->idTried = 1;
+				if (!covers_detect_id(full, e->id)) e->id[0] = 0;
+				detected = 1;
+			}
+			if (e->dir) {
+				SDL_Color folder = { 40, 48, 84 };
+				fill(cx, y + 10, COVER_SZ, COVER_SZ, folder, 220);
+				fill(cx + 40, y + 64, COVER_SZ - 80, COVER_SZ - 110, PS_YELLOW, 200);
+				fill(cx + 40, y + 52, 60, 16, PS_YELLOW, 200);
+			} else {
+				cover_or_disc(e->id, cx, y + 10, COVER_SZ);
+			}
+			/* name, cleaned and shortened to fit */
+			char full[272], nm[40];
+			if (e->dir) snprintf(full, sizeof(full), "%s", labels[i]);
+			else pretty_name(e->name, full, sizeof(full));
+			if (strlen(full) > 21) snprintf(nm, sizeof(nm), "%.19s...", full);
+			else snprintf(nm, sizeof(nm), "%s", full);
+			text(fontSmall, x + (CELL_W - 12) / 2, y + COVER_SZ + 36, nm, i == G->sel ? WHITE : GREY, 1);
+			if (T.tapped && T.tx >= x && T.tx < x + CELL_W - 12 && T.ty >= y && T.ty < y + CELL_H - 10 &&
+			    T.ty >= GRID_Y)
+				tapped = i;
+		}
+	}
+	SDL_RenderSetClipRect(R, NULL);
+	if (rows > GRID_ROWS_VIS) {
+		int barH = 664 - GRID_Y - 20;
+		int h = barH * GRID_ROWS_VIS / rows;
+		int y = GRID_Y + (int)((barH - h) * G->scroll / maxFirst);
+		fill(1260, y, 6, h, PS_BLUE, 200);
+	}
+	if (tapped >= 0) G->sel = tapped;
+	return tapped;
+}
+
 static int at_or_above(const char *path, const char *root)
 {
 	/* 1 when path is root itself (or shorter, i.e. outside it) */
@@ -577,6 +754,7 @@ static int browse(const char *title, char *out, size_t outsz, int pickDir)
 	entry_t *list = NULL;
 	int count;
 	list_t L = { 0, 0 };
+	grid_t G = { 0 };
 	const char **labels = NULL;
 	char (*names)[272] = NULL;
 	const char *root = pickDir ? WIIU_SD_ROOT : cfg.games_dir;
@@ -592,6 +770,10 @@ static int browse(const char *title, char *out, size_t outsz, int pickDir)
 rescan:
 	free(list);
 	count = scan_dir(browsePath, &list);
+	if (!pickDir && count && !strcmp(list[0].name, "..") && at_or_above(browsePath, cfg.games_dir)) {
+		memmove(list, list + 1, (count - 1) * sizeof(entry_t));
+		count--;
+	}
 	if (pickDir) {
 		/* folders only, plus "use this folder" on top */
 		int m = 0;
@@ -616,18 +798,39 @@ rescan:
 	}
 	L.sel = 0;
 	L.scroll = 0;
+	L.hyInit = 0;
+	memset(&G, 0, sizeof(G));
+	transition();
 
 	for (;;) {
+		int useGrid = !pickDir && cfg.view == 0;
 		if (wiiu_quit) break;
 		poll_touch();
 		uint32_t b = poll_buttons();
 		int activate = -1;
 		if (count) {
-			if (b & WIIU_BTN_UP)    L.sel = L.sel > 0 ? L.sel - 1 : count - 1;
-			if (b & WIIU_BTN_DOWN)  L.sel = L.sel < count - 1 ? L.sel + 1 : 0;
-			if (b & (WIIU_BTN_L | WIIU_BTN_LEFT))  L.sel = clampi(L.sel - ROWS, 0, count - 1);
-			if (b & (WIIU_BTN_R | WIIU_BTN_RIGHT)) L.sel = clampi(L.sel + ROWS, 0, count - 1);
-			if (b & WIIU_BTN_A) activate = L.sel;
+			if (useGrid) {
+				if (b & WIIU_BTN_LEFT)  G.sel = clampi(G.sel - 1, 0, count - 1);
+				if (b & WIIU_BTN_RIGHT) G.sel = clampi(G.sel + 1, 0, count - 1);
+				if (b & WIIU_BTN_UP)    G.sel = clampi(G.sel - GRID_COLS, 0, count - 1);
+				if (b & WIIU_BTN_DOWN)  G.sel = clampi(G.sel + GRID_COLS, 0, count - 1);
+				if (b & WIIU_BTN_L)     G.sel = clampi(G.sel - GRID_COLS * 2, 0, count - 1);
+				if (b & WIIU_BTN_R)     G.sel = clampi(G.sel + GRID_COLS * 2, 0, count - 1);
+				if (b & WIIU_BTN_A) activate = G.sel;
+			} else {
+				if (b & WIIU_BTN_UP)    L.sel = L.sel > 0 ? L.sel - 1 : count - 1;
+				if (b & WIIU_BTN_DOWN)  L.sel = L.sel < count - 1 ? L.sel + 1 : 0;
+				if (b & (WIIU_BTN_L | WIIU_BTN_LEFT))  L.sel = clampi(L.sel - ROWS, 0, count - 1);
+				if (b & (WIIU_BTN_R | WIIU_BTN_RIGHT)) L.sel = clampi(L.sel + ROWS, 0, count - 1);
+				if (b & WIIU_BTN_A) activate = L.sel;
+			}
+		}
+		if (!pickDir && (b & WIIU_BTN_X)) {
+			cfg.view = !cfg.view;          /* X: switch grid / list */
+			settings_save();
+			if (cfg.view) L.sel = G.sel; else G.sel = L.sel;
+			L.hyInit = G.hInit = 0;
+			transition();
 		}
 
 		draw_background();
@@ -642,6 +845,8 @@ rescan:
 			text(fontSmall, 640, 410, "Choose your games folder in Settings.", DIM, 1);
 		} else if (pickDir) {
 			t = list_run(&L, labels, NULL, count, 0, NULL, NULL);
+		} else if (useGrid) {
+			t = grid_run(&G, list, labels, count, browsePath);
 		} else {
 			entry_t *e = &list[L.sel];
 			listW = 700;
@@ -658,7 +863,8 @@ rescan:
 			}
 		}
 		if (t >= 0) activate = t;
-		draw_footer(pickDir ? "Pick the folder with your games" : "L/R  Page    Drag to scroll");
+		draw_footer(pickDir ? "Pick the folder with your games" :
+		            useGrid ? "X  List view    Drag to scroll" : "X  Grid view    L/R  Page");
 		present();
 
 		if (back || (b & WIIU_BTN_PLUS)) break;               /* leave now */
@@ -697,24 +903,29 @@ static void advanced(void);
 
 static void settings(void)
 {
-	enum { S_GAMES, S_CORE, S_SKIP, S_FPS, S_AUDIO, S_ASPECT, S_FILTER, S_SCAN, S_CRT,
+	enum { S_GAMES, S_VIEW, S_CORE, S_SKIP, S_FPS, S_AUDIO, S_ASPECT, S_FILTER, S_BEZEL, S_SCAN, S_CRT,
 	       S_DITHER, S_PAD, S_RUMBLE, S_BIOS, S_LOGO, S_ADV, S_COUNT };
 	const char *labels[S_COUNT] = {
-		"Games folder", "CPU core", "Frame skip", "Show FPS", "Sound", "Screen", "Picture",
+		"Games folder", "Game list", "CPU core", "Frame skip", "Show FPS", "Sound", "Screen", "Picture", "Border",
 		"Scanlines", "CRT mask", "Dithering", "Controller", "Vibration",
 		"BIOS", "PlayStation boot logo", "Advanced..."
 	};
 	const char *values[S_COUNT];
 	list_t L = { 0, 0 };
+	transition();
 
 	for (;;) {
 		{
-			static char gd[64];
+			/* show the last two folder names: ".../WiiUStation/games" */
+			static char gd[80];
 			const char *p = cfg.games_dir + strlen(WIIU_SD_ROOT);
-			size_t l = strlen(p);
-			snprintf(gd, sizeof(gd), "%s%s", l > 26 ? "..." : "", l > 26 ? p + l - 26 : (*p ? p : "/"));
+			const char *last = strrchr(p, '/'), *prev = last;
+			if (last && last > p) { prev = last - 1; while (prev > p && *prev != '/') prev--; }
+			snprintf(gd, sizeof(gd), "%s%.40s", prev && prev > p ? "..." : "", prev && *p ? prev : "/");
 			values[S_GAMES] = gd;
 		}
+		values[S_VIEW]   = cfg.view ? "List" : "Grid with covers";
+		values[S_BEZEL]  = cfg.bezel == BEZEL_OFF ? "Off" : cfg.bezel == BEZEL_AMBIENT ? "Ambient" : "Custom image";
 		values[S_CORE]   = cfg.dynarec ? "Lightrec" : "Interpreter";
 		values[S_SKIP]   = cfg.frameskip ? "Auto" : "Off";
 		values[S_FPS]    = cfg.show_fps ? "On" : "Off";
@@ -767,6 +978,12 @@ static void settings(void)
 			}
 			break;
 		}
+		case S_VIEW:  cfg.view = !cfg.view; break;
+		case S_BEZEL:
+			cfg.bezel = (cfg.bezel + 3 + dir) % 3;
+			if (cfg.bezel == BEZEL_CUSTOM)
+				status("Put 1280x720 PNGs in WiiUStation/bezels: default.png or <GAME-ID>.png");
+			break;
 		case S_CORE:
 			if (!jit_available()) {
 				cfg.dynarec = 0;
@@ -803,6 +1020,7 @@ static void advanced(void)
 	};
 	const char *values[A_COUNT];
 	list_t L = { 0, 0 };
+	transition();
 
 	for (;;) {
 		values[A_GPU]    = cfg.gpu_thread ? "On" : "Off";
@@ -836,6 +1054,116 @@ static void advanced(void)
 	}
 }
 
+
+/* ------------------------------------------------------------------------ */
+/* credits                                                                  */
+/* ------------------------------------------------------------------------ */
+static void credits(void)
+{
+	static const char *lines[] = {
+		"#WiiUStation",
+		"PlayStation emulator for the Wii U",
+		"",
+		"#Emulator core",
+		"PCSX-ReARMed  -  notaz, Exophase, senquack, pcercuei",
+		"and the libretro / PCSX-ReARMed contributors",
+		"PCSX / PCSX-df / PCSX-Reloaded teams",
+		"Lightrec MIPS-to-PowerPC recompiler  -  Paul Cercueil",
+		"GNU lightning  -  Free Software Foundation",
+		"P.E.Op.S. soft GPU  -  Pete Bernert and the P.E.Op.S. team",
+		"dfsound SPU  -  PCSX-df team",
+		"libchdr  -  Romain Tisserand and contributors",
+		"",
+		"#Wii U",
+		"wut  -  devkitPro and the Wii U homebrew community",
+		"devkitPPC / devkitPro toolchain",
+		"Aroma environment  -  Maschell and contributors",
+		"SDL2 for Wii U  -  GaryOderNichts, Maschell and contributors",
+		"",
+		"#Libraries",
+		"SDL2, SDL2_ttf, SDL2_image  -  Sam Lantinga and the SDL team",
+		"FreeType, HarfBuzz, libpng, libjpeg-turbo, libwebp, zlib",
+		"libcurl  -  Daniel Stenberg and contributors",
+		"Mbed TLS  -  Trusted Firmware / Arm",
+		"Mozilla CA certificate store (certifi)",
+		"",
+		"#Content",
+		"Game covers  -  xlenore/psx-covers",
+		"",
+		"#Licence",
+		"GPL-2.0-or-later. Source code is available on GitHub.",
+		"PlayStation is a trademark of Sony Interactive Entertainment.",
+		"Wii U is a trademark of Nintendo. This project is not affiliated",
+		"with or endorsed by Sony or Nintendo.",
+	};
+	const int n = sizeof(lines) / sizeof(lines[0]);
+	const int LH = 40;
+	float scroll = 0, autoV = 0.35f;
+	transition();
+	for (;;) {
+		poll_touch();
+		uint32_t b = poll_buttons();
+		if (T.down && T.dragging) { scroll -= T.dy; autoV = 0; }
+		if (b & WIIU_BTN_DOWN) { scroll += LH; autoV = 0; }
+		if (b & WIIU_BTN_UP)   { scroll -= LH; autoV = 0; }
+		scroll += autoV;
+		float maxS = n * LH - 480;
+		if (scroll < 0) scroll = 0;
+		if (scroll > maxS) scroll = maxS;
+
+		draw_background();
+		int back = draw_header("Credits", 1);
+		SDL_Color panel = { 10, 14, 34 };
+		fill(90, 120, 1100, 536, panel, 170);
+		SDL_RenderSetClipRect(R, &(SDL_Rect){ 90, 124, 1100, 528 });
+		for (int i = 0; i < n; i++) {
+			int y = 150 + i * LH - (int)scroll;
+			if (y < 100 || y > 700) continue;
+			if (lines[i][0] == '#')
+				text(fontItem, 640, y, lines[i] + 1, PS_BLUE, 1);
+			else
+				text(fontSmall, 640, y, lines[i], i < 2 ? WHITE : GREY, 1);
+		}
+		SDL_RenderSetClipRect(R, NULL);
+		draw_footer("Drag to scroll");
+		present();
+		if (back || (b & (WIIU_BTN_B | WIIU_BTN_A)) || wiiu_quit) return;
+	}
+}
+
+/* Loading screen shown while the game starts (the load itself blocks). */
+static void loading_screen(const char *path)
+{
+	char id[16] = "";
+	const char *name = strrchr(path, '/') ? strrchr(path, '/') + 1 : path;
+	covers_detect_id(path, id);
+	for (int frame = 0; frame < 2; frame++) {     /* two frames: TV + GamePad */
+		SDL_SetRenderDrawColor(R, 0, 0, 0, 255);
+		SDL_RenderClear(R);
+		for (int y = 0; y < 720; y += 6) {
+			SDL_Color c = { (uint8_t)(4 + y / 90), (uint8_t)(8 + y / 40), (uint8_t)(30 + y / 14) };
+			fill(0, y, 1280, 6, c, 255);
+		}
+		cover_or_disc(id, 640 - 150, 150, 300);
+		char nm[80];
+		pretty_name(name, nm, sizeof(nm));
+		text(fontItem, 640, 500, nm, WHITE, 1);
+		spinner(640, 580, 22, PS_BLUE);
+		text(fontSmall, 640, 630, "Loading...", GREY, 1);
+		SDL_RenderPresent(R);
+	}
+}
+
+static void menu_fonts(void)
+{
+	if (!R) R = (SDL_Renderer *)video_renderer();
+	if (!fontTitle) {
+		fontTitle = (TTF_Font *)video_open_font(38);
+		fontItem  = (TTF_Font *)video_open_font(31);
+		fontSmall = (TTF_Font *)video_open_font(23);
+	}
+}
+
 /* ------------------------------------------------------------------------ */
 /* main menu                                                                */
 /* ------------------------------------------------------------------------ */
@@ -843,10 +1171,10 @@ static int slot = 0;
 
 int menu_run(void)
 {
-	enum { M_RESUME, M_LOAD, M_RESET, M_DISC, M_SAVE, M_LOADST, M_SLOT, M_SETTINGS, M_EXIT, M_COUNT };
+	enum { M_RESUME, M_LOAD, M_RESET, M_DISC, M_SAVE, M_LOADST, M_SLOT, M_SETTINGS, M_CREDITS, M_EXIT, M_COUNT };
 	static const char *allLabels[M_COUNT] = {
 		"Resume game", "Load game", "Reset game", "Change disc", "Save state",
-		"Load state", "State slot", "Settings", "Exit to Wii U Menu"
+		"Load state", "State slot", "Settings", "Credits", "Exit to Wii U Menu"
 	};
 	int map[M_COUNT];
 	const char *labels[M_COUNT];
@@ -854,14 +1182,10 @@ int menu_run(void)
 	char slotStr[8], discStr[16];
 	list_t L = { 0, 0 };
 
-	if (!R) {
-		R = (SDL_Renderer *)video_renderer();
-		fontTitle = (TTF_Font *)video_open_font(38);
-		fontItem  = (TTF_Font *)video_open_font(31);
-		fontSmall = (TTF_Font *)video_open_font(23);
-	}
+	menu_fonts();
 	poll_buttons();
 	T.down = T.tapped = 0;
+	transition();
 
 	for (;;) {
 		int n = 0, loaded = emu_game_loaded();
@@ -906,7 +1230,7 @@ int menu_run(void)
 		if (t >= 0) activate = 1;
 		/* touch on the slot / disc value cycles it */
 		draw_footer(loaded ? "HOME  Wii U HOME Menu    In game: HOME / touch / L3+R3 = menu" :
-		                     "Games go in sd:/wiisxrx/isos");
+		                     "Games go in sd:/wiiu/apps/WiiUStation/games");
 		{
 			char info[96];
 			snprintf(info, sizeof(info), "PCSX-ReARMed  |  %s", cfg.dynarec ? "Lightrec" : "Interpreter");
@@ -930,11 +1254,8 @@ int menu_run(void)
 				return 1;
 			case M_LOAD:
 				if (browse("Load game", path, sizeof(path), 0)) {
-					draw_background();
-					draw_header("Loading", 0);
-					text(fontItem, 640, 360, strrchr(path, '/') ? strrchr(path, '/') + 1 : path, WHITE, 1);
-					present();
-					if (emu_load_game(path) == 0) return 1;
+					loading_screen(path);
+					if (emu_load_game(path) == 0) { video_fade_in(); return 1; }
 					status("Could not load the game (bad image or missing BIOS?).");
 				}
 				break;
@@ -964,6 +1285,11 @@ int menu_run(void)
 				break;
 			case M_SETTINGS:
 				settings();
+				transition();
+				break;
+			case M_CREDITS:
+				credits();
+				transition();
 				break;
 			case M_EXIT:
 				return 0;

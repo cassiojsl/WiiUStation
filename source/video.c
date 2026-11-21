@@ -258,6 +258,64 @@ static void draw_sharp_bilinear(const SDL_Rect *src, const SDL_Rect *dst)
 	lastFilter = -1;
 }
 
+/* ---- bezels ---- */
+static char bezelId[16];
+static SDL_Texture *bezelTex;
+static char bezelLoaded[32] = "-";
+
+void video_set_game_id(const char *id)
+{
+	strncpy(bezelId, id ? id : "", sizeof(bezelId) - 1);
+}
+
+static SDL_Texture *custom_bezel(void)
+{
+	/* bezels/<GAME-ID>.png, else bezels/default.png; 1280x720 with a
+	 * transparent hole where the game goes */
+	char want[32], path[256];
+	snprintf(want, sizeof(want), "%s", bezelId[0] ? bezelId : "default");
+	if (strcmp(want, bezelLoaded)) {
+		SDL_Surface *s = NULL;
+		if (bezelTex) { SDL_DestroyTexture(bezelTex); bezelTex = NULL; }
+		if (bezelId[0]) {
+			snprintf(path, sizeof(path), "%s/%s.png", WIIU_BEZEL_DIR, bezelId);
+			s = IMG_Load(path);
+		}
+		if (!s) {
+			snprintf(path, sizeof(path), "%s/default.png", WIIU_BEZEL_DIR);
+			s = IMG_Load(path);
+		}
+		if (s) {
+			bezelTex = SDL_CreateTextureFromSurface(renderer, s);
+			SDL_SetTextureBlendMode(bezelTex, SDL_BLENDMODE_BLEND);
+			SDL_FreeSurface(s);
+		}
+		strcpy(bezelLoaded, want);
+	}
+	return bezelTex;
+}
+
+static void draw_ambient(const SDL_Rect *src, const SDL_Rect *dst)
+{
+	/* The frame itself, blown up past the screen edges: the bilinear
+	 * upscale of a 320x240 image is naturally very soft. Darkened. */
+	if (dst->x <= 0 && dst->y <= 0) return;
+	SDL_Rect s = { src->x + src->w / 8, src->y + src->h / 8, src->w * 3 / 4, src->h * 3 / 4 };
+	SDL_Rect full = { -160, -90, 1600, 900 };
+	SDL_SetTextureScaleMode(frameTex, SDL_ScaleModeLinear);
+	SDL_RenderCopy(renderer, frameTex, &s, &full);
+	lastFilter = -1;
+	SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 175);
+	SDL_RenderFillRect(renderer, NULL);
+	/* soft shadow around the game picture */
+	for (int i = 1; i <= 6; i++) {
+		SDL_Rect sh = { dst->x - i * 3, dst->y - i * 3, dst->w + i * 6, dst->h + i * 6 };
+		SDL_SetRenderDrawColor(renderer, 0, 0, 0, 30);
+		SDL_RenderFillRect(renderer, &sh);
+	}
+}
+
 void video_draw_game(int dim)
 {
 	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
@@ -266,6 +324,7 @@ void video_draw_game(int dim)
 
 	SDL_Rect src = { 0, 0, frameW, frameH }, dst;
 	compute_dest(&dst);
+	if (cfg.bezel == BEZEL_AMBIENT) draw_ambient(&src, &dst);
 
 	if (cfg.filter == WIIU_FILTER_SHARP_BILINEAR) {
 		draw_sharp_bilinear(&src, &dst);
@@ -300,6 +359,10 @@ void video_draw_game(int dim)
 			SDL_RenderCopy(renderer, crtTex, &s, &dst);
 		}
 	}
+	if (cfg.bezel == BEZEL_CUSTOM) {
+		SDL_Texture *b = custom_bezel();
+		if (b) SDL_RenderCopy(renderer, b, NULL, NULL);
+	}
 	if (dim) {
 		SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
 		SDL_SetRenderDrawColor(renderer, 0, 0, 0, 170);
@@ -307,8 +370,17 @@ void video_draw_game(int dim)
 	}
 }
 
+static uint32_t gameFade;
+void video_fade_in(void) { gameFade = SDL_GetTicks(); }
+
 void video_present(void)
 {
+	uint32_t dt = SDL_GetTicks() - gameFade;
+	if (gameFade && dt < 400) {
+		SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+		SDL_SetRenderDrawColor(renderer, 0, 0, 0, (Uint8)(255 - dt * 255 / 400));
+		SDL_RenderFillRect(renderer, NULL);
+	}
 	SDL_Color green = { 150, 255, 150, 255 }, white = { 255, 255, 255, 255 };
 	if (cfg.show_fps && fpsText[0]) {
 		char t[128];
