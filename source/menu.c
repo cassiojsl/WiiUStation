@@ -667,7 +667,8 @@ static int text_prompt(const char *title, const char *initial, char *out, size_t
 /* ------------------------------------------------------------------------ */
 /* file browser                                                             */
 /* ------------------------------------------------------------------------ */
-typedef struct { char name[256]; int dir; int idTried; char id[16]; int fav; } entry_t;
+typedef struct { char name[256]; int dir; int idTried; char id[16]; int fav; int discs; } entry_t;
+static int disc_tag(const char *name, char *base, size_t n);
 static char browsePath[512];
 static int favOnly;            /* show favourites only */
 static char searchText[64];    /* filter by name */
@@ -820,11 +821,22 @@ static int grid_run(grid_t *G, entry_t *list, const char **labels, int count, co
 			} else {
 				cover_or_disc(e->id, cx, y + 10, COVER_SZ);
 				if (e->fav) star(cx + COVER_SZ - 22, y + 32, 18, PS_YELLOW);
+				if (e->discs > 1) {
+					char dn[16];
+					snprintf(dn, sizeof(dn), "%d discs", e->discs);
+					SDL_Color badge = { 0, 110, 190 };
+					rrect(cx + 8, y + COVER_SZ - 26, 92, 30, 15, badge, 255);
+					text(fontSmall, cx + 54, y + COVER_SZ - 11, dn, WHITE, 1);
+				}
 			}
 			/* name, cleaned and shortened to fit */
 			char full[272], nm[40];
 			if (e->dir) snprintf(full, sizeof(full), "%s", labels[i]);
-			else pretty_name(e->name, full, sizeof(full));
+			else {
+				char b[256];
+				if (e->discs > 1 && disc_tag(e->name, b, sizeof(b))) pretty_name(b, full, sizeof(full));
+				else pretty_name(e->name, full, sizeof(full));
+			}
 			if (strlen(full) > 21) snprintf(nm, sizeof(nm), "%.19s...", full);
 			else snprintf(nm, sizeof(nm), "%s", full);
 			text(fontSmall, x + (CELL_W - 12) / 2, y + COVER_SZ + 36, nm, i == G->sel ? WHITE : GREY, 1);
@@ -842,6 +854,211 @@ static int grid_run(grid_t *G, entry_t *list, const char **labels, int count, co
 	}
 	if (tapped >= 0) G->sel = tapped;
 	return tapped;
+}
+
+
+/* ---- one entry per game: hide tracks referenced by .cue/.m3u, group discs ---- */
+static int ext_is(const char *n, const char *e)
+{
+	const char *d = strrchr(n, '.');
+	return d && !strcasecmp(d, e);
+}
+
+/* "Final Fantasy VII (USA) (Disc 2).chd" -> "Final Fantasy VII (USA)" + disc 2 */
+static int disc_tag(const char *name, char *base, size_t n)
+{
+	char tmp[256];
+	snprintf(tmp, sizeof(tmp), "%s", name);
+	char *dot = strrchr(tmp, '.');
+	if (dot) *dot = 0;
+	for (char *p = tmp; *p; p++) {
+		int skip = 0;
+		if (!strncasecmp(p, "(Disc ", 6)) skip = 6;
+		else if (!strncasecmp(p, "(Disk ", 6)) skip = 6;
+		else if (!strncasecmp(p, "(CD", 3)) skip = 3 + (p[3] == ' ');
+		else if (!strncasecmp(p, " Disc ", 6)) skip = 6;
+		else if (!strncasecmp(p, " CD", 3) && p[3] >= '1' && p[3] <= '9') skip = 3;
+		if (skip && p[skip] >= '1' && p[skip] <= '9') {
+			int d = atoi(p + skip);
+			char *e = p + skip;
+			while (*e >= '0' && *e <= '9') e++;
+			if (*e == ' ' && e[1] == 'o' && e[2] == 'f') { e += 3; while (*e == ' ' || (*e >= '0' && *e <= '9')) e++; }
+			if (*e == ')') e++;
+			char *q = p;
+			while (q > tmp && q[-1] == ' ') q--;
+			snprintf(base, n, "%.*s%s", (int)(q - tmp), tmp, e);
+			return d;
+		}
+	}
+	return 0;
+}
+
+static void collect_refs(const char *dir, const char *file, char (**refs)[256], int *nrefs)
+{
+	char path[768], line[512];
+	snprintf(path, sizeof(path), "%s/%s", dir, file);
+	FILE *f = fopen(path, "r");
+	if (!f) return;
+	int cue = ext_is(file, ".cue");
+	while (fgets(line, sizeof(line), f)) {
+		char name[256] = "";
+		line[strcspn(line, "\r\n")] = 0;
+		if (cue) {
+			char *q = strchr(line, '"');
+			if (strncasecmp(line, "FILE", 4) || !q) continue;
+			char *e = strchr(q + 1, '"');
+			if (!e) continue;
+			snprintf(name, sizeof(name), "%.*s", (int)(e - q - 1), q + 1);
+		} else {
+			if (!line[0] || line[0] == '#') continue;
+			const char *b = strrchr(line, '/');
+			snprintf(name, sizeof(name), "%s", b ? b + 1 : line);
+		}
+		*refs = realloc(*refs, (*nrefs + 1) * sizeof(**refs));
+		snprintf((*refs)[(*nrefs)++], 256, "%s", name);
+	}
+	fclose(f);
+}
+
+static void collapse_entries(const char *dir, entry_t *list, int *count)
+{
+	char (*refs)[256] = NULL;
+	int nrefs = 0, n = *count, m = 0;
+	for (int i = 0; i < n; i++)
+		if (!list[i].dir && (ext_is(list[i].name, ".cue") || ext_is(list[i].name, ".m3u")))
+			collect_refs(dir, list[i].name, &refs, &nrefs);
+	for (int i = 0; i < n; i++) {
+		entry_t *e = &list[i];
+		int hide = 0;
+		e->discs = 0;
+		if (!e->dir) {
+			for (int r = 0; r < nrefs && !hide; r++)
+				if (!strcasecmp(refs[r], e->name)) hide = 1;
+			/* track/image with a .cue of the same name next to it */
+			if (!hide && (ext_is(e->name, ".bin") || ext_is(e->name, ".img") || ext_is(e->name, ".iso"))) {
+				char cue[256];
+				snprintf(cue, sizeof(cue), "%s", e->name);
+				char *d = strrchr(cue, '.');
+				if (d) strcpy(d, ".cue");
+				for (int j = 0; j < n && !hide; j++) if (!strcasecmp(list[j].name, cue)) hide = 1;
+			}
+			if (ext_is(e->name, ".m3u")) {
+				int k = 0;
+				char (*r2)[256] = NULL;
+				collect_refs(dir, e->name, &r2, &k);
+				free(r2);
+				e->discs = k;
+			}
+		}
+		if (!hide) list[m++] = *e;
+	}
+	n = m;
+	/* group "(Disc N)" files that no .m3u covers yet */
+	for (int i = 0; i < n; i++) {
+		char bi[256];
+		if (list[i].dir || list[i].discs < 0 || !disc_tag(list[i].name, bi, sizeof(bi))) continue;
+		int members = 1;
+		for (int j = i + 1; j < n; j++) {
+			char bj[256];
+			if (!list[j].dir && disc_tag(list[j].name, bj, sizeof(bj)) && !strcmp(bi, bj)) {
+				list[j].discs = -1;      /* merged into entry i */
+				members++;
+			}
+		}
+		if (members > 1) {
+			list[i].discs = members;
+			/* show the disc-1 file as the representative */
+			int d1 = disc_tag(list[i].name, bi, sizeof(bi));
+			(void)d1;
+		}
+	}
+	m = 0;
+	for (int i = 0; i < n; i++) if (list[i].discs >= 0) list[m++] = list[i];
+	*count = m;
+	free(refs);
+}
+
+/* Lists the discs of a group (by base name) or of an .m3u, sorted by disc. */
+static int disc_files(const char *dir, const char *entry, char (*out)[256], int max)
+{
+	int n = 0;
+	if (ext_is(entry, ".m3u")) {
+		char (*r)[256] = NULL;
+		int k = 0;
+		collect_refs(dir, entry, &r, &k);
+		/* keep the .m3u's own relative lines */
+		char path[768], line[512];
+		snprintf(path, sizeof(path), "%s/%s", dir, entry);
+		FILE *f = fopen(path, "r");
+		if (f) {
+			while (n < max && fgets(line, sizeof(line), f)) {
+				line[strcspn(line, "\r\n")] = 0;
+				if (line[0] && line[0] != '#') snprintf(out[n++], 256, "%s", line);
+			}
+			fclose(f);
+		}
+		free(r);
+		return n;
+	}
+	char base[256], b2[256];
+	if (!disc_tag(entry, base, sizeof(base))) return 0;
+	DIR *d = opendir(dir);
+	struct dirent *ent;
+	int discNo[16];
+	if (!d) return 0;
+	while ((ent = readdir(d)) && n < max) {
+		int k = disc_tag(ent->d_name, b2, sizeof(b2));
+		if (k && !strcmp(base, b2) && is_game_file(ent->d_name) && !ext_is(ent->d_name, ".bin")) {
+			snprintf(out[n], 256, "%s", ent->d_name);
+			discNo[n++] = k;
+		}
+	}
+	closedir(d);
+	/* sort by disc number */
+	for (int i = 0; i < n; i++)
+		for (int j = i + 1; j < n; j++)
+			if (discNo[j] < discNo[i]) {
+				char t[256]; int tk = discNo[i];
+				memcpy(t, out[i], 256); memcpy(out[i], out[j], 256); memcpy(out[j], t, 256);
+				discNo[i] = discNo[j]; discNo[j] = tk;
+			}
+	return n;
+}
+
+static int choose_disc(const char *title, int ndisc, int current);
+static char pendingDisc[768];
+static int pendingIndex;
+
+/* For a multi-disc entry: ask which disc, make sure an .m3u exists (created
+ * next to the discs, so in-game disc swapping works), return it in out. */
+static int prepare_multidisc(const char *dir, const char *entry, char *out, size_t outsz)
+{
+	char discs[16][256];
+	int n = disc_files(dir, entry, discs, 16);
+	if (n < 2) return 0;
+	char nm[160];
+	pretty_name(entry, nm, sizeof(nm));
+	int pick = choose_disc(nm, n, 0);
+	if (pick < 0) return -1;
+	char m3u[768];
+	if (ext_is(entry, ".m3u")) {
+		snprintf(m3u, sizeof(m3u), "%s/%s", dir, entry);
+	} else {
+		char base[256];
+		disc_tag(entry, base, sizeof(base));
+		snprintf(m3u, sizeof(m3u), "%s/%s.m3u", dir, base);
+		struct stat st;
+		if (stat(m3u, &st) != 0) {
+			FILE *f = fopen(m3u, "w");
+			if (!f) return 0;
+			for (int i = 0; i < n; i++) fprintf(f, "%s\n", discs[i]);
+			fclose(f);
+		}
+	}
+	snprintf(out, outsz, "%s", m3u);
+	pendingIndex = pick;
+	snprintf(pendingDisc, sizeof(pendingDisc), "%s/%s", dir, discs[pick]);
+	return 1;
 }
 
 static int at_or_above(const char *path, const char *root)
@@ -896,6 +1113,7 @@ rescan:
 		memmove(list, list + 1, (count - 1) * sizeof(entry_t));
 		count--;
 	}
+	if (!pickDir) collapse_entries(browsePath, list, &count);
 	if (!pickDir) {
 		int m = 0;
 		for (int i = 0; i < count; i++) {
@@ -934,8 +1152,17 @@ rescan:
 		if (list[i].dir == 2) snprintf(names[i], sizeof(names[i]), "[ Use this folder ]");
 		else if (!strcmp(list[i].name, "..")) snprintf(names[i], sizeof(names[i]), ".. (up)");
 		else if (list[i].dir) snprintf(names[i], sizeof(names[i]), "%s/", list[i].name);
-		else if (list[i].fav) snprintf(names[i], sizeof(names[i]), "\xe2\x98\x85 %s", list[i].name);
-		else snprintf(names[i], sizeof(names[i]), "%s", list[i].name);
+		else if (list[i].discs > 1) {
+			char b[256], nm[256];
+			if (!disc_tag(list[i].name, b, sizeof(b))) snprintf(b, sizeof(b), "%s", list[i].name);
+			pretty_name(b, nm, sizeof(nm));
+			snprintf(names[i], sizeof(names[i]), "%s%s  (%d discs)", list[i].fav ? "\xe2\x98\x85 " : "", nm, list[i].discs);
+		}
+		else {
+			char nm[256];
+			pretty_name(list[i].name, nm, sizeof(nm));
+			snprintf(names[i], sizeof(names[i]), "%s%s", list[i].fav ? "\xe2\x98\x85 " : "", nm);
+		}
 		labels[i] = names[i];
 	}
 	if (!keepSel) {
@@ -1066,6 +1293,13 @@ rescan:
 				size_t l = strlen(browsePath);
 				snprintf(browsePath + l, sizeof(browsePath) - l, "/%s", e->name);
 			} else {
+				pendingIndex = 0;
+				pendingDisc[0] = 0;
+				if (e->discs > 1) {
+					int r = prepare_multidisc(browsePath, e->name, out, outsz);
+					if (r < 0) { transition(); continue; }       /* cancelled */
+					if (r > 0) { ret = 1; break; }
+				}
 				snprintf(out, outsz, "%s/%s", browsePath, e->name);
 				ret = 1;
 				break;
@@ -1674,11 +1908,75 @@ static int ask_resume(void)
 	}
 }
 
+/* "Which disc?" - returns 0-based disc or -1 */
+static int choose_disc(const char *title, int ndisc, int current)
+{
+	int sel = current;
+	poll_buttons();
+	T.down = T.tapped = 0;
+	transition();
+	for (;;) {
+		poll_touch();
+		uint32_t b = poll_buttons();
+		if (b & WIIU_BTN_LEFT)  sel = (sel + ndisc - 1) % ndisc;
+		if (b & WIIU_BTN_RIGHT) sel = (sel + 1) % ndisc;
+		draw_background();
+		int back = draw_header(NULL, 1);
+		SDL_Color card = { 14, 18, 40 }, hl = { 0, 140, 220 }, btn = { 40, 46, 74 };
+		int w = 170, gap = 20, tot = ndisc * w + (ndisc - 1) * gap;
+		if (tot > 1140) { w = (1140 - (ndisc - 1) * gap) / ndisc; tot = 1140; }
+		rrect(70, 200, 1140, 340, 26, card, 240);
+		text(fontTitle, 640, 260, "Choose a disc", WHITE, 1);
+		text(fontSmall, 640, 306, title, GREY, 1);
+		for (int i = 0; i < ndisc; i++) {
+			int x = 640 - tot / 2 + i * (w + gap);
+			SDL_Rect r = { x, 350, w, 140 };
+			if (tap_in(r.x, r.y, r.w, r.h)) { transition(); return i; }
+			rrect(r.x, r.y, r.w, r.h, 20, i == sel ? hl : btn, 255);
+			ring(r.x + w / 2.0f, r.y + 54, 30, 18, WHITE);
+			char d[16];
+			snprintf(d, sizeof(d), "Disc %d", i + 1);
+			text(fontItem, r.x + w / 2, r.y + 112, d, WHITE, 1);
+		}
+		draw_footer(NULL);
+		present();
+		if (wiiu_quit || back || (b & WIIU_BTN_B)) return -1;
+		if (b & WIIU_BTN_A) { transition(); return sel; }
+	}
+}
+
+/* In game: switch to another disc of a multi-disc game, or add one. */
+static int disc_picker_ingame(void)
+{
+	char path[512], nm[160];
+	int c = emu_disk_count();
+	if (c > 1) {
+		pretty_name(emu_game_name(), nm, sizeof(nm));
+		int d = choose_disc(nm, c, emu_disk_index());
+		if (d < 0) return 0;
+		if (d != emu_disk_index()) {
+			emu_disk_set(d);
+			char m[64];
+			snprintf(m, sizeof(m), "Disc %d inserted.", d + 1);
+			video_osd(m);
+		}
+		return 1;
+	}
+	if (browse("Change disc", path, sizeof(path), 0)) {
+		if (emu_disk_append(path)) return 1;
+		status("Disc change failed.");
+	}
+	return 0;
+}
+
 /* Starts a game: loading screen, load, optional resume. 1 = running. */
 static int start_game(const char *path)
 {
-	loading_screen(path);
-	if (emu_load_game(path) != 0) {
+	loading_screen(pendingDisc[0] ? pendingDisc : path);
+	int rc = pendingDisc[0] ? emu_load_game_disc(path, pendingIndex, pendingDisc) : emu_load_game(path);
+	pendingDisc[0] = 0;
+	pendingIndex = 0;
+	if (rc != 0) {
 		status("Could not load the game (bad image or missing BIOS?).");
 		return 0;
 	}
@@ -1713,10 +2011,52 @@ static void pill(const SDL_Rect *r, const char *label, int focused)
 	text(fontSmall, r->x + r->w / 2, r->y + r->h / 2, label, WHITE, 1);
 }
 
+/* icons for the in-game action cards */
+static void action_icon(int kind, float cx, float cy, float s, SDL_Color c)
+{
+	switch (kind) {
+	case H_SAVE: case H_LOAD: {     /* arrow into / out of a tray */
+		float dir = kind == H_SAVE ? 1 : -1;
+		bar(cx, cy - s * 0.42f * dir, cx, cy + s * 0.12f * dir, s * 0.12f, c);
+		float tip = cy + s * 0.2f * dir;
+		float tri[6] = { cx - s * 0.22f, tip - s * 0.18f * dir, cx + s * 0.22f, tip - s * 0.18f * dir, cx, tip };
+		poly(tri, 3, c, 255);
+		rrect((int)(cx - s * 0.45f), (int)(cy + s * 0.32f), (int)(s * 0.9f), (int)(s * 0.12f), 3, c, 255);
+		break;
+	}
+	case H_CHEATS:                   /* star */
+		star(cx, cy, s * 0.48f, c);
+		break;
+	case H_SHOT:                     /* camera */
+		rrect((int)(cx - s * 0.48f), (int)(cy - s * 0.28f), (int)(s * 0.96f), (int)(s * 0.66f), 8, c, 255);
+		rrect((int)(cx - s * 0.18f), (int)(cy - s * 0.42f), (int)(s * 0.36f), (int)(s * 0.2f), 4, c, 255);
+		ring(cx, cy + s * 0.05f, s * 0.22f, s * 0.08f, (SDL_Color){ 14, 18, 40, 255 });
+		break;
+	case H_RESET: {                  /* circular arrow */
+		const int N = 18;
+		for (int i = 3; i < N; i++) {
+			float a0 = i * 6.2831853f / N, a1 = a0 + 6.2831853f / N, r = s * 0.42f, t = s * 0.11f;
+			float q[8] = { cx + cosf(a0) * r, cy + sinf(a0) * r, cx + cosf(a1) * r, cy + sinf(a1) * r,
+			               cx + cosf(a1) * (r - t), cy + sinf(a1) * (r - t), cx + cosf(a0) * (r - t), cy + sinf(a0) * (r - t) };
+			poly(q, 4, c, 255);
+		}
+		float ax = cx + s * 0.42f, ay = cy + s * 0.08f;
+		float tri[6] = { ax - s * 0.2f, ay - s * 0.05f, ax + s * 0.12f, ay - s * 0.05f, ax - s * 0.04f, ay + s * 0.25f };
+		poly(tri, 3, c, 255);
+		break;
+	}
+	case H_DISC:                     /* CD */
+		ring(cx, cy, s * 0.48f, s * 0.3f, c);
+		ring(cx, cy, s * 0.12f, s * 0.05f, c);
+		break;
+	default: break;
+	}
+}
+
 int menu_run(void)
 {
 	hitem_t it[40];
-	int sel = -1, n;
+	int sel = -1, n, lastLoaded = -1;
 	float fx = 0, fy = 0, fw = 0, fh = 0;
 	char path[512], m[128];
 
@@ -1729,33 +2069,32 @@ int menu_run(void)
 		int loaded = emu_game_loaded();
 		int nrec = emu_recent_count();
 		n = 0;
+		if (loaded != lastLoaded) { sel = -1; lastLoaded = loaded; }
 
 		/* ---- layout ---- */
-		int tileY, tileH;
+		int tileY, tileH, ntiles;
 		if (loaded) {
-			const char *labels[6] = { "Resume", "Save state", "Load state", "", "Reset", "Change disc" };
-			static const int widths[7] = { 118, 104, 104, 112, 146, 98, 136 };
-			int x = 318;
-			for (int i = 0; i < 7; i++) {
-				it[n++] = (hitem_t){ { x, 278, widths[i], 58 }, i, 0 };
-				x += widths[i] + 10;
-			}
-			int rx = 60;
-			for (int i = 0; i < nrec && i < 9; i++) {
-				it[n++] = (hitem_t){ { rx, 404, 112, 112 }, H_RECENT, i };
-				rx += 128;
-			}
-			tileY = 562; tileH = 84;
+			it[n++] = (hitem_t){ { 960, 190, 240, 76 }, H_RESUME, 0 };
+			static const int acts[6] = { H_SAVE, H_LOAD, H_CHEATS, H_SHOT, H_RESET, H_DISC };
+			for (int i = 0; i < 6; i++)
+				it[n++] = (hitem_t){ { 60 + i * 196, 330, 180, 140 }, acts[i], 0 };
+			tileY = 500; tileH = 120; ntiles = 3;
 		} else {
 			int rx = 60;
 			for (int i = 0; i < nrec && i < 6; i++) {
 				it[n++] = (hitem_t){ { rx, 168, 170, 170 }, H_RECENT, i };
 				rx += 196;
 			}
-			tileY = 436; tileH = 190;
+			tileY = 436; tileH = 190; ntiles = 4;
 		}
-		for (int i = 0; i < 4; i++)
-			it[n++] = (hitem_t){ { 60 + i * 295, tileY, 275, tileH }, H_GAMES + i, 0 };
+		{
+			/* in game: Games, Settings, Close game (no Credits) */
+			static const int full[4] = { H_GAMES, H_SETTINGS, H_CREDITS, H_EXIT };
+			static const int game[3] = { H_GAMES, H_SETTINGS, H_EXIT };
+			int w = ntiles == 4 ? 275 : 380, gap = ntiles == 4 ? 20 : 20;
+			for (int i = 0; i < ntiles; i++)
+				it[n++] = (hitem_t){ { 60 + i * (w + gap), tileY, w, tileH }, ntiles == 4 ? full[i] : game[i], 0 };
+		}
 		if (sel < 0 || sel >= n) {
 			sel = 0;
 			for (int i = 0; i < n; i++) if (it[i].kind == (loaded ? H_RESUME : nrec ? H_RECENT : H_GAMES)) { sel = i; break; }
@@ -1774,29 +2113,22 @@ int menu_run(void)
 		if (b & WIIU_BTN_A) activate = 1;
 		if ((b & WIIU_BTN_B) && loaded) return 1;
 		for (int i = 0; i < n; i++)
-			if (tap_in(it[i].r.x, it[i].r.y, it[i].r.w, it[i].r.h)) {
-				sel = i; activate = 1;
-			}
+			if (tap_in(it[i].r.x, it[i].r.y, it[i].r.w, it[i].r.h)) { sel = i; activate = 1; }
 
 		/* ---- draw ---- */
 		draw_background();
 		draw_header(NULL, 0);
 		SDL_Color card = { 14, 18, 40 };
 		if (loaded) {
-			rrect(50, 120, 1180, 236, 22, card, 200);
-			const char *id = emu_game_id();
-			cover_or_disc(id, 74, 140, 196);
-			char nm[96];
+			rrect(50, 120, 1180, 180, 22, card, 220);
+			cover_or_disc(emu_game_id(), 70, 135, 150);
+			char nm[96], pl[64];
 			pretty_name(emu_game_name(), nm, sizeof(nm));
-			text(fontSmall, 330, 160, "NOW PLAYING", PS_BLUE, 0);
-			text(fontTitle, 330, 210, nm, WHITE, 0);
-			{
-				char pl[64];
-				int np = emu_player_count();
-				snprintf(pl, sizeof(pl), np > 1 ? "%d players" : "1 player", np);
-				text(fontSmall, 1210, 160, pl, DIM, 2);
-			}
-			text(fontSmall, 60, 384, "Recently played", GREY, 0);
+			text(fontSmall, 245, 168, "NOW PLAYING", PS_BLUE, 0);
+			text(fontTitle, 245, 214, nm, WHITE, 0);
+			int np = emu_player_count();
+			snprintf(pl, sizeof(pl), np > 1 ? "%d players" : "1 player", np);
+			text(fontSmall, 245, 258, pl, DIM, 0);
 		} else {
 			text(fontItem, 60, 140, nrec ? "Recently played" : "Welcome", WHITE, 0);
 			if (!nrec) {
@@ -1812,7 +2144,7 @@ int menu_run(void)
 			fx += (r.x - fx) * 0.35f; fy += (r.y - fy) * 0.35f;
 			fw += (r.w - fw) * 0.35f; fh += (r.h - fh) * 0.35f;
 			SDL_Color hl = { 0, 140, 220 };
-			int rad = it[sel].kind <= H_DISC ? (int)(fh / 2) : 18;
+			int rad = it[sel].kind == H_RESUME ? (int)(fh / 2) : 18;
 			rrect((int)fx - 6, (int)fy - 6, (int)fw + 12, (int)fh + 12, rad + 6, hl, 255);
 		}
 
@@ -1820,40 +2152,47 @@ int menu_run(void)
 			SDL_Rect r = it[i].r;
 			int f = i == sel;
 			switch (it[i].kind) {
-			case H_RESUME: pill(&r, "Resume", f); break;
-			case H_SAVE:   pill(&r, "Save", f); break;
-			case H_LOAD:   pill(&r, "Load", f); break;
-			case H_CHEATS: pill(&r, "Cheats", f); break;
-			case H_SHOT:   pill(&r, "Screenshot", f); break;
-			case H_RESET:  pill(&r, "Reset", f); break;
-			case H_DISC:
-				if (emu_disk_count() > 1) snprintf(m, sizeof(m), "Disc %d/%d", emu_disk_index() + 1, emu_disk_count());
-				else snprintf(m, sizeof(m), "Change disc");
-				pill(&r, m, f);
+			case H_RESUME: {
+				SDL_Color go = { 0, 120, 200 };
+				rrect(r.x, r.y, r.w, r.h, r.h / 2, go, 255);
+				float tri[6] = { r.x + 40, r.y + 22, r.x + 40, r.y + r.h - 22, r.x + 66, r.y + r.h / 2.0f };
+				poly(tri, 3, WHITE, 255);
+				text(fontItem, r.x + 82, r.y + r.h / 2, "Resume", WHITE, 0);
 				break;
+			}
+			case H_SAVE: case H_LOAD: case H_CHEATS: case H_SHOT: case H_RESET: case H_DISC: {
+				static const char *lab[] = { "", "Save state", "Load state", "Cheats", "Screenshot", "Reset", "" };
+				const char *l = lab[it[i].kind];
+				if (it[i].kind == H_DISC) {
+					if (emu_disk_count() > 1) snprintf(m, sizeof(m), "Disc %d of %d", emu_disk_index() + 1, emu_disk_count());
+					else snprintf(m, sizeof(m), "Change disc");
+					l = m;
+				}
+				rrect(r.x, r.y, r.w, r.h, 18, card, 255);
+				action_icon(it[i].kind, r.x + r.w / 2.0f, r.y + 54, 46, f ? WHITE : GREY);
+				text(fontSmall, r.x + r.w / 2, r.y + r.h - 30, l, f ? WHITE : GREY, 1);
+				break;
+			}
 			case H_RECENT: {
 				const char *p = emu_recent(it[i].arg);
-				char id[16] = "";
+				char id[16] = "", nm[48], sh[32];
 				covers_detect_id(p, id);
 				cover_or_disc(id, r.x, r.y, r.w);
-				if (!loaded) {
-					char nm[48], sh[32];
-					pretty_name(p, nm, sizeof(nm));
-					if (strlen(nm) > 16) snprintf(sh, sizeof(sh), "%.14s...", nm); else snprintf(sh, sizeof(sh), "%s", nm);
-					text(fontSmall, r.x + r.w / 2, r.y + r.h + 26, sh, f ? WHITE : GREY, 1);
-				}
+				pretty_name(p, nm, sizeof(nm));
+				if (strlen(nm) > 16) snprintf(sh, sizeof(sh), "%.14s...", nm); else snprintf(sh, sizeof(sh), "%s", nm);
+				text(fontSmall, r.x + r.w / 2, r.y + r.h + 26, sh, f ? WHITE : GREY, 1);
 				break;
 			}
 			default: {
-				static const char *tl[4] = { "Games", "Settings", "Credits", "Exit" };
-				int k = it[i].kind - H_GAMES;
-				rrect(r.x, r.y, r.w, r.h, 18, card, 210);
-				if (r.h > 120) {
+				const char *tl = it[i].kind == H_GAMES ? "Games" : it[i].kind == H_SETTINGS ? "Settings" :
+				                 it[i].kind == H_CREDITS ? "Credits" : loaded ? "Close game" : "Exit";
+				rrect(r.x, r.y, r.w, r.h, 18, card, 220);
+				if (r.h > 150) {
 					icon(it[i].kind, r.x + r.w / 2.0f, r.y + r.h / 2.0f - 22, 64, WHITE);
-					text(fontItem, r.x + r.w / 2, r.y + r.h - 34, tl[k], WHITE, 1);
+					text(fontItem, r.x + r.w / 2, r.y + r.h - 34, tl, WHITE, 1);
 				} else {
-					icon(it[i].kind, r.x + 50, r.y + r.h / 2.0f, 40, WHITE);
-					text(fontItem, r.x + 92, r.y + r.h / 2, tl[k], WHITE, 0);
+					icon(it[i].kind, r.x + 64, r.y + r.h / 2.0f, 48, WHITE);
+					text(fontItem, r.x + 116, r.y + r.h / 2, tl, WHITE, 0);
 				}
 				break;
 			}
@@ -1885,15 +2224,7 @@ int menu_run(void)
 			emu_reset();
 			return 1;
 		case H_DISC:
-			if (emu_disk_count() > 1) {
-				int c = emu_disk_count();
-				emu_disk_set((emu_disk_index() + 1) % c);
-				snprintf(m, sizeof(m), "Disc %d of %d inserted.", emu_disk_index() + 1, c);
-				status(m);
-			} else if (browse("Change disc", path, sizeof(path), 0)) {
-				if (emu_disk_append(path)) return 1;
-				status("Disc change failed.");
-			}
+			if (disc_picker_ingame()) return 1;
 			transition();
 			break;
 		case H_RECENT:
@@ -1915,6 +2246,12 @@ int menu_run(void)
 			transition();
 			break;
 		case H_EXIT:
+			if (loaded) {                    /* Close game: back to this menu */
+				emu_unload_game();
+				video_set_game_id("");
+				transition();
+				break;
+			}
 			return 0;
 		}
 	}

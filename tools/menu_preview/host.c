@@ -41,6 +41,8 @@ void *video_renderer(void) { return ren; }
 void *video_open_font(int size) { return TTF_OpenFont("/usr/share/fonts/opentype/inter/Inter-SemiBold.otf", size * 0.82); }
 void video_draw_game(int dim) { (void)dim; SDL_SetRenderDrawColor(ren, 0, 0, 0, 255); SDL_RenderClear(ren); }
 void video_fade_in(void) {}
+void video_set_game_id(const char *id) { (void)id; }
+void emu_unload_game(void) {}
 int pump_events(void) { return 1; }
 static wiiu_pad_state pad;
 void wiiu_input_update(void) {
@@ -63,6 +65,7 @@ static const char *rec[] = { SDROOT "/wiiu/apps/WiiUStation/games/Crash Bandicoo
 int emu_recent_count(void) { return 6; }
 const char *emu_recent(int i) { return rec[i]; }
 int emu_load_game(const char *p) { (void)p; return -1; }
+int emu_load_game_disc(const char *m, int i, const char *d) { (void)m; (void)i; (void)d; return -1; }
 void emu_reset(void) {}
 int emu_state_save(int s) { (void)s; return 1; }
 int emu_state_load(int s) { (void)s; return 0; }
@@ -115,6 +118,8 @@ int main(int argc, char **argv)
 	else if (!strcmp(mode, "ingame")) { loaded = 1; menu_run(); }
 	else if (!strcmp(mode, "grid")) { char o[512]; cfg.view = 0; R = ren; menu_fonts(); scriptBtn[10] = WIIU_BTN_RIGHT; scriptBtn[14] = WIIU_BTN_DOWN; browse("Load game", o, sizeof(o), 0); }
 	else if (!strcmp(mode, "list")) { char o[512]; cfg.view = 1; R = ren; menu_fonts(); browse("Load game", o, sizeof(o), 0); }
+	else if (!strcmp(mode, "list2")) { char o[512]; cfg.view = 1; R = ren; menu_fonts(); browse("Load game", o, sizeof(o), 0); }
+	else if (!strcmp(mode, "disc")) { R = ren; menu_fonts(); choose_disc("Final Fantasy VII", 3, 0); }
 	else if (!strcmp(mode, "slots")) { loaded = 1; R = ren; menu_fonts(); slot_picker(0); }
 	else if (!strcmp(mode, "cheats")) { loaded = 1; R = ren; menu_fonts(); scriptBtn[8] = WIIU_BTN_A; cheats_screen(); }
 	else if (!strcmp(mode, "resume")) { loaded = 1; R = ren; menu_fonts(); ask_resume(); }

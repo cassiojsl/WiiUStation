@@ -108,7 +108,7 @@ static void settings_defaults(void)
 	cfg.spu_thread = 0;   /* off: sound was lost with Lightrec + SPU thread */
 	cfg.frameskip = 0;
 	cfg.show_fps = 0;
-	cfg.aspect = WIIU_ASPECT_4_3;
+	cfg.aspect = WIIU_ASPECT_ZOOM;   /* 4:3 with the game's own black borders cropped */
 	cfg.filter = WIIU_FILTER_LINEAR;
 	cfg.scanlines = 0;
 	cfg.crt = 0;
@@ -168,6 +168,8 @@ static int settings_parse(const char *path, int isGame)
 			continue;
 		if (version < 3 && (!strcmp(k, "spu_thread") || !strcmp(k, "filter")))
 			continue;
+		if (version < 4 && !strcmp(k, "aspect"))     /* Auto zoom became the default */
+			continue;
 		for (unsigned i = 0; i < sizeof(OPTS) / sizeof(OPTS[0]); i++)
 			if (!strcmp(OPTS[i].key, k) && v >= OPTS[i].min && v <= OPTS[i].max)
 				*OPTS[i].val = v;
@@ -180,7 +182,7 @@ static int settings_write(const char *path, int isGame)
 {
 	FILE *f = fopen(path, "w");
 	if (!f) return 0;
-	fprintf(f, "# WiiUStation %s\nversion = 3\n", isGame ? "per-game settings" : "settings");
+	fprintf(f, "# WiiUStation %s\nversion = 4\n", isGame ? "per-game settings" : "settings");
 	for (unsigned i = 0; i < sizeof(OPTS) / sizeof(OPTS[0]); i++)
 		if (!isGame || !global_only(OPTS[i].key))
 			fprintf(f, "%s = %d\n", OPTS[i].key, *OPTS[i].val);
@@ -595,6 +597,15 @@ void emu_apply_settings(void)
 			retro_set_controller_port_device(port, dev);
 		}
 	}
+}
+
+/* Multi-disc: start an .m3u at a given disc (disc_path as the core will
+ * build it: <m3u folder>/<entry>). */
+int emu_load_game_disc(const char *m3u, int index, const char *disc_path)
+{
+	if (haveDiskExt && diskExt.set_initial_image && index > 0)
+		diskExt.set_initial_image(index, disc_path);
+	return emu_load_game(m3u);
 }
 
 int emu_load_game(const char *path)
