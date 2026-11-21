@@ -393,14 +393,57 @@ void covers_flush(void)
 		if (texc[i].t) { SDL_DestroyTexture(texc[i].t); texc[i].t = NULL; }
 }
 
-void *covers_texture(void *renderer, const char *gameId, int *w, int *h)
+/* A cover image shrunk so its longest side is at most COVER_MAX: the menu
+ * never draws one bigger, and full-size images (500x500) used up the
+ * texture memory, after which covers failed to load at random. */
+#define COVER_MAX 320
+static SDL_Surface *load_small(const char *path)
 {
-	char path[256], id[16];
+	SDL_Surface *s = IMG_Load(path);
+	if (!s) return NULL;
+	int big = s->w > s->h ? s->w : s->h;
+	if (big <= COVER_MAX) return s;
+	SDL_Surface *a = SDL_ConvertSurfaceFormat(s, SDL_PIXELFORMAT_ARGB8888, 0);
+	SDL_FreeSurface(s);
+	if (!a) return NULL;
+	int w = a->w * COVER_MAX / big, h = a->h * COVER_MAX / big;
+	SDL_Surface *d = SDL_CreateRGBSurfaceWithFormat(0, w < 1 ? 1 : w, h < 1 ? 1 : h, 32, SDL_PIXELFORMAT_ARGB8888);
+	if (d && SDL_SoftStretchLinear(a, NULL, d, NULL) != 0) { SDL_FreeSurface(d); d = NULL; }
+	if (!d) return a;              /* could not shrink: use it as it is */
+	SDL_FreeSurface(a);
+	return d;
+}
+
+/* keys whose image could not be loaded: tried again a little later rather
+ * than every frame (or never) */
+#define RETRYN 16
+static struct { char id[16]; uint32_t at; } retry[RETRYN];
+static int retry_wait(const char *id)
+{
+	uint32_t now = SDL_GetTicks();
+	for (int i = 0; i < RETRYN; i++)
+		if (retry[i].id[0] && !strcmp(retry[i].id, id)) {
+			if ((int32_t)(now - retry[i].at) < 0) return 1;
+			retry[i].id[0] = 0;
+		}
+	return 0;
+}
+static void retry_later(const char *id)
+{
+	int v = 0;
+	for (int i = 0; i < RETRYN; i++) {
+		if (!retry[i].id[0] || !strcmp(retry[i].id, id)) { v = i; break; }
+		if (retry[i].at < retry[v].at) v = i;
+	}
+	snprintf(retry[v].id, sizeof(retry[v].id), "%s", id);
+	retry[v].at = SDL_GetTicks() + 3000;
+}
+
+static SDL_Texture *texture_of(SDL_Renderer *ren, const char *id, int *w, int *h)
+{
+	char path[256];
 	SDL_Surface *s;
 	int victim = 0;
-	if (!gameId || !gameId[0]) return NULL;
-	if (gameId[0] == '@') snprintf(id, sizeof(id), "%s", gameId);
-	else show_key(gameId, id, sizeof(id));
 	for (int i = 0; i < TEXN; i++) {
 		if (texc[i].t && !strcmp(texc[i].id, id)) {
 			texc[i].used = ++texclock;
@@ -410,29 +453,52 @@ void *covers_texture(void *renderer, const char *gameId, int *w, int *h)
 		if (!texc[i].t) victim = i;
 		else if (texc[victim].t && texc[i].used < texc[victim].used) victim = i;
 	}
+	if (retry_wait(id)) return NULL;
 	/* Only touch the SD card when the state is unknown or freshly
 	 * downloaded; pending / missing / failed covers cost nothing. */
 	if (id[0] == '@') {
 		custom_path(id, path, sizeof(path));
-		s = file_exists(path) ? IMG_Load(path) : NULL;
-		if (!s) return NULL;
+		s = file_exists(path) ? load_small(path) : NULL;
+		if (!s) { retry_later(id); return NULL; }
 	} else {
 		int st = state_get(id);
 		if (st == ST_PENDING || st == ST_MISSING || st == ST_FAILED) return NULL;
 		cover_path(id, path, sizeof(path));
 		if (!file_exists(path)) { request_key(id); return NULL; }
-		s = IMG_Load(path);
-		if (!s) { state_set(id, ST_FAILED); return NULL; }   /* unreadable file */
+		s = load_small(path);
+		if (!s) { retry_later(id); return NULL; }
 		state_set(id, ST_DONE);
 	}
+	SDL_Texture *t = SDL_CreateTextureFromSurface(ren, s);
+	if (!t) {
+		/* out of texture memory: free the least used half and retry */
+		for (int i = 0; i < TEXN; i++)
+			if (texc[i].t && texc[i].used + TEXN / 2 < texclock) { SDL_DestroyTexture(texc[i].t); texc[i].t = NULL; }
+		t = SDL_CreateTextureFromSurface(ren, s);
+	}
+	if (!t) { SDL_FreeSurface(s); retry_later(id); return NULL; }
+	SDL_SetTextureBlendMode(t, SDL_BLENDMODE_BLEND);
+	SDL_SetTextureScaleMode(t, SDL_ScaleModeLinear);
 	if (texc[victim].t) SDL_DestroyTexture(texc[victim].t);
-	texc[victim].t = SDL_CreateTextureFromSurface((SDL_Renderer *)renderer, s);
-	if (texc[victim].t) SDL_SetTextureBlendMode(texc[victim].t, SDL_BLENDMODE_BLEND);
+	texc[victim].t = t;
 	texc[victim].w = s->w;
 	texc[victim].h = s->h;
 	SDL_FreeSurface(s);
 	strcpy(texc[victim].id, id);
 	texc[victim].used = ++texclock;
 	*w = texc[victim].w; *h = texc[victim].h;
-	return texc[victim].t;
+	return t;
+}
+
+void *covers_texture(void *renderer, const char *gameId, int *w, int *h)
+{
+	char id[16];
+	if (!gameId || !gameId[0]) return NULL;
+	if (gameId[0] == '@') return texture_of((SDL_Renderer *)renderer, gameId, w, h);
+	show_key(gameId, id, sizeof(id));
+	SDL_Texture *t = texture_of((SDL_Renderer *)renderer, id, w, h);
+	/* the 3D box is not ready yet (downloading or not loadable): show the
+	 * 2D cover meanwhile */
+	if (!t && strchr(id, '#')) t = texture_of((SDL_Renderer *)renderer, gameId, w, h);
+	return t;
 }

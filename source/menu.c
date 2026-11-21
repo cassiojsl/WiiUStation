@@ -114,6 +114,53 @@ static void fit_text(TTF_Font *f, const char *s, int maxw, char *out, size_t n)
 	snprintf(out, n, "...");
 }
 
+/* Text in a box maxw pixels wide. When it does not fit: cut with "..."
+ * normally, and when active (the focused item) it scrolls slowly from side
+ * to side (marquee) so all of it can be read. align as in text(). */
+static int marquee(TTF_Font *f, int x, int yc, int maxw, const char *s, SDL_Color c, int align, int active)
+{
+	int w = 0, h = 0;
+	if (!f || !s || !*s) return 0;
+	s = tr(s);
+	if (TTF_SizeUTF8(f, s, &w, &h) != 0 || w <= maxw) return text(f, x, yc, s, c, align);
+	if (!active) {
+		char cut[160];
+		fit_text(f, s, maxw, cut, sizeof(cut));
+		return text(f, x, yc, cut, c, align);
+	}
+	/* each text keeps its own clock, restarted when it becomes active */
+	static struct { unsigned key; uint32_t start, seen; } mq[4];
+	unsigned key = 2166136261u;
+	for (const char *p = s; *p; p++) key = (key ^ (unsigned char)*p) * 16777619u;
+	key ^= (unsigned)x * 31u + (unsigned)yc;
+	uint32_t now = SDL_GetTicks();
+	int slot = -1, old = 0;
+	for (int i = 0; i < 4; i++) {
+		if (mq[i].key == key && now - mq[i].seen < 200) { slot = i; break; }
+		if (mq[i].seen < mq[old].seen) old = i;
+	}
+	if (slot < 0) { slot = old; mq[slot].key = key; mq[slot].start = now; }
+	mq[slot].seen = now;
+	/* pause, scroll to the end at 70 px/s, pause, start again */
+	int over = w - maxw;
+	uint32_t hold = 1200, run = (uint32_t)over * 1000 / 70, cyc = hold + run + hold;
+	uint32_t t = (now - mq[slot].start) % cyc;
+	int off = t < hold ? 0 : t < hold + run ? (int)((t - hold) * 70 / 1000) : over;
+	int x0 = align == 1 ? x - maxw / 2 : align == 2 ? x - maxw : x;
+	SDL_Rect prev, clip = { x0, yc - h, maxw, h * 2 };
+	int had = SDL_RenderIsClipEnabled(R);
+	if (had) {
+		SDL_RenderGetClipRect(R, &prev);
+		SDL_Rect both;
+		if (!SDL_IntersectRect(&prev, &clip, &both)) return maxw;
+		clip = both;
+	}
+	SDL_RenderSetClipRect(R, &clip);
+	text(f, x0 - off, yc, s, c, 0);
+	SDL_RenderSetClipRect(R, had ? &prev : NULL);
+	return maxw;
+}
+
 static void fill(int x, int y, int w, int h, SDL_Color c, uint8_t a)
 {
 	SDL_Rect rc = { x, y, w, h };
@@ -805,7 +852,13 @@ static int list_run(list_t *L, const char **labels, const char **values, int cou
 			text(fontSmall, tx, y + ROW_H / 2 + 6, tr(labels[idx]) + 1, PS_BLUE, 0);
 			continue;
 		}
-		text(fontItem, tx, y + ROW_H / 2, labels[idx], selected ? WHITE : GREY, 0);
+		{   /* the label gets the room the value leaves */
+			int room = LIST_X + LIST_W - tx - 12, vw = 0;
+			if (values && values[idx] && values[idx][0] && TTF_SizeUTF8(fontItem, tr(values[idx]), &vw, NULL) == 0)
+				room -= vw + (arrows ? 86 : 24);
+			if (room < 120) room = 120;
+			marquee(fontItem, tx, y + ROW_H / 2, room, labels[idx], selected ? WHITE : GREY, 0, selected);
+		}
 		if (values && values[idx] && values[idx][0]) {
 			int right = LIST_X + LIST_W;
 			if (arrows) {
@@ -1210,8 +1263,9 @@ static int grid_run(grid_t *G, entry_t *list, const char **labels, int count, co
 			if (S->names) {
 				char full[272], nm[96];
 				entry_name(e, labels[i], full, sizeof(full));
-				fit_text(fontSmall, full, S->cellW - 24, nm, sizeof(nm));
-				text(fontSmall, x + (S->cellW - 12) / 2, y + S->cover + 36, nm, i == G->sel ? WHITE : GREY, 1);
+				(void)nm;
+				marquee(fontSmall, x + (S->cellW - 12) / 2, y + S->cover + 36, S->cellW - 24, full,
+				        i == G->sel ? WHITE : GREY, 1, i == G->sel);
 			}
 			if (T.tapped && T.tx >= x && T.tx < x + S->cellW - 12 && T.ty >= y && T.ty < y + S->cellH - 10 &&
 			    T.ty >= GRID_Y)
@@ -1229,8 +1283,8 @@ static int grid_run(grid_t *G, entry_t *list, const char **labels, int count, co
 	if (!S->names && G->sel < count) {
 		char full[272], nm[64];
 		entry_name(&list[G->sel], labels[G->sel], full, sizeof(full));
-		fit_text(fontSmall, full, 640, nm, sizeof(nm));
-		text(fontSmall, 1240, 116, nm, WHITE, 2);
+		(void)nm;
+		marquee(fontSmall, 1240, 116, 640, full, WHITE, 2, 1);
 	}
 	if (tapped >= 0) G->sel = tapped;
 	return tapped;
@@ -3973,8 +4027,8 @@ int menu_run(void)
 				action_icon(it[i].kind, r.x + r.w / 2.0f, r.y + 54, 46, f ? WHITE : GREY);
 				{   /* long translations are cut to the card */
 					char fl[96];
-					fit_text(fontSmall, tr(l), r.w - 10, fl, sizeof(fl));
-					text(fontSmall, r.x + r.w / 2, r.y + r.h - 30, fl, f ? WHITE : GREY, 1);
+					(void)fl;
+					marquee(fontSmall, r.x + r.w / 2, r.y + r.h - 30, r.w - 10, l, f ? WHITE : GREY, 1, f);
 				}
 				break;
 			}
@@ -3987,8 +4041,8 @@ int menu_run(void)
 				if (!covers_custom_id(key, id)) covers_detect_id(p, id);
 				cover_or_disc(id, r.x, r.y, r.w);
 				pretty_name(p, nm, sizeof(nm));
-				fit_text(fontSmall, nm, r.w - 4, sh, sizeof(sh));
-				text(fontSmall, r.x + r.w / 2, r.y + r.h + 26, sh, f ? WHITE : GREY, 1);
+				(void)sh;
+				marquee(fontSmall, r.x + r.w / 2, r.y + r.h + 26, r.w - 4, nm, f ? WHITE : GREY, 1, f);
 				break;
 			}
 			default: {
@@ -4002,8 +4056,8 @@ int menu_run(void)
 					int tw = 0;
 					TTF_Font *tf = fontItem;
 					if (TTF_SizeUTF8(fontItem, tr(tl), &tw, NULL) == 0 && tw > r.w - 16) tf = fontSmall;
-					fit_text(tf, tr(tl), r.w - 12, fl, sizeof(fl));
-					text(tf, r.x + r.w / 2, r.y + r.h - 34, fl, WHITE, 1);
+					(void)fl;
+					marquee(tf, r.x + r.w / 2, r.y + r.h - 34, r.w - 12, tl, WHITE, 1, f);
 				} else {
 					icon(it[i].kind, r.x + 64, r.y + r.h / 2.0f, 48, WHITE);
 					text(fontItem, r.x + 116, r.y + r.h / 2, tl, WHITE, 0);
