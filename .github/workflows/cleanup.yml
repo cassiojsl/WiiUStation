@@ -1,0 +1,23 @@
+name: Cleanup releases
+
+# temporary: removes the test releases v1.0.0 - v1.0.5 and their tags
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete releases and tags
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          for v in v1.0.0 v1.0.1 v1.0.2 v1.0.3 v1.0.4 v1.0.5; do
+            gh release delete "$v" --yes --cleanup-tag || echo "no release $v"
+            gh api -X DELETE "repos/$GH_REPO/git/refs/tags/$v" 2>/dev/null || true
+          done
+          gh release list
