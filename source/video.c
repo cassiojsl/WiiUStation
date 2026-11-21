@@ -826,6 +826,154 @@ int video_save_frame(const char *path, int width)
 static uint32_t gameFade;
 void video_fade_in(void) { gameFade = SDL_GetTicks(); fpsValue = -1; }
 
+/* ---- TV / GamePad screens ----
+ * SDL's Wii U renderer copies each presented frame to the TV and/or the
+ * GamePad depending on the window flags SDL_WINDOW_WIIU_TV_ONLY /
+ * _GAMEPAD_ONLY, and only swaps when _PREVENT_SWAP is not set. SDL has no
+ * call to change them after the window is made, so the flags word is
+ * reached through the start of SDL_Window (SDL 2.32 layout), and only after
+ * checking that it really is the flags word. */
+struct win_head {
+	const void *magic;
+	Uint32 id;
+	char *title;
+	SDL_Surface *icon;
+	int x, y, w, h, min_w, min_h, max_w, max_h;
+	Uint32 flags;
+};
+static Uint32 *winFlags;
+static int winChecked, ingame, blankFrames;
+static Uint32 baseFlags;
+
+int video_screen_modes_ok(void)
+{
+	if (!winChecked) {
+		winChecked = 1;
+		struct win_head *w = (struct win_head *)window;
+		Uint32 f = SDL_GetWindowFlags(window);
+		if (w && w->flags == f && w->w == 1280 && w->h == 720) {
+			/* toggle a Wii U-only bit and see SDL report it */
+			w->flags = f | SDL_WINDOW_WIIU_PREVENT_SWAP;
+			if (SDL_GetWindowFlags(window) == (f | SDL_WINDOW_WIIU_PREVENT_SWAP)) winFlags = &w->flags;
+			w->flags = f;
+			baseFlags = f & ~(SDL_WINDOW_WIIU_TV_ONLY | SDL_WINDOW_WIIU_GAMEPAD_ONLY | SDL_WINDOW_WIIU_PREVENT_SWAP);
+		}
+	}
+	return winFlags != NULL;
+}
+
+void video_set_ingame(int on)
+{
+	ingame = on;
+	blankFrames = 3;     /* clear the screen that stops showing the game */
+}
+
+static void set_targets(Uint32 extra)
+{
+	if (winFlags) *winFlags = baseFlags | extra;
+}
+
+/* control panel (GamePad screen while the game is on the TV) */
+static int panelSlot, panelFF, panelPaused;
+static char panelGame[64];
+static const struct { int action; const char *label; } PANEL[8] = {
+	{ HK_SAVE, "Save state" }, { HK_LOAD, "Load state" }, { HK_SLOTDOWN, "Slot -" }, { HK_SLOTUP, "Slot +" },
+	{ HK_SHOT, "Screenshot" }, { HK_FFWD, "Fast forward" }, { HK_PAUSE, "Pause" }, { PANEL_MENU, "Menu" },
+};
+#define PANEL_BTN(i, r) SDL_Rect r = { 40 + ((i) % 4) * 305, 400 + ((i) / 4) * 150, 285, 130 }
+
+void video_panel_state(int slot, int ff, int paused, const char *game)
+{
+	panelSlot = slot; panelFF = ff; panelPaused = paused;
+	snprintf(panelGame, sizeof(panelGame), "%s", game ? game : "");
+	char *dot = strrchr(panelGame, '.');
+	if (dot) *dot = 0;
+}
+
+int video_panel_hit(int x, int y)
+{
+	for (int i = 0; i < 8; i++) {
+		PANEL_BTN(i, r);
+		if (x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h) return PANEL[i].action;
+	}
+	return -1;
+}
+
+static SDL_Texture *panelText[12];
+static int panelTextW[12], panelTextH[12];
+
+static void panel_label(int k, const char *s, int cx, int cy)
+{
+	/* labels are rendered once and kept */
+	if (!panelText[k] && osdFont) {
+		SDL_Color white = { 255, 255, 255, 255 };
+		SDL_Surface *sf = TTF_RenderUTF8_Blended(osdFont, tr(s), white);
+		if (sf) {
+			panelText[k] = SDL_CreateTextureFromSurface(renderer, sf);
+			panelTextW[k] = sf->w; panelTextH[k] = sf->h;
+			SDL_FreeSurface(sf);
+		}
+	}
+	if (panelText[k]) {
+		SDL_Rect d = { cx - panelTextW[k] / 2, cy - panelTextH[k] / 2, panelTextW[k], panelTextH[k] };
+		SDL_RenderCopy(renderer, panelText[k], NULL, &d);
+	}
+}
+
+/* a text line that is only re-rendered when it changes */
+static void panel_line(int k, int x, int y, const char *str)
+{
+	static char last[4][96];
+	static SDL_Texture *tex[4];
+	static int tw[4], th[4];
+	if (!str || !*str) return;
+	if (!tex[k] || strcmp(last[k], str)) {
+		SDL_Color white = { 255, 255, 255, 255 };
+		if (tex[k]) { SDL_DestroyTexture(tex[k]); tex[k] = NULL; }
+		snprintf(last[k], sizeof(last[k]), "%s", str);
+		SDL_Surface *sf = osdFont ? TTF_RenderUTF8_Blended(osdFont, str, white) : NULL;
+		if (!sf) return;
+		tex[k] = SDL_CreateTextureFromSurface(renderer, sf);
+		tw[k] = sf->w; th[k] = sf->h;
+		SDL_FreeSurface(sf);
+	}
+	if (tex[k]) {
+		SDL_Rect d = { x, y, tw[k] > 1200 - x ? 1200 - x : tw[k], th[k] };
+		SDL_Rect sr = { 0, 0, d.w, th[k] };
+		SDL_RenderCopy(renderer, tex[k], &sr, &d);
+	}
+}
+
+static void draw_panel(void)
+{
+	SDL_SetRenderDrawColor(renderer, 8, 12, 30, 255);
+	SDL_RenderClear(renderer);
+	SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+	/* live picture of the game, top left */
+	if (haveFrame) {
+		SDL_Rect src = { 0, 0, frameW, frameH }, d = { 40, 30, 448, 336 };
+		SDL_SetTextureScaleMode(frameTex, SDL_ScaleModeLinear);
+		SDL_RenderCopy(renderer, frameTex, &src, &d);
+		lastFilter = -1;
+	}
+	/* info, top right */
+	char t[96];
+	panel_line(0, 530, 50, panelGame);
+	snprintf(t, sizeof(t), tr("Quick slot: %d"), panelSlot);
+	panel_line(1, 530, 120, t);
+	panel_line(2, 530, 190, panelPaused ? tr("Paused") : panelFF ? tr(">> Fast forward") : " ");
+	panel_line(3, 530, 260, osdMsg[0] && SDL_GetTicks() < osdUntil ? osdMsg : " ");
+	/* buttons */
+	for (int i = 0; i < 8; i++) {
+		PANEL_BTN(i, r);
+		int on = (PANEL[i].action == HK_FFWD && panelFF) || (PANEL[i].action == HK_PAUSE && panelPaused);
+		SDL_Color c = on ? (SDL_Color){ 0, 140, 220, 255 } :
+		              PANEL[i].action == PANEL_MENU ? (SDL_Color){ 60, 40, 90, 255 } : (SDL_Color){ 30, 40, 72, 255 };
+		fill_rrect(r.x, r.y, r.w, r.h, 22, c);
+		panel_label(i, PANEL[i].label, r.x + r.w / 2, r.y + r.h / 2);
+	}
+}
+
 void video_present(void)
 {
 	uint32_t dt = SDL_GetTicks() - gameFade;
@@ -837,7 +985,40 @@ void video_present(void)
 	SDL_Color white = { 255, 255, 255, 255 };
 	if (cfg.show_fps) draw_fps();
 	if (osdMsg[0] && SDL_GetTicks() < osdUntil) draw_text(36, 720 - 56, osdMsg, white);
-	SDL_RenderPresent(renderer);
+
+	int mode = ingame && video_screen_modes_ok() ? cfg.drc : DRC_MIRROR;
+	switch (mode) {
+	case DRC_ONLY:
+	case DRC_TV_ONLY: {
+		Uint32 show = mode == DRC_ONLY ? SDL_WINDOW_WIIU_GAMEPAD_ONLY : SDL_WINDOW_WIIU_TV_ONLY;
+		if (blankFrames > 0) {
+			/* the game to one screen, then black to the other (both buffers) */
+			set_targets(show | SDL_WINDOW_WIIU_PREVENT_SWAP);
+			SDL_RenderPresent(renderer);
+			SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+			SDL_RenderClear(renderer);
+			set_targets(mode == DRC_ONLY ? SDL_WINDOW_WIIU_TV_ONLY : SDL_WINDOW_WIIU_GAMEPAD_ONLY);
+			SDL_RenderPresent(renderer);
+			blankFrames--;
+		} else {
+			set_targets(show);
+			SDL_RenderPresent(renderer);
+		}
+		break;
+	}
+	case DRC_PANEL:
+		set_targets(SDL_WINDOW_WIIU_TV_ONLY | SDL_WINDOW_WIIU_PREVENT_SWAP);
+		SDL_RenderPresent(renderer);
+		draw_panel();
+		set_targets(SDL_WINDOW_WIIU_GAMEPAD_ONLY);
+		SDL_RenderPresent(renderer);
+		break;
+	default:
+		set_targets(0);
+		SDL_RenderPresent(renderer);
+		break;
+	}
+	set_targets(0);
 }
 
 static char textIn[128];

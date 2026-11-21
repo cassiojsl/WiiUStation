@@ -82,6 +82,12 @@ const char *core_opt_section(int i) { return hoS[i]; }
 const char *core_opt_value(int i) { return hoV[i]; }
 const char *core_opt_help(int i) { (void)i; return "Higher removes slowdowns the real console had. Auto is safest."; }
 void core_opt_cycle(int i, int d) { (void)i; (void)d; }
+int video_screen_modes_ok(void) { return 1; }
+const char *pad_type_name(int t) { (void)t; return "Digital"; }
+const char *hotkey_name(int i) { (void)i; return "Save state"; }
+const char *button_name(int b) { (void)b; return "R"; }
+const int default_hotkeys[HK_COUNT];
+const char *tr(const char *s) { return s; }
 long long emu_state_time(int s) { return emu_state_exists(s) ? 1795000000LL + s * 86400LL : 0; }
 void emu_state_thumb(int s, char *o, size_t n) { snprintf(o, n, "%s/states/thumb%d.png", WIIU_APP_DIR, s); }
 int emu_screenshot(void) { return 1; }

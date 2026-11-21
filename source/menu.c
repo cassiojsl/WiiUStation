@@ -1605,12 +1605,12 @@ static void hotkeys(void);
 static void settings(void)
 {
 	enum { S_SCOPE, S_LANG, S_GAMES, S_VIEW, S_COVERS, S_RESUME, S_CORE, S_SKIP, S_FFWD, S_FFSPEED, S_FPS, S_AUDIO,
-	       S_ASPECT, S_FILTER, S_BEZEL, S_SCAN, S_CRT, S_FX, S_DITHER, S_PAD, S_PAD2, S_DEADZONE, S_MTAP,
+	       S_ASPECT, S_FILTER, S_BEZEL, S_SCAN, S_CRT, S_FX, S_DRC, S_DITHER, S_PAD, S_PAD2, S_DEADZONE, S_MTAP,
 	       S_CONTROLS, S_HOTKEYS, S_RUMBLE, S_REGION, S_BIOS, S_LOGO, S_ADV, S_COUNT };
 	static const char *allLabels[S_COUNT] = {
 		"Settings for", "Language", "Games folder", "Game list", "Covers", "Continue where you left off", "CPU core",
 		"Frame skip", "Fast forward", "Fast forward speed", "Show FPS", "Sound", "Screen",
-		"Picture", "Border", "Scanlines", "CRT mask", "Screen effect", "Dithering", "Player 1 controller",
+		"Picture", "Border", "Scanlines", "CRT mask", "Screen effect", "GamePad screen", "Dithering", "Player 1 controller",
 		"Player 2+ controller", "Analog dead zone", "Multitap (up to 5 players)", "Button mapping...", "Hotkeys...", "Vibration",
 		"Region", "BIOS", "PlayStation boot logo", "Advanced..."
 	};
@@ -1667,6 +1667,11 @@ static void settings(void)
 			case S_FILTER: values[k] = cfg.filter == WIIU_FILTER_LINEAR ? "Smooth" :
 			                           cfg.filter == WIIU_FILTER_NEAREST ? "Pixel" :
 			                           cfg.filter == WIIU_FILTER_SCALE2X ? "Scale2x" : "Sharp smooth"; break;
+			case S_DRC: {
+				static const char *dn[DRC_COUNT] = { "Same as TV", "GamePad only", "TV only", "Control panel" };
+				values[k] = dn[cfg.drc >= 0 && cfg.drc < DRC_COUNT ? cfg.drc : 0];
+				break;
+			}
 			case S_FX: {
 				static const char *fxn[FX_COUNT] = { "Off", "CRT curve", "LCD grid", "Glow" };
 				values[k] = fxn[cfg.fx >= 0 && cfg.fx < FX_COUNT ? cfg.fx : 0];
@@ -1766,6 +1771,15 @@ static void settings(void)
 		}
 		case S_FILTER: cfg.filter = (cfg.filter + 4 + dir) % 4; break;
 		case S_FX:     cfg.fx = (cfg.fx + FX_COUNT + dir) % FX_COUNT; break;
+		case S_DRC:
+			if (!video_screen_modes_ok()) { cfg.drc = DRC_MIRROR; status("Not available with this SDL version."); break; }
+			cfg.drc = (cfg.drc + DRC_COUNT + dir) % DRC_COUNT;
+			switch (cfg.drc) {
+			case DRC_ONLY:    status("Play on the GamePad: the TV stays black. HOME or L3+R3 opens the menu."); break;
+			case DRC_TV_ONLY: status("The GamePad screen stays black. HOME or L3+R3 opens the menu."); break;
+			case DRC_PANEL:   status("Game on the TV, touch buttons on the GamePad (save, load, pause...)."); break;
+			}
+			break;
 		case S_SCAN:   cfg.scanlines = !cfg.scanlines; break;
 		case S_CRT:    cfg.crt = !cfg.crt; break;
 		case S_DITHER: cfg.dithering = (cfg.dithering + 3 + dir) % 3; break;

@@ -102,6 +102,7 @@ static struct { const char *key; int *val; int min, max; } OPTS[] = {
 	{ "aspect",     &cfg.aspect,     0, 3 },
 	{ "filter",     &cfg.filter,     0, 3 },
 	{ "fx",         &cfg.fx,         0, FX_COUNT - 1 },
+	{ "drc",        &cfg.drc,        0, DRC_COUNT - 1 },
 	{ "scanlines",  &cfg.scanlines,  0, 1 },
 	{ "crt",        &cfg.crt,        0, 1 },
 	{ "reverb",     &cfg.reverb,     0, 1 },
@@ -613,6 +614,7 @@ const char *pad_type_name(int t)
 /* the GamePad screen is the light gun / mouse for player 1 */
 int emu_touch_is_input(void)
 {
+	if (cfg.drc == DRC_PANEL || cfg.drc == DRC_TV_ONLY) return 0;   /* the GamePad shows no game */
 	return cfg.analog == PAD_MOUSE || cfg.analog == PAD_GUNCON || cfg.analog == PAD_JUSTIFIER;
 }
 
@@ -1195,6 +1197,37 @@ int emu_disk_append(const char *path)
 /* ------------------------------------------------------------------------ */
 static int quickSlot;     /* slot used by the save / load hotkeys */
 
+/* a hotkey or control-panel action */
+static void do_action(int a, int *ffToggle, int *paused)
+{
+	char m[64];
+	switch (a) {
+	case HK_SAVE:
+		snprintf(m, sizeof(m), emu_state_save(quickSlot) ? tr("Saved to slot %d.")
+		                                               : tr("Could not save to slot %d."), quickSlot);
+		video_osd(m);
+		break;
+	case HK_LOAD:
+		snprintf(m, sizeof(m), emu_state_load(quickSlot) ? tr("Loaded slot %d.")
+		                                               : tr("Slot %d is empty."), quickSlot);
+		video_osd(m);
+		break;
+	case HK_SLOTUP:
+	case HK_SLOTDOWN:
+		quickSlot = (quickSlot + (a == HK_SLOTUP ? 1 : 9)) % 10;
+		snprintf(m, sizeof(m), tr(emu_state_exists(quickSlot) ? "Slot %d" : "Slot %d (empty)"), quickSlot);
+		video_osd(m);
+		break;
+	case HK_SHOT:
+		video_osd(emu_screenshot() ? tr("Screenshot saved to WiiUStation/screenshots.")
+		                           : tr("Could not save the screenshot."));
+		break;
+	case HK_FFWD:  *ffToggle = !*ffToggle; break;
+	case HK_PAUSE: *paused = !*paused; break;
+	case HK_RESET: emu_reset(); video_osd(tr("Reset")); break;
+	}
+}
+
 static int hotkey_pressed(void)
 {
 	static int latch = 1;
@@ -1205,12 +1238,12 @@ static int hotkey_pressed(void)
 		if (!p->connected) continue;
 		any |= p->held;
 		if (p->held & WIIU_BTN_HOME) trigger = 1;
-		if ((p->held & WIIU_BTN_TOUCH) && !emu_touch_is_input()) trigger = 1;
+		if ((p->held & WIIU_BTN_TOUCH) && !emu_touch_is_input() && cfg.drc != DRC_PANEL) trigger = 1;
 		if ((p->held & (WIIU_BTN_STICKL | WIIU_BTN_STICKR)) ==
 		    (WIIU_BTN_STICKL | WIIU_BTN_STICKR)) trigger = 1;
 	}
 	if (latch) {   /* wait for the buttons that opened/closed the menu */
-		if (emu_touch_is_input()) any &= ~WIIU_BTN_TOUCH;
+		if (emu_touch_is_input() || cfg.drc == DRC_PANEL) any &= ~WIIU_BTN_TOUCH;
 		if (!(any & (WIIU_BTN_HOME | WIIU_BTN_TOUCH | WIIU_BTN_STICKL | WIIU_BTN_STICKR)))
 			latch = 0;
 		return 0;
@@ -1228,6 +1261,7 @@ static void run_game(void)
 
 	assign_pads();
 	wiiu_home_button_ingame(1);
+	video_set_ingame(1);
 	audio_pause(!cfg.audio);
 	hotkey_pressed();   /* arm the latch */
 
@@ -1246,39 +1280,27 @@ static void run_game(void)
 			hkPrev = held;
 			hkHide = 0;
 			if (cfg.hk[HK_MOD] >= 0 && (held & (1u << cfg.hk[HK_MOD]))) {
-				char m[64];
 				for (int a = 1; a < HK_COUNT; a++) {
 					int bit = cfg.hk[a];
 					if (bit < 0 || bit == cfg.hk[HK_MOD]) continue;
 					hkHide |= 1u << bit;                   /* the game doesn't see it */
 					if (!(pressed & (1u << bit))) continue;
-					switch (a) {
-					case HK_SAVE:
-						snprintf(m, sizeof(m), emu_state_save(quickSlot) ? tr("Saved to slot %d.")
-						                                               : tr("Could not save to slot %d."), quickSlot);
-						video_osd(m);
-						break;
-					case HK_LOAD:
-						snprintf(m, sizeof(m), emu_state_load(quickSlot) ? tr("Loaded slot %d.")
-						                                               : tr("Slot %d is empty."), quickSlot);
-						video_osd(m);
-						break;
-					case HK_SLOTUP:
-					case HK_SLOTDOWN:
-						quickSlot = (quickSlot + (a == HK_SLOTUP ? 1 : 9)) % 10;
-						snprintf(m, sizeof(m), tr(emu_state_exists(quickSlot) ? "Slot %d" : "Slot %d (empty)"), quickSlot);
-						video_osd(m);
-						break;
-					case HK_SHOT:
-						video_osd(emu_screenshot() ? tr("Screenshot saved to WiiUStation/screenshots.")
-						                           : tr("Could not save the screenshot."));
-						break;
-					case HK_FFWD:  ffToggle = !ffToggle; break;
-					case HK_PAUSE: paused = !paused; break;
-					case HK_RESET: emu_reset(); video_osd(tr("Reset")); break;
-					}
+					do_action(a, &ffToggle, &paused);
 				}
 			}
+		}
+		/* control panel on the GamePad: buttons by touch */
+		if (cfg.drc == DRC_PANEL) {
+			static int wasDown;
+			const wiiu_pad_state *gp = wiiu_input_get(0);
+			int down = gp->connected && (gp->held & WIIU_BTN_TOUCH);
+			if (down && !wasDown) {
+				int a = video_panel_hit(gp->touch_x, gp->touch_y);
+				if (a == PANEL_MENU) { wasDown = 1; break; }
+				if (a > 0) do_action(a, &ffToggle, &paused);
+			}
+			wasDown = down;
+			video_panel_state(quickSlot, ffToggle, paused, gameName);
 		}
 		if (paused) {
 			video_draw_game(1);
@@ -1344,6 +1366,7 @@ static void run_game(void)
 	audio_pause(1);
 	for (int i = 0; i < WIIU_MAX_PADS; i++) wiiu_input_rumble(i, 0);
 	wiiu_home_button_ingame(0);
+	video_set_ingame(0);
 	emu_save_memcards();
 	wiiu_input_reset_hotkey();
 }

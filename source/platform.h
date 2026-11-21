@@ -52,6 +52,11 @@ enum { HK_MOD = 0, HK_SAVE, HK_LOAD, HK_SLOTUP, HK_SLOTDOWN, HK_SHOT, HK_FFWD, H
 const char *hotkey_name(int i);
 const char *button_name(int bit);       /* "A", "ZL", "None" for -1 ... */
 
+/* what the GamePad screen shows during a game */
+enum { DRC_MIRROR = 0, DRC_ONLY, DRC_TV_ONLY, DRC_PANEL, DRC_COUNT };
+/* control panel buttons (DRC_PANEL): hotkey actions, plus the menu */
+#define PANEL_MENU HK_COUNT
+
 /* controller types */
 enum { PAD_DIGITAL = 0, PAD_DUALSHOCK, PAD_NEGCON, PAD_MOUSE, PAD_GUNCON, PAD_JUSTIFIER, PAD_COUNT };
 const char *pad_type_name(int t);
@@ -72,6 +77,7 @@ typedef struct {
 	int scanlines;
 	int crt;            /* CRT aperture-grille mask */
 	int fx;             /* FX_* */
+	int drc;            /* DRC_*: GamePad screen during a game */
 	int reverb;         /* SPU reverb (costs CPU) */
 	int dithering;      /* 0 off, 1 on, 2 force */
 	int bios_hle;       /* 1 = always HLE */
@@ -127,6 +133,10 @@ void video_set_game_id(const char *id);
 /* screen point (1280x720) -> game frame, -32767..32767; 0 when outside the picture */
 int  video_screen_to_game(int sx, int sy, int *gx, int *gy);
 void video_fade_in(void);
+void video_set_ingame(int ingame);        /* screens follow cfg.drc only in a game */
+int  video_screen_modes_ok(void);         /* 0 if TV / GamePad can't be split */
+int  video_panel_hit(int x, int y);       /* control panel button at a touch, or -1 */
+void video_panel_state(int slot, int ff, int paused, const char *game);
 /* save the last game frame as PNG; width 0 = full size, else scaled */
 int  video_save_frame(const char *path, int width);
 void *video_open_font(int size);       /* TTF_Font* (system font) */
