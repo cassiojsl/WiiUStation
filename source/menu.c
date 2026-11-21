@@ -284,7 +284,7 @@ typedef struct {
 	int dragging;      /* moved far enough to be a scroll, not a tap */
 	int tapped;        /* released this frame without dragging */
 	int tx, ty;        /* tap position */
-	int dy;            /* vertical movement since last frame */
+	int dx, dy;        /* movement since last frame */
 } touch_t;
 static touch_t T;
 
@@ -293,7 +293,7 @@ static void poll_touch(void)
 	const wiiu_pad_state *gp = wiiu_input_get(0);
 	int on = gp->connected && (gp->held & WIIU_BTN_TOUCH);
 	T.tapped = 0;
-	T.dy = 0;
+	T.dx = T.dy = 0;
 	if (on) {
 		if (!T.down) {
 			T.down = 1;
@@ -301,6 +301,7 @@ static void poll_touch(void)
 			T.sy = T.y = gp->touch_y;
 			T.dragging = 0;
 		} else {
+			T.dx = gp->touch_x - T.x;
 			T.dy = gp->touch_y - T.y;
 			T.x = gp->touch_x;
 			T.y = gp->touch_y;
@@ -728,131 +729,316 @@ static int scan_dir(const char *path, entry_t **out)
 
 
 /* ------------------------------------------------------------------------ */
-/* game grid (covers)                                                       */
+/* game browser views                                                       */
 /* ------------------------------------------------------------------------ */
+/* cfg.view: the first two keep their old numbers in settings.cfg */
+enum { VIEW_GRID = 0, VIEW_LIST, VIEW_COMPACT, VIEW_SHELF, VIEW_CAROUSEL, VIEW_COUNT };
+static const int viewOrder[VIEW_COUNT] = { VIEW_GRID, VIEW_COMPACT, VIEW_SHELF, VIEW_CAROUSEL, VIEW_LIST };
+static const char *view_name(int v)
+{
+	switch (v) {
+	case VIEW_LIST:     return "List";
+	case VIEW_COMPACT:  return "Compact grid";
+	case VIEW_SHELF:    return "Shelf";
+	case VIEW_CAROUSEL: return "Carousel";
+	default:            return "Grid";
+	}
+}
+static int view_next(int v, int dir)
+{
+	int i = 0;
+	while (i < VIEW_COUNT && viewOrder[i] != v) i++;
+	if (i == VIEW_COUNT) i = 0;
+	return viewOrder[(i + VIEW_COUNT + dir) % VIEW_COUNT];
+}
+
 #define GRID_X     64
 #define GRID_Y     124
-#define GRID_COLS  5
-#define CELL_W     230
-#define CELL_H     268
-#define COVER_SZ   190
-#define GRID_ROWS_VIS 2
+#define GRID_BOTTOM 664
+
+typedef struct {
+	int cols, cellW, cellH, cover, rowsVis, names, shelf;
+} gstyle_t;
+
+static const gstyle_t STYLE_GRID    = { 5, 230, 268, 190, 2, 1, 0 };
+static const gstyle_t STYLE_COMPACT = { 8, 144, 172, 128, 3, 0, 0 };
+static const gstyle_t STYLE_SHELF   = { 6, 192, 262, 164, 2, 0, 1 };
+
+static const gstyle_t *grid_style(void)
+{
+	return cfg.view == VIEW_COMPACT ? &STYLE_COMPACT :
+	       cfg.view == VIEW_SHELF ? &STYLE_SHELF : &STYLE_GRID;
+}
 
 typedef struct {
 	int sel;
-	float scroll;      /* first visible row */
+	float scroll;      /* first visible row (grid) */
 	float hx, hy;      /* animated highlight */
 	int hInit;
+	float pos;         /* carousel position, eases towards sel */
 } grid_t;
 
-static void cover_or_disc(const char *id, int x, int y, int sz)
+/* draws the cover into the sz x sz square; returns the drawn rectangle */
+static SDL_Rect cover_or_disc_r(const char *id, int x, int y, int sz, int bottom)
 {
 	int w = 0, h = 0;
 	SDL_Texture *t = id && id[0] ? (SDL_Texture *)covers_texture(R, id, &w, &h) : NULL;
+	SDL_Rect d = { x, y, sz, sz };
 	if (t && w > 0 && h > 0) {
 		int dw = sz, dh = sz * h / w;
 		if (dh > sz) { dh = sz; dw = sz * w / h; }
-		SDL_Rect d = { x + (sz - dw) / 2, y + (sz - dh) / 2, dw, dh };
+		d.x = x + (sz - dw) / 2;
+		d.y = bottom ? y + sz - dh : y + (sz - dh) / 2;   /* shelf: stand on the board */
+		d.w = dw; d.h = dh;
 		SDL_SetTextureBlendMode(t, SDL_BLENDMODE_NONE);
 		SDL_RenderCopy(R, t, NULL, &d);
 	} else {
 		SDL_Color slot = { 26, 32, 60 };
 		fill(x, y, sz, sz, slot, 220);
-		if (covers_status(id) == 1) spinner(x + sz / 2.0f, y + sz / 2.0f, 26, PS_BLUE);
+		if (covers_status(id) == 1) spinner(x + sz / 2.0f, y + sz / 2.0f, sz * 0.14f, PS_BLUE);
 		else {
 			ring(x + sz / 2.0f, y + sz / 2.0f, sz * 0.36f, sz * 0.26f, (SDL_Color){ 60, 66, 92, 255 });
 			ring(x + sz / 2.0f, y + sz / 2.0f, sz * 0.09f, 3, GREY);
 		}
 	}
+	return d;
 }
 
-/* Draws the grid of entries; returns the tapped entry or -1.
+static void cover_or_disc(const char *id, int x, int y, int sz)
+{
+	cover_or_disc_r(id, x, y, sz, 0);
+}
+
+/* mirrored, faded copy of the cover under it (shelf and carousel) */
+static void cover_reflection(const char *id, SDL_Rect d, int depth, uint8_t alpha)
+{
+	int w = 0, h = 0;
+	SDL_Texture *t = id && id[0] ? (SDL_Texture *)covers_texture(R, id, &w, &h) : NULL;
+	if (!t || h <= 0 || depth <= 0) return;
+	/* one quad, texture flipped, alpha fading from top to bottom */
+	float v0 = 1.0f, v1 = 1.0f - (float)depth / d.h;
+	if (v1 < 0) v1 = 0;
+	float y0 = d.y + d.h + 2, y1 = y0 + depth;
+	SDL_Color top = { 255, 255, 255, alpha }, bot = { 255, 255, 255, 0 };
+	SDL_Vertex v[4] = {
+		{ { d.x, y0 },       top, { 0, v0 } },
+		{ { d.x + d.w, y0 }, top, { 1, v0 } },
+		{ { d.x + d.w, y1 }, bot, { 1, v1 } },
+		{ { d.x, y1 },       bot, { 0, v1 } },
+	};
+	int idx[6] = { 0, 1, 2, 0, 2, 3 };
+	SDL_SetTextureBlendMode(t, SDL_BLENDMODE_BLEND);
+	SDL_RenderGeometry(R, t, v, 4, idx, 6);
+	SDL_SetTextureBlendMode(t, SDL_BLENDMODE_NONE);
+}
+
+static void entry_name(entry_t *e, const char *label, char *out, size_t n)
+{
+	if (e->dir) { snprintf(out, n, "%s", label); return; }
+	char b[256];
+	if (e->discs > 1 && disc_tag(e->name, b, sizeof(b))) pretty_name(b, out, n);
+	else pretty_name(e->name, out, n);
+}
+
+static void detect_entry(entry_t *e, const char *dir)
+{
+	char full[768];
+	snprintf(full, sizeof(full), "%s/%s", dir, e->name);
+	e->idTried = 1;
+	if (!covers_detect_id(full, e->id)) e->id[0] = 0;
+}
+
+static void folder_icon(int x, int y, int sz)
+{
+	SDL_Color folder = { 40, 48, 84 };
+	fill(x, y, sz, sz, folder, 220);
+	fill(x + sz * 21 / 100, y + sz * 28 / 100, sz * 58 / 100, sz * 42 / 100, PS_YELLOW, 200);
+	fill(x + sz * 21 / 100, y + sz * 22 / 100, sz * 32 / 100, sz * 8 / 100, PS_YELLOW, 200);
+}
+
+static void disc_badge(entry_t *e, int x, int y, int sz)
+{
+	if (e->fav) star(x + sz - sz * 12 / 100, y + sz * 17 / 100, sz * 9.5f / 100, PS_YELLOW);
+	if (e->discs > 1) {
+		char dn[16];
+		snprintf(dn, sizeof(dn), sz < 150 ? "%d CD" : "%d discs", e->discs);
+		int bw = sz < 150 ? 62 : 92;
+		SDL_Color badge = { 0, 110, 190 };
+		rrect(x + 6, y + sz - 34, bw, 28, 14, badge, 255);
+		text(fontSmall, x + 6 + bw / 2, y + sz - 20, dn, WHITE, 1);
+	}
+}
+
+/* Grid, compact grid and shelf. Returns the tapped entry or -1.
  * Detects the game ID of at most one visible entry per frame. */
 static int grid_run(grid_t *G, entry_t *list, const char **labels, int count, const char *dir)
 {
-	int rows = (count + GRID_COLS - 1) / GRID_COLS;
-	int maxFirst = rows > GRID_ROWS_VIS ? rows - GRID_ROWS_VIS : 0;
+	const gstyle_t *S = grid_style();
+	int rows = (count + S->cols - 1) / S->cols;
+	int maxFirst = rows > S->rowsVis ? rows - S->rowsVis : 0;
 	int tapped = -1, detected = 0;
+	int gx = (1280 - S->cols * S->cellW) / 2 + 6;
 
 	if (T.down && T.dragging && T.sy >= GRID_Y)
-		G->scroll -= (float)T.dy / CELL_H;
+		G->scroll -= (float)T.dy / S->cellH;
 	if (!T.down) {
-		int selRow = G->sel / GRID_COLS;
+		int selRow = G->sel / S->cols;
 		float target = (float)(int)(G->scroll + 0.5f);
 		if (selRow < target) target = selRow;
-		if (selRow >= target + GRID_ROWS_VIS) target = selRow - GRID_ROWS_VIS + 1;
+		if (selRow >= target + S->rowsVis) target = selRow - S->rowsVis + 1;
 		G->scroll += (target - G->scroll) * 0.3f;
 		if (fabsf(target - G->scroll) < 0.01f) G->scroll = target;
 	}
 	if (G->scroll < 0) G->scroll = 0;
 	if (G->scroll > maxFirst) G->scroll = maxFirst;
 
-	SDL_RenderSetClipRect(R, &(SDL_Rect){ 0, GRID_Y - 6, 1280, 664 - GRID_Y + 6 });
+	SDL_RenderSetClipRect(R, &(SDL_Rect){ 0, GRID_Y - 6, 1280, GRID_BOTTOM - GRID_Y + 6 });
 	{
-		float tx = GRID_X + (G->sel % GRID_COLS) * CELL_W;
-		float ty = GRID_Y + (G->sel / GRID_COLS - G->scroll) * CELL_H;
+		float tx = gx + (G->sel % S->cols) * S->cellW;
+		float ty = GRID_Y + (G->sel / S->cols - G->scroll) * S->cellH;
 		if (!G->hInit) { G->hx = tx; G->hy = ty; G->hInit = 1; }
 		G->hx += (tx - G->hx) * 0.4f;
 		G->hy += (ty - G->hy) * 0.4f;
 		SDL_Color hl = { 0, 110, 190 };
-		rrect((int)G->hx, (int)G->hy, CELL_W - 12, CELL_H - 10, 18, hl, 255);
+		if (S->names)
+			rrect((int)G->hx, (int)G->hy, S->cellW - 12, S->cellH - 10, 18, hl, 255);
+		else {   /* a frame hugging the cover */
+			int cx = (int)G->hx + (S->cellW - 12 - S->cover) / 2;
+			rrect(cx - 7, (int)G->hy + 3, S->cover + 14, S->cover + 14, 12, hl, 255);
+		}
 	}
 	int firstRow = (int)G->scroll;
-	for (int r = firstRow; r <= firstRow + GRID_ROWS_VIS && r < rows; r++) {
-		for (int c = 0; c < GRID_COLS; c++) {
-			int i = r * GRID_COLS + c;
+	for (int r = firstRow; r <= firstRow + S->rowsVis && r < rows; r++) {
+		int y = GRID_Y + (int)((r - G->scroll) * S->cellH);
+		if (S->shelf) {
+			/* glass shelf board under the row */
+			int by = y + 10 + S->cover + 6;
+			SDL_Color top = { 120, 170, 230 }, front = { 40, 60, 110 };
+			fill(gx - 20, by, S->cols * S->cellW + 28, 4, top, 200);
+			fill(gx - 20, by + 4, S->cols * S->cellW + 28, 14, front, 170);
+			fill(gx - 20, by + 18, S->cols * S->cellW + 28, 10, (SDL_Color){ 0, 0, 0 }, 90);
+		}
+		for (int c = 0; c < S->cols; c++) {
+			int i = r * S->cols + c;
 			if (i >= count) break;
 			entry_t *e = &list[i];
-			int x = GRID_X + c * CELL_W;
-			int y = GRID_Y + (int)((r - G->scroll) * CELL_H);
-			int cx = x + (CELL_W - 12 - COVER_SZ) / 2;
-			if (!e->dir && !e->idTried && !detected && !T.down) {
-				char full[768];
-				snprintf(full, sizeof(full), "%s/%s", dir, e->name);
-				e->idTried = 1;
-				if (!covers_detect_id(full, e->id)) e->id[0] = 0;
-				detected = 1;
-			}
-			if (e->dir) {
-				SDL_Color folder = { 40, 48, 84 };
-				fill(cx, y + 10, COVER_SZ, COVER_SZ, folder, 220);
-				fill(cx + 40, y + 64, COVER_SZ - 80, COVER_SZ - 110, PS_YELLOW, 200);
-				fill(cx + 40, y + 52, 60, 16, PS_YELLOW, 200);
-			} else {
-				cover_or_disc(e->id, cx, y + 10, COVER_SZ);
-				if (e->fav) star(cx + COVER_SZ - 22, y + 32, 18, PS_YELLOW);
-				if (e->discs > 1) {
-					char dn[16];
-					snprintf(dn, sizeof(dn), "%d discs", e->discs);
-					SDL_Color badge = { 0, 110, 190 };
-					rrect(cx + 8, y + COVER_SZ - 26, 92, 30, 15, badge, 255);
-					text(fontSmall, cx + 54, y + COVER_SZ - 11, dn, WHITE, 1);
-				}
-			}
-			/* name, cleaned and shortened to fit */
-			char full[272], nm[40];
-			if (e->dir) snprintf(full, sizeof(full), "%s", labels[i]);
+			int x = gx + c * S->cellW;
+			int cx = x + (S->cellW - 12 - S->cover) / 2;
+			if (!e->dir && !e->idTried && !detected && !T.down) { detect_entry(e, dir); detected = 1; }
+			if (e->dir) folder_icon(cx, y + 10, S->cover);
 			else {
-				char b[256];
-				if (e->discs > 1 && disc_tag(e->name, b, sizeof(b))) pretty_name(b, full, sizeof(full));
-				else pretty_name(e->name, full, sizeof(full));
+				cover_or_disc_r(e->id, cx, y + 10, S->cover, S->shelf);
+				disc_badge(e, cx, y + 10, S->cover);
 			}
-			if (strlen(full) > 21) snprintf(nm, sizeof(nm), "%.19s...", full);
-			else snprintf(nm, sizeof(nm), "%s", full);
-			text(fontSmall, x + (CELL_W - 12) / 2, y + COVER_SZ + 36, nm, i == G->sel ? WHITE : GREY, 1);
-			if (T.tapped && T.tx >= x && T.tx < x + CELL_W - 12 && T.ty >= y && T.ty < y + CELL_H - 10 &&
+			if (S->names) {
+				char full[272], nm[40];
+				entry_name(e, labels[i], full, sizeof(full));
+				if (strlen(full) > 21) snprintf(nm, sizeof(nm), "%.19s...", full);
+				else snprintf(nm, sizeof(nm), "%s", full);
+				text(fontSmall, x + (S->cellW - 12) / 2, y + S->cover + 36, nm, i == G->sel ? WHITE : GREY, 1);
+			}
+			if (T.tapped && T.tx >= x && T.tx < x + S->cellW - 12 && T.ty >= y && T.ty < y + S->cellH - 10 &&
 			    T.ty >= GRID_Y)
 				tapped = i;
 		}
 	}
 	SDL_RenderSetClipRect(R, NULL);
-	if (rows > GRID_ROWS_VIS) {
-		int barH = 664 - GRID_Y - 20;
-		int h = barH * GRID_ROWS_VIS / rows;
+	if (rows > S->rowsVis) {
+		int barH = GRID_BOTTOM - GRID_Y - 20;
+		int h = barH * S->rowsVis / rows;
 		int y = GRID_Y + (int)((barH - h) * G->scroll / maxFirst);
 		fill(1260, y, 6, h, PS_BLUE, 200);
 	}
+	/* views without names: the selected game's name in the top right */
+	if (!S->names && G->sel < count) {
+		char full[272], nm[64];
+		entry_name(&list[G->sel], labels[G->sel], full, sizeof(full));
+		if (strlen(full) > 48) snprintf(nm, sizeof(nm), "%.46s...", full);
+		else snprintf(nm, sizeof(nm), "%s", full);
+		text(fontSmall, 1240, 116, nm, WHITE, 2);
+	}
 	if (tapped >= 0) G->sel = tapped;
+	return tapped;
+}
+
+/* Carousel: one big cover in the middle, the neighbours smaller and dimmer
+ * at the sides. Swipe or press left/right. Tap the middle cover to start,
+ * a side cover to move to it. Returns the activated entry or -1. */
+static int carousel_run(grid_t *G, entry_t *list, const char **labels, int count, const char *dir)
+{
+	const int CX = 640, CY = 318, BIG = 340;
+	int tapped = -1;
+	if (!G->hInit) { G->pos = G->sel; G->hInit = 1; }
+	if (T.down && T.dragging && T.sy >= GRID_Y && T.sy < 560) {
+		G->pos -= T.dx / 230.0f;
+		if (G->pos < 0) G->pos = 0;
+		if (G->pos > count - 1) G->pos = count - 1;
+		G->sel = (int)(G->pos + 0.5f);
+	} else {
+		G->pos += (G->sel - G->pos) * 0.22f;
+		if (fabsf(G->sel - G->pos) < 0.002f) G->pos = G->sel;
+	}
+	/* detect IDs around the middle, nearest first */
+	for (int k = 0; k <= 4; k++) {
+		int done = 0;
+		for (int sgn = 1; sgn >= -1; sgn -= 2) {
+			int i = G->sel + k * sgn;
+			if (i >= 0 && i < count && !list[i].dir && !list[i].idTried && !T.down) {
+				detect_entry(&list[i], dir);
+				done = 1;
+				break;
+			}
+		}
+		if (done) break;
+	}
+
+	/* draw far covers first so the middle one is on top */
+	int lo = (int)G->pos - 5, hi = (int)G->pos + 6;
+	for (int ring_ = 6; ring_ >= 0; ring_--) {
+		for (int i = lo; i <= hi; i++) {
+			if (i < 0 || i >= count) continue;
+			float d = i - G->pos, ad = fabsf(d);
+			if ((int)(ad + 0.5f) != ring_) continue;
+			float sc = 1.0f - 0.24f * (ad > 2.5f ? 2.5f : ad);
+			int sz = (int)(BIG * sc);
+			float off = d * 150.0f + (d > 1 ? 1 : d < -1 ? -1 : d) * 175.0f;
+			int x = (int)(CX + off) - sz / 2, y = CY - sz / 2 + (int)(ad * 10);
+			if (x > 1280 || x + sz < 0) continue;
+			entry_t *e = &list[i];
+			SDL_Rect d2;
+			if (e->dir) { folder_icon(x, y, sz); d2 = (SDL_Rect){ x, y, sz, sz }; }
+			else {
+				d2 = cover_or_disc_r(e->id, x, y, sz, 1);
+				cover_reflection(e->id, d2, sz / 4, (uint8_t)(ad < 1 ? 110 - ad * 60 : 50));
+				disc_badge(e, x, y, sz);
+			}
+			if (ad > 0.05f) {   /* dim the side covers */
+				int a = (int)(ad * 110); if (a > 170) a = 170;
+				fill(d2.x, d2.y, d2.w, d2.h, (SDL_Color){ 4, 6, 16 }, (uint8_t)a);
+			} else {
+				outline(d2.x - 3, d2.y - 3, d2.w + 6, d2.h + 6, (SDL_Color){ 0, 140, 220 }, 255, 3);
+			}
+			if (T.tapped && T.ty >= GRID_Y && T.ty < 560 &&
+			    T.tx >= d2.x && T.tx < d2.x + d2.w && T.ty >= d2.y && T.ty < d2.y + d2.h) {
+				if (i == G->sel) tapped = i;
+				else G->sel = i;
+			}
+		}
+	}
+
+	/* name and details of the middle game */
+	if (G->sel < count) {
+		char full[272], nm[64], info[64];
+		entry_t *e = &list[G->sel];
+		entry_name(e, labels[G->sel], full, sizeof(full));
+		if (strlen(full) > 44) snprintf(nm, sizeof(nm), "%.42s...", full);
+		else snprintf(nm, sizeof(nm), "%s", full);
+		text(fontTitle, CX, 590, nm, WHITE, 1);
+		if (e->dir) snprintf(info, sizeof(info), "Folder");
+		else if (e->discs > 1) snprintf(info, sizeof(info), "%s%s%d discs   %d / %d", e->id, e->id[0] ? "   " : "", e->discs, G->sel + 1, count);
+		else snprintf(info, sizeof(info), "%s%s%d / %d", e->id, e->id[0] ? "   " : "", G->sel + 1, count);
+		text(fontSmall, CX, 634, info, GREY, 1);
+	}
 	return tapped;
 }
 
@@ -1177,19 +1363,27 @@ rescan:
 	}
 
 	for (;;) {
-		int useGrid = !pickDir && cfg.view == 0;
+		int useCar  = !pickDir && cfg.view == VIEW_CAROUSEL;
+		int useGrid = !pickDir && cfg.view != VIEW_LIST && !useCar;
+		int cols = grid_style()->cols;
 		if (wiiu_quit) break;
 		poll_touch();
 		uint32_t b = poll_buttons();
 		int activate = -1;
 		if (count) {
-			if (useGrid) {
+			if (useCar) {
+				if (b & (WIIU_BTN_LEFT | WIIU_BTN_UP))    G.sel = clampi(G.sel - 1, 0, count - 1);
+				if (b & (WIIU_BTN_RIGHT | WIIU_BTN_DOWN)) G.sel = clampi(G.sel + 1, 0, count - 1);
+				if (b & WIIU_BTN_L) G.sel = clampi(G.sel - 5, 0, count - 1);
+				if (b & WIIU_BTN_R) G.sel = clampi(G.sel + 5, 0, count - 1);
+				if (b & WIIU_BTN_A) activate = G.sel;
+			} else if (useGrid) {
 				if (b & WIIU_BTN_LEFT)  G.sel = clampi(G.sel - 1, 0, count - 1);
 				if (b & WIIU_BTN_RIGHT) G.sel = clampi(G.sel + 1, 0, count - 1);
-				if (b & WIIU_BTN_UP)    G.sel = clampi(G.sel - GRID_COLS, 0, count - 1);
-				if (b & WIIU_BTN_DOWN)  G.sel = clampi(G.sel + GRID_COLS, 0, count - 1);
-				if (b & WIIU_BTN_L)     G.sel = clampi(G.sel - GRID_COLS * 2, 0, count - 1);
-				if (b & WIIU_BTN_R)     G.sel = clampi(G.sel + GRID_COLS * 2, 0, count - 1);
+				if (b & WIIU_BTN_UP)    G.sel = clampi(G.sel - cols, 0, count - 1);
+				if (b & WIIU_BTN_DOWN)  G.sel = clampi(G.sel + cols, 0, count - 1);
+				if (b & WIIU_BTN_L)     G.sel = clampi(G.sel - cols * 2, 0, count - 1);
+				if (b & WIIU_BTN_R)     G.sel = clampi(G.sel + cols * 2, 0, count - 1);
 				if (b & WIIU_BTN_A) activate = G.sel;
 			} else {
 				if (b & WIIU_BTN_UP)    L.sel = L.sel > 0 ? L.sel - 1 : count - 1;
@@ -1200,7 +1394,7 @@ rescan:
 			}
 		}
 		if (!pickDir && count && (b & WIIU_BTN_Y)) {
-			int i = useGrid ? G.sel : L.sel;
+			int i = (useGrid || useCar) ? G.sel : L.sel;
 			if (i >= 0 && i < count && !list[i].dir) {
 				char full[768];
 				snprintf(full, sizeof(full), "%s/%s", browsePath, list[i].name);
@@ -1229,9 +1423,11 @@ rescan:
 			transition();
 		}
 		if (!pickDir && (b & WIIU_BTN_X)) {
-			cfg.view = !cfg.view;          /* X: switch grid / list */
+			int wasList = cfg.view == VIEW_LIST;
+			cfg.view = view_next(cfg.view, 1);   /* X: next view */
 			settings_save();
-			if (cfg.view) L.sel = G.sel; else G.sel = L.sel;
+			if (cfg.view == VIEW_LIST) L.sel = G.sel; else if (wasList) G.sel = L.sel;
+			{ char vm[64]; snprintf(vm, sizeof(vm), "View: %s", view_name(cfg.view)); status(vm); }
 			L.hyInit = G.hInit = 0;
 			transition();
 		}
@@ -1252,6 +1448,8 @@ rescan:
 			                                                    : "Choose your games folder in Settings.", DIM, 1);
 		} else if (pickDir) {
 			t = list_run(&L, labels, NULL, count, 0, NULL, NULL);
+		} else if (useCar) {
+			t = carousel_run(&G, list, labels, count, browsePath);
 		} else if (useGrid) {
 			t = grid_run(&G, list, labels, count, browsePath);
 		} else {
@@ -1271,8 +1469,7 @@ rescan:
 		}
 		if (t >= 0) activate = t;
 		draw_footer(pickDir ? "Pick the folder with your games" :
-		            useGrid ? "X  List   Y Favourite   - Favourites only   + Search"
-		                    : "X  Grid   Y Favourite   - Favourites only   + Search");
+		            "X  Change view   Y Favourite   - Favourites only   + Search");
 		present();
 
 		if (back) break;                                      /* leave now */
@@ -1365,7 +1562,7 @@ static void settings(void)
 				values[k] = gd;
 				break;
 			}
-			case S_VIEW:   values[k] = cfg.view ? "List" : "Grid with covers"; break;
+			case S_VIEW:   values[k] = view_name(cfg.view); break;
 			case S_RESUME: values[k] = cfg.resume ? "Ask" : "Off"; break;
 			case S_CORE:   values[k] = cfg.dynarec ? "Lightrec" : "Interpreter"; break;
 			case S_SKIP:   values[k] = cfg.frameskip ? "Auto" : "Off"; break;
@@ -1436,7 +1633,7 @@ static void settings(void)
 			transition();
 			break;
 		}
-		case S_VIEW:   cfg.view = !cfg.view; break;
+		case S_VIEW:   cfg.view = view_next(cfg.view, dir); break;
 		case S_RESUME: cfg.resume = !cfg.resume; break;
 		case S_BEZEL:
 			cfg.bezel = bezel_next(cfg.bezel, dir);

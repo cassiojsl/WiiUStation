@@ -46,7 +46,8 @@ controllers.
   In the menu, HOME opens the Wii U HOME Menu.
 - The menu is built for touch. A single tap opens an item and dragging
   scrolls. In the settings, tap the ◀ ▶ arrows to change a value. **X**
-  switches the game browser between the cover grid and the list.
+  changes the game browser view: Grid, Compact grid, Shelf, Carousel or
+  List.
 
 ## Features
 

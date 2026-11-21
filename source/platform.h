@@ -69,7 +69,7 @@ typedef struct {
 	int rumble;
 	int audio;
 	int bezel;          /* BEZEL_* */
-	int view;           /* game browser: 0 grid, 1 list */
+	int view;           /* game browser: 0 grid, 1 list, 2 compact, 3 shelf, 4 carousel */
 	int map[16];        /* PSX button (RETRO_DEVICE_ID_JOYPAD_*) -> WIIU_BTN bit index */
 	char games_dir[256];  /* folder the game browser opens */
 } wiiu_settings;

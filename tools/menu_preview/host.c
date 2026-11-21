@@ -99,11 +99,11 @@ int covers_detect_id(const char *path, char *out) {
 }
 int covers_status(const char *id) { (void)id; return 0; }
 void *covers_texture(void *r, const char *id, int *w, int *h) {
-	static char last[8][16]; static SDL_Texture *tex[8];
-	for (int i = 0; i < 8; i++) if (tex[i] && !strcmp(last[i], id)) { SDL_QueryTexture(tex[i], 0, 0, w, h); return tex[i]; }
+	static char last[64][16]; static SDL_Texture *tex[64];
+	for (int i = 0; i < 64; i++) if (tex[i] && !strcmp(last[i], id)) { SDL_QueryTexture(tex[i], 0, 0, w, h); return tex[i]; }
 	char p[512]; snprintf(p, sizeof(p), "%s/covers/%s.jpg", WIIU_APP_DIR, id);
 	SDL_Surface *s = IMG_Load(p); if (!s) return NULL;
-	for (int i = 0; i < 8; i++) if (!tex[i]) { tex[i] = SDL_CreateTextureFromSurface(r, s); strcpy(last[i], id); *w = s->w; *h = s->h; SDL_FreeSurface(s); return tex[i]; }
+	for (int i = 0; i < 64; i++) if (!tex[i]) { tex[i] = SDL_CreateTextureFromSurface(r, s); strcpy(last[i], id); *w = s->w; *h = s->h; SDL_FreeSurface(s); return tex[i]; }
 	SDL_FreeSurface(s); return NULL;
 }
 
@@ -120,6 +120,9 @@ int main(int argc, char **argv)
 	if (!strcmp(mode, "main")) { menu_run(); }
 	else if (!strcmp(mode, "ingame")) { loaded = 1; menu_run(); }
 	else if (!strcmp(mode, "grid")) { char o[512]; cfg.view = 0; R = ren; menu_fonts(); scriptBtn[10] = WIIU_BTN_RIGHT; scriptBtn[14] = WIIU_BTN_DOWN; browse("Load game", o, sizeof(o), 0); }
+	else if (!strcmp(mode, "compact")) { char o[512]; cfg.view = 2; R = ren; menu_fonts(); scriptBtn[10] = WIIU_BTN_RIGHT; browse("Load game", o, sizeof(o), 0); }
+	else if (!strcmp(mode, "shelf")) { char o[512]; cfg.view = 3; R = ren; menu_fonts(); scriptBtn[10] = WIIU_BTN_RIGHT; browse("Load game", o, sizeof(o), 0); }
+	else if (!strcmp(mode, "carousel")) { char o[512]; cfg.view = 4; R = ren; menu_fonts(); scriptBtn[10] = WIIU_BTN_RIGHT; scriptBtn[20] = WIIU_BTN_RIGHT; shotAt = 90; quitAt = 92; browse("Load game", o, sizeof(o), 0); }
 	else if (!strcmp(mode, "list")) { char o[512]; cfg.view = 1; R = ren; menu_fonts(); browse("Load game", o, sizeof(o), 0); }
 	else if (!strcmp(mode, "list2")) { char o[512]; cfg.view = 1; R = ren; menu_fonts(); browse("Load game", o, sizeof(o), 0); }
 	else if (!strcmp(mode, "disc")) { R = ren; menu_fonts(); choose_disc("Final Fantasy VII", 3, 0); }
