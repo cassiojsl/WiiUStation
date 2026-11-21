@@ -253,6 +253,12 @@ int  emu_disk_append(const char *path);
 void emu_apply_settings(void);
 void emu_save_memcards(void);
 
+/* ---- updates from GitHub releases (update.c) ---- */
+const char *app_version(void);
+int  update_check(char *tag, size_t tn, char *err, size_t en);   /* 1 newer, 0 current, -1 error */
+int  update_start(void);
+int  update_progress(float *frac);       /* 1 running, 2 installed, -1 failed */
+
 /* ---- memory cards (memcard.c) ---- */
 #define MC_SIZE 131072
 typedef struct {

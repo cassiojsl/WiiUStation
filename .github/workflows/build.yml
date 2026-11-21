@@ -5,6 +5,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: write   # to publish releases from version tags
+
 jobs:
   wuhb:
     runs-on: ubuntu-latest
@@ -16,6 +19,7 @@ jobs:
       - name: Build
         run: |
           git config --global --add safe.directory '*'
+          git fetch --tags --force || true
           make -j$(nproc)
       - uses: actions/upload-artifact@v4
         with:
@@ -23,3 +27,11 @@ jobs:
           path: |
             WiiUStation.wuhb
             WiiUStation.rpx
+      # a version tag (v1.2.0) publishes a release with the .wuhb: the app's
+      # "Check for updates" downloads it from there
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: WiiUStation.wuhb
+          generate_release_notes: true

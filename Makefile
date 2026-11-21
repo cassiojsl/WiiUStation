@@ -39,8 +39,13 @@ CORE_CC		:=	$(DEVKITPPC)/bin/powerpc-eabi-gcc -DWIIU -I$(DEVKITPRO)/wut/include 
 			-Wno-error=int-conversion -Wno-error=incompatible-pointer-types \
 			-Wno-error=implicit-function-declaration
 
+# version shown in the app and compared with GitHub releases: the git tag
+# (v1.2.0), or tag-commits-hash between releases
+APP_VERSION	?=	$(shell git describe --tags --always 2>/dev/null || echo dev)
+export APP_VERSION
+
 CFLAGS		:=	-std=gnu11 -O2 -Wall -Wno-unused -ffunction-sections -fdata-sections \
-			$(MACHDEP) -D__WIIU__ $(INCLUDE)
+			$(MACHDEP) -D__WIIU__ $(INCLUDE) -DAPP_VERSION=\"$(APP_VERSION)\"
 CXXFLAGS	:=	$(CFLAGS)
 LDFLAGS		=	$(ARCH) $(RPXSPECS) $(MACHDEP) -Wl,--gc-sections -Wl,-Map,$(notdir $*.map)
 

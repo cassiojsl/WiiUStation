@@ -1753,18 +1753,19 @@ rescan:
 static void advanced(void);
 static void controls(void);
 static void hotkeys(void);
+static void update_screen(void);
 
 static void settings(void)
 {
 	enum { S_SCOPE, S_LANG, S_SFX, S_GAMES, S_VIEW, S_COVERS, S_RESUME, S_CORE, S_SKIP, S_FFWD, S_FFSPEED, S_FPS, S_AUDIO,
 	       S_ASPECT, S_FILTER, S_BEZEL, S_WIDE, S_SCAN, S_CRT, S_FX, S_DRC, S_DITHER, S_PAD, S_GYRO, S_PAD2, S_DEADZONE, S_MTAP,
-	       S_CONTROLS, S_HOTKEYS, S_RUMBLE, S_REGION, S_BIOS, S_LOGO, S_ADV, S_COUNT };
+	       S_CONTROLS, S_HOTKEYS, S_RUMBLE, S_REGION, S_BIOS, S_LOGO, S_ADV, S_UPDATE, S_COUNT };
 	static const char *allLabels[S_COUNT] = {
 		"Settings for", "Language", "Menu sounds", "Games folder", "Game list", "Covers", "Continue where you left off", "CPU core",
 		"Frame skip", "Fast forward", "Fast forward speed", "Show FPS", "Sound", "Screen",
 		"Picture", "Border", "Widescreen (16:9)", "Scanlines", "CRT mask", "Screen effect", "GamePad screen", "Dithering", "Player 1 controller", "Aim with GamePad motion",
 		"Player 2+ controller", "Analog dead zone", "Multitap (up to 5 players)", "Button mapping...", "Hotkeys...", "Vibration",
-		"Region", "BIOS", "PlayStation boot logo", "Advanced..."
+		"Region", "BIOS", "PlayStation boot logo", "Advanced...", "Check for updates"
 	};
 	const char *labels[S_COUNT], *values[S_COUNT];
 	int map[S_COUNT];
@@ -1778,7 +1779,7 @@ static void settings(void)
 			if (i == S_SCOPE && !loaded) continue;
 			/* app-wide options are hidden while editing one game's settings */
 			if (game && (i == S_GAMES || i == S_VIEW || i == S_COVERS || i == S_RESUME ||
-			             i == S_FFWD || i == S_LANG || i == S_HOTKEYS || i == S_SFX)) continue;
+			             i == S_FFWD || i == S_LANG || i == S_HOTKEYS || i == S_SFX || i == S_UPDATE)) continue;
 			map[n] = i;
 			labels[n] = allLabels[i];
 			values[n] = NULL;
@@ -1806,6 +1807,7 @@ static void settings(void)
 			case S_COVERS: values[k] = cfg.cover3d ? "3D box" : "2D"; break;
 			case S_LANG:   values[k] = lang_name(cfg.lang); break;
 			case S_SFX:    values[k] = cfg.menusfx ? "On" : "Off"; break;
+			case S_UPDATE: values[k] = app_version(); break;
 			case S_RESUME: values[k] = cfg.resume ? "Ask" : "Off"; break;
 			case S_CORE:   values[k] = cfg.dynarec ? "Lightrec" : "Interpreter"; break;
 			case S_SKIP:   values[k] = cfg.frameskip ? "Auto" : "Off"; break;
@@ -1965,6 +1967,7 @@ static void settings(void)
 		case S_CONTROLS: controls(); transition(); break;
 		case S_HOTKEYS:  hotkeys(); transition(); break;
 		case S_SFX:      cfg.menusfx = !cfg.menusfx; sfx_play(SFX_OK); break;
+		case S_UPDATE:   update_screen(); transition(); break;
 		case S_LANG:     cfg.lang = (cfg.lang + LANG_COUNT + dir) % LANG_COUNT; video_lang_changed(); break;
 		case S_RUMBLE: cfg.rumble = !cfg.rumble; break;
 		case S_REGION: cfg.region = (cfg.region + 3 + dir) % 3; status("Applies the next time a game is loaded."); break;
@@ -2121,7 +2124,11 @@ static void credits(void)
 				text(fontSmall, 640, y, lines[i], i < 2 ? WHITE : GREY, 1);
 		}
 		SDL_RenderSetClipRect(R, NULL);
-		draw_footer("Drag to scroll");
+		{
+			char v[64];
+			snprintf(v, sizeof(v), tr("Version %s"), app_version());
+			draw_footer(v);
+		}
 		present();
 		if (back || (b & (WIIU_BTN_B | WIIU_BTN_A)) || wiiu_quit) return;
 	}
@@ -2175,6 +2182,62 @@ static const char *wiiu_btn_name(int bit)
 	                           "D-Pad Right", "L", "R", "ZL", "ZR", "+ (Plus)", "- (Minus)",
 	                           "L-Stick click", "R-Stick click" };
 	return bit >= 0 && bit < 16 ? n[bit] : "None";
+}
+
+/* ------------------------------------------------------------------------ */
+/* updates                                                                  */
+/* ------------------------------------------------------------------------ */
+static void update_screen(void)
+{
+	char tag[32] = "", err[128] = "", line1[160], line2[160];
+	int state = 0;      /* 0 checking, 1 newer, 2 current, 3 error, 4 downloading, 5 installed, 6 failed */
+	int checked = 0;
+	transition();
+	for (;;) {
+		poll_touch();
+		uint32_t b = poll_buttons();
+		draw_background();
+		int back = draw_header("Check for updates", 1);
+		if (state == 4) {
+			float f;
+			int st = update_progress(&f);
+			if (st == 2) { state = 5; sfx_play(SFX_OK); }
+			else if (st == -1) { state = 6; sfx_play(SFX_ERROR); }
+			else {
+				SDL_Color bg = { 26, 32, 60 }, fg = { 0, 140, 220 };
+				rrect(240, 380, 800, 26, 13, bg, 255);
+				rrect(240, 380, (int)(800 * (f < 0.02f ? 0.02f : f)), 26, 13, fg, 255);
+			}
+		}
+		switch (state) {
+		case 0: snprintf(line1, sizeof(line1), "%s", tr("Checking GitHub...")); line2[0] = 0; break;
+		case 1: snprintf(line1, sizeof(line1), tr("Version %s is available."), tag);
+		        snprintf(line2, sizeof(line2), tr("You have %s. Press A to download it."), app_version()); break;
+		case 2: snprintf(line1, sizeof(line1), "%s", tr("WiiUStation is up to date."));
+		        snprintf(line2, sizeof(line2), tr("Version %s"), app_version()); break;
+		case 3: snprintf(line1, sizeof(line1), "%s", err); snprintf(line2, sizeof(line2), tr("Version %s"), app_version()); break;
+		case 4: snprintf(line1, sizeof(line1), tr("Downloading %s..."), tag); line2[0] = 0; break;
+		case 5: snprintf(line1, sizeof(line1), "%s", tr("Installed. Close WiiUStation and open it again to use the new version."));
+		        line2[0] = 0; break;
+		case 6: snprintf(line1, sizeof(line1), "%s", tr("The download failed. Nothing was changed.")); line2[0] = 0; break;
+		}
+		text(fontItem, 640, 300, line1, WHITE, 1);
+		if (line2[0]) text(fontSmall, 640, 345, line2, GREY, 1);
+		draw_footer(state == 1 ? "A: download and install" : NULL);
+		present();
+		if (!checked) {     /* the check blocks for a moment: after the first frame */
+			checked = 1;
+			int r = update_check(tag, sizeof(tag), err, sizeof(err));
+			state = r == 1 ? 1 : r == 0 ? 2 : 3;
+			continue;
+		}
+		if (state == 4) continue;          /* can't leave while writing the file */
+		if (back || (b & WIIU_BTN_B) || wiiu_quit) return;
+		if (state == 1 && ((b & WIIU_BTN_A) || T.tapped)) {
+			if (update_start()) state = 4;
+			else state = 6;
+		}
+	}
 }
 
 /* ------------------------------------------------------------------------ */
