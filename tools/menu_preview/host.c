@@ -73,6 +73,15 @@ int emu_disk_count(void) { return 1; }
 int emu_state_exists(int s) { return s == 0 || s == 3 || s == -1; }
 const char *bezel_name(int b) { (void)b; return "Tube TV"; }
 int bezel_next(int b, int d) { return (b + d + BEZEL_COUNT) % BEZEL_COUNT; }
+static const char *hoL[] = { "PS1 CPU clock", "Fast CD loading", "Skip CPU stalls", "Sound interpolation", "CD audio tracks", "Show overscan" };
+static const char *hoS[] = { "Speed", NULL, NULL, "Sound", NULL, "Picture" };
+static const char *hoV[] = { "Auto", "Off", "Off", "Simple", "On", "Off" };
+int core_opt_count(void) { return 6; }
+const char *core_opt_label(int i) { return hoL[i]; }
+const char *core_opt_section(int i) { return hoS[i]; }
+const char *core_opt_value(int i) { return hoV[i]; }
+const char *core_opt_help(int i) { (void)i; return "Higher removes slowdowns the real console had. Auto is safest."; }
+void core_opt_cycle(int i, int d) { (void)i; (void)d; }
 long long emu_state_time(int s) { return emu_state_exists(s) ? 1795000000LL + s * 86400LL : 0; }
 void emu_state_thumb(int s, char *o, size_t n) { snprintf(o, n, "%s/states/thumb%d.png", WIIU_APP_DIR, s); }
 int emu_screenshot(void) { return 1; }
@@ -131,6 +140,7 @@ int main(int argc, char **argv)
 	else if (!strcmp(mode, "resume")) { loaded = 1; R = ren; menu_fonts(); ask_resume(); }
 	else if (!strcmp(mode, "gamesettings")) { loaded = 1; R = ren; menu_fonts(); settings(); }
 	else if (!strcmp(mode, "controls")) { R = ren; menu_fonts(); controls(); }
+	else if (!strcmp(mode, "advanced")) { R = ren; menu_fonts(); scriptBtn[8] = WIIU_BTN_DOWN; scriptBtn[12] = WIIU_BTN_DOWN; scriptBtn[16] = WIIU_BTN_DOWN; scriptBtn[20] = WIIU_BTN_DOWN; advanced(); }
 	else if (!strcmp(mode, "settings")) { R = ren; menu_fonts(); settings(); }
 	else if (!strcmp(mode, "credits")) { R = ren; menu_fonts(); shotAt = 200; quitAt = 202; credits(); }
 	else if (!strcmp(mode, "loading")) { R = ren; menu_fonts(); loading_screen(WIIU_ISO_DIR "/Crash Bandicoot 3 (SCUS-94244).chd");

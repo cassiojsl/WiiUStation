@@ -224,29 +224,101 @@ static void symbol(int which, float x, float y, float s)
 /* ------------------------------------------------------------------------ */
 /* background: PlayStation-menu style                                       */
 /* ------------------------------------------------------------------------ */
+/* ---- background: a soft gradient with PlayStation shapes floating by ----
+ * All shapes go into one vertex batch, drawn with a single call. */
+enum { BG_MAXV = 6000 };
+static SDL_Vertex bgV[BG_MAXV];
+static int bgIdx[BG_MAXV * 2], bgNV, bgNI;
+
+static void bg_quad(float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3,
+                    SDL_Color c)
+{
+	if (bgNV + 4 > BG_MAXV) return;
+	SDL_Vertex *v = &bgV[bgNV];
+	float p[8] = { x0, y0, x1, y1, x2, y2, x3, y3 };
+	for (int k = 0; k < 4; k++) {
+		v[k].position.x = p[k * 2]; v[k].position.y = p[k * 2 + 1];
+		v[k].color = c; v[k].tex_coord.x = v[k].tex_coord.y = 0;
+	}
+	int *ix = &bgIdx[bgNI];
+	ix[0] = bgNV; ix[1] = bgNV + 1; ix[2] = bgNV + 2;
+	ix[3] = bgNV; ix[4] = bgNV + 2; ix[5] = bgNV + 3;
+	bgNV += 4; bgNI += 6;
+}
+
+/* outline of a regular polygon (n corners), stroke width w, rotated by a */
+static void bg_ngon(float cx, float cy, float r, int n, float w, float a, SDL_Color c)
+{
+	float ri = r - w;
+	for (int k = 0; k < n; k++) {
+		float a0 = a + k * 6.2831853f / n, a1 = a + (k + 1) * 6.2831853f / n;
+		float c0 = cosf(a0), s0 = sinf(a0), c1 = cosf(a1), s1 = sinf(a1);
+		bg_quad(cx + c0 * r, cy + s0 * r, cx + c1 * r, cy + s1 * r,
+		        cx + c1 * ri, cy + s1 * ri, cx + c0 * ri, cy + s0 * ri, c);
+	}
+}
+
+static void bg_bar(float cx, float cy, float len, float w, float a, SDL_Color c)
+{
+	float dx = cosf(a) * len / 2, dy = sinf(a) * len / 2;
+	float nx = -sinf(a) * w / 2, ny = cosf(a) * w / 2;
+	bg_quad(cx - dx + nx, cy - dy + ny, cx + dx + nx, cy + dy + ny,
+	        cx + dx - nx, cy + dy - ny, cx - dx - nx, cy - dy - ny, c);
+}
+
 static void draw_background(void)
 {
 	uint32_t t = SDL_GetTicks();
-	if (emu_game_loaded()) {
+	const float tf = t * 0.001f;
+	int ingame = emu_game_loaded();
+	bgNV = bgNI = 0;
+	if (ingame) {
 		video_draw_game(1);
 	} else {
-		for (int y = 0; y < 720; y += 6) {
-			SDL_Color c = { (uint8_t)(4 + y / 90), (uint8_t)(8 + y / 40), (uint8_t)(30 + y / 14) };
-			fill(0, y, 1280, 6, c, 255);
+		/* vertical gradient, slowly breathing between two blues */
+		float p = 0.5f + 0.5f * sinf(tf * 0.25f);
+		SDL_Color top = { (uint8_t)(6 + 6 * p), (uint8_t)(10 + 8 * p), (uint8_t)(34 + 14 * p), 255 };
+		SDL_Color bot = { (uint8_t)(10 + 8 * (1 - p)), (uint8_t)(30 + 14 * (1 - p)), (uint8_t)(86 + 20 * (1 - p)), 255 };
+		SDL_Vertex g[4] = {
+			{ { 0, 0 }, top, { 0, 0 } }, { { 1280, 0 }, top, { 0, 0 } },
+			{ { 1280, 720 }, bot, { 0, 0 } }, { { 0, 720 }, bot, { 0, 0 } },
+		};
+		int gi[6] = { 0, 1, 2, 0, 2, 3 };
+		SDL_RenderGeometry(R, NULL, g, 4, gi, 6);
+	}
+
+	/* floating triangle / circle / cross / square outlines, drifting up and
+	 * to the left, each turning slowly and fading in and out */
+	static const SDL_Color tint[4] = {
+		{ 150, 240, 205, 0 }, { 255, 170, 170, 0 }, { 175, 205, 255, 0 }, { 255, 175, 240, 0 }
+	};
+	const int N = 26;
+	for (int i = 0; i < N; i++) {
+		unsigned h = (unsigned)i * 2654435761u;
+		float sz = 26 + (h >> 8) % 56;                  /* 26..81 px */
+		float speed = 8 + (h >> 16) % 14;               /* px per second */
+		float span = 1280 + 720 + 200;
+		float d = fmodf((h % 2200) + tf * speed, span);
+		/* move along a diagonal, wrapping around */
+		float x = fmodf(1380 - d + ((h >> 4) % 1280), 1480) - 100;
+		float y = fmodf(820 - d * 0.55f + ((h >> 12) % 720), 920) - 100;
+		x += sinf(tf * 0.5f + i) * 12;
+		float rot = tf * (0.15f + ((h >> 20) % 10) * 0.03f) * ((h & 1) ? 1 : -1) + i;
+		float pulse = 0.55f + 0.45f * sinf(tf * 0.7f + i * 1.7f);
+		int kind = i % 4;
+		SDL_Color c = tint[kind];
+		c.a = (uint8_t)((ingame ? 26 : 60) * pulse + (ingame ? 8 : 16));
+		float w = sz * 0.09f + 1.5f;
+		switch (kind) {
+		case 0: bg_ngon(x, y, sz * 0.62f, 3, w, rot - 1.5707963f, c); break;        /* triangle */
+		case 1: bg_ngon(x, y, sz * 0.5f, 28, w, rot, c); break;                     /* circle */
+		case 2: bg_bar(x, y, sz * 1.0f, w, rot + 0.785398f, c);                     /* cross */
+		        bg_bar(x, y, sz * 1.0f, w, rot - 0.785398f, c); break;
+		default: bg_ngon(x, y, sz * 0.6f, 4, w, rot + 0.785398f, c); break;         /* square */
 		}
 	}
-	/* drifting translucent squares */
-	for (int i = 0; i < 14; i++) {
-		float sz = 60 + (i * 37) % 140;
-		float x = fmodf((i * 211.0f) + t * (0.004f + i * 0.0007f), 1280 + sz * 2) - sz;
-		float y = 60 + (i * 97) % 600 + sinf(t * 0.0006f + i) * 20;
-		float a = t * 0.00015f * (i & 1 ? 1 : -1) + i;
-		float c = cosf(a) * sz / 2, s = sinf(a) * sz / 2;
-		float q[8] = { x + c - s, y + s + c, x - c - s, y - s + c,
-		               x - c + s, y - s - c, x + c + s, y + s - c };
-		SDL_Color col = { 120, 150, 255, 255 };
-		poly(q, 4, col, 14);
-	}
+	SDL_SetRenderDrawBlendMode(R, SDL_BLENDMODE_BLEND);
+	if (bgNI) SDL_RenderGeometry(R, NULL, bgV, bgNV, bgIdx, bgNI);
 }
 
 /* ------------------------------------------------------------------------ */
@@ -591,6 +663,10 @@ static int list_run(list_t *L, const char **labels, const char **values, int cou
 			/* small coloured square marker, like the PS1 memory card screen */
 			fill(LIST_X, y + ROW_H / 2 - 9, 18, 18, marks[idx], 255);
 			tx += 34;
+		}
+		if (labels[idx][0] == '#') {      /* section title */
+			text(fontSmall, tx, y + ROW_H / 2 + 6, labels[idx] + 1, PS_BLUE, 0);
+			continue;
 		}
 		text(fontItem, tx, y + ROW_H / 2, labels[idx], selected ? WHITE : GREY, 0);
 		if (values && values[idx] && values[idx][0]) {
@@ -1686,42 +1762,71 @@ static void settings(void)
 
 static void advanced(void)
 {
-	enum { A_GPU, A_SPU, A_REVERB, A_COUNT };
-	const char *labels[A_COUNT] = {
-		"GPU rendering on core 2", "Sound mixing on core 0", "Sound reverb"
-	};
-	const char *values[A_COUNT];
-	list_t L = { 0, 0 };
+	/* rows: our own options, then the core's, with section titles */
+	enum { MAXR = 48 };
+	const char *labels[MAXR], *values[MAXR];
+	char titles[8][40];
+	int kind[MAXR], n = 0, nt = 0;              /* kind: -1 title, -2/-3/-4 ours, >= 0 core option */
+	labels[n] = "#Threads"; kind[n++] = -1;
+	labels[n] = "GPU rendering on core 2"; kind[n++] = -2;
+	labels[n] = "Sound mixing on core 0"; kind[n++] = -3;
+	labels[n] = "Sound reverb"; kind[n++] = -4;
+	for (int i = 0; i < core_opt_count() && n < MAXR - 2; i++) {
+		if (core_opt_section(i) && nt < 8) {
+			snprintf(titles[nt], sizeof(titles[nt]), "#%s", core_opt_section(i));
+			labels[n] = titles[nt++]; kind[n++] = -1;
+		}
+		labels[n] = core_opt_label(i); kind[n++] = i;
+	}
+	list_t L = { 1, 0 };
 	transition();
 
 	for (;;) {
-		values[A_GPU]    = cfg.gpu_thread ? "On" : "Off";
-		values[A_SPU]    = cfg.spu_thread ? "On" : "Off";
-		values[A_REVERB] = cfg.reverb ? "On" : "Off";
-
+		for (int r = 0; r < n; r++) {
+			switch (kind[r]) {
+			case -1: values[r] = NULL; break;
+			case -2: values[r] = cfg.gpu_thread ? "On" : "Off"; break;
+			case -3: values[r] = cfg.spu_thread ? "On" : "Off"; break;
+			case -4: values[r] = cfg.reverb ? "On" : "Off"; break;
+			default: values[r] = core_opt_value(kind[r]); break;
+			}
+		}
 		poll_touch();
 		uint32_t b = poll_buttons();
 		int dir = 0;
-		if (b & WIIU_BTN_UP)   L.sel = L.sel > 0 ? L.sel - 1 : A_COUNT - 1;
-		if (b & WIIU_BTN_DOWN) L.sel = L.sel < A_COUNT - 1 ? L.sel + 1 : 0;
-		if (b & (WIIU_BTN_RIGHT | WIIU_BTN_A | WIIU_BTN_LEFT)) dir = 1;
+		if (b & WIIU_BTN_UP)
+			do L.sel = L.sel > 0 ? L.sel - 1 : n - 1; while (kind[L.sel] == -1);
+		if (b & WIIU_BTN_DOWN)
+			do L.sel = L.sel < n - 1 ? L.sel + 1 : 0; while (kind[L.sel] == -1);
+		if (b & (WIIU_BTN_RIGHT | WIIU_BTN_A)) dir = 1;
+		if (b & WIIU_BTN_LEFT) dir = -1;
 
 		draw_background();
 		int back = draw_header("Advanced", 1);
-		int arrow = 0;
-		int t = list_run(&L, labels, values, A_COUNT, 1, &arrow, NULL);
-		if (t >= 0 || arrow) dir = 1;
-		text(fontSmall, LIST_X, LIST_Y + A_COUNT * ROW_H + 40,
-		     "Turn these off only if a game shows glitches. Reverb off = a little faster.", DIM, 0);
-		draw_footer(NULL);
+		int arrow = 0, prev = L.sel;
+		int t = list_run(&L, labels, values, n, 1, &arrow, NULL);
+		if (kind[L.sel] == -1) { L.sel = prev; t = -1; arrow = 0; }   /* titles can't be picked */
+		if (t >= 0) dir = 1;
+		if (arrow) dir = arrow;
+		{
+			const char *help = "Turn these off only if a game shows glitches.";
+			int k = kind[L.sel];
+			if (k == -2) help = "Draws the picture on another CPU core. Faster. Applies on the next game.";
+			else if (k == -3) help = "Mixes sound on another CPU core. Turn off if there is no sound.";
+			else if (k == -4) help = "Echo effect of the real console. Off is a little faster.";
+			else if (k >= 0) help = core_opt_help(k);
+			draw_footer(help);
+		}
 		present();
 
 		if (back || (b & WIIU_BTN_B) || wiiu_quit) return;
 		if (!dir) continue;
-		switch (L.sel) {
-		case A_GPU:    cfg.gpu_thread = !cfg.gpu_thread; status("Applies the next time a game is loaded."); break;
-		case A_SPU:    cfg.spu_thread = !cfg.spu_thread; break;
-		case A_REVERB: cfg.reverb = !cfg.reverb; break;
+		switch (kind[L.sel]) {
+		case -2: cfg.gpu_thread = !cfg.gpu_thread; status("Applies the next time a game is loaded."); break;
+		case -3: cfg.spu_thread = !cfg.spu_thread; break;
+		case -4: cfg.reverb = !cfg.reverb; break;
+		case -1: break;
+		default: core_opt_cycle(kind[L.sel], dir); break;
 		}
 	}
 }

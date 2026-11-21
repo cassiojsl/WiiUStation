@@ -90,6 +90,82 @@ static struct { const char *key; int *val; int min, max; } OPTS[] = {
 	{ "bezel",      &cfg.bezel,      0, BEZEL_COUNT - 1 },
 	{ "view",       &cfg.view,       0, 4 },
 };
+
+/* ---- extra PCSX-ReARMed options (Advanced) ---- */
+typedef struct {
+	const char *key;        /* in settings.cfg: c_<key>; in the core: pcsx_rearmed_<key> */
+	const char *label, *section, *help;
+	int n, def;
+	const char *vals[8], *names[8];
+} coreopt_t;
+
+#define OFFON  { "disabled", "enabled" }, { "Off", "On" }
+static const coreopt_t COREOPT[] = {
+	{ "psxclock", "PS1 CPU clock", "Speed",
+	  "Higher removes slowdowns the real console had. Auto is safest.", 7, 0,
+	  { "auto", "50", "57", "65", "75", "85", "100" },
+	  { "Auto", "50%", "57%", "65%", "75%", "85%", "100%" } },
+	{ "cd_turbo", "Fast CD loading", NULL,
+	  "Shorter loading screens. Turn off if a game hangs while loading.", 2, 0, OFFON },
+	{ "nostalls", "Skip CPU stalls", NULL,
+	  "A little faster. May break timing in some games.", 2, 0, OFFON },
+	{ "spu_interpolation", "Sound interpolation", "Sound",
+	  "Gaussian sounds like the real console. Off is the fastest.", 4, 0,
+	  { "simple", "gaussian", "cubic", "off" }, { "Simple", "Gaussian", "Cubic", "Off" } },
+	{ "nocdaudio", "CD audio tracks", NULL,
+	  "Music played from the disc's audio tracks.", 2, 0,
+	  { "disabled", "enabled" }, { "On", "Off" } },
+	{ "noxadecoding", "XA audio (music, voices)", NULL,
+	  "Compressed music and voices. Off saves CPU but silences them.", 2, 0,
+	  { "disabled", "enabled" }, { "On", "Off" } },
+	{ "show_overscan", "Show overscan", "Picture",
+	  "Shows the area at the screen edges that TVs used to hide.", 3, 0,
+	  { "disabled", "auto", "hack" }, { "Off", "Auto", "Hack" } },
+	{ "screen_centering", "Screen centering", NULL,
+	  "Borderless removes side borders some games draw.", 3, 0,
+	  { "auto", "game", "borderless" }, { "Auto", "Game", "Borderless" } },
+	{ "gpu_slow_llists", "Slow GPU list walking", "Compatibility",
+	  "Needed by a few games that hang or show broken graphics.", 3, 0,
+	  { "auto", "disabled", "enabled" }, { "Auto", "Off", "On" } },
+	{ "icache_emulation", "Instruction cache", NULL,
+	  "Needed by a few games (e.g. Formula One 2001). Interpreter only.", 2, 0,
+	  { "enabled", "disabled" }, { "On", "Off" } },
+	{ "exception_emulation", "Exception emulation", NULL,
+	  "Rarely needed. Interpreter only.", 2, 0, OFFON },
+	{ "gpu_peops_odd_even_bit", "Odd/even bit hack", "GPU fixes",
+	  "Fixes lock-ups in games such as Chrono Cross.", 2, 0, OFFON },
+	{ "gpu_peops_expand_screen_width", "Expand screen width", NULL,
+	  "For Capcom 2D fighting games: shows the whole background.", 2, 0, OFFON },
+	{ "gpu_peops_ignore_brightness", "Ignore brightness colour", NULL,
+	  "Fixes black screens in Lunar: Silver Star Story.", 2, 0, OFFON },
+	{ "gpu_peops_disable_coord_check", "Disable coordinate check", NULL,
+	  "Old compatibility mode. Only if a game draws wrongly.", 2, 0, OFFON },
+	{ "gpu_peops_lazy_screen_update", "Lazy screen update", NULL,
+	  "Fixes flickering text boxes in Dragon Warrior VII, Pandemonium 2.", 2, 0, OFFON },
+	{ "gpu_peops_repeated_triangles", "Repeated flat triangles", NULL,
+	  "Fixes graphics in Star Wars: Dark Forces.", 2, 0, OFFON },
+	{ "gpu_peops_quads_with_triangles", "Draw quads as triangles", NULL,
+	  "Fixes distorted shading, with slightly worse textures.", 2, 0, OFFON },
+	{ "gpu_peops_fake_busy_state", "Fake GPU busy state", NULL,
+	  "Emulates the GPU busy flag. Fixes some games, a bit slower.", 2, 0, OFFON },
+};
+#define NCOREOPT (int)(sizeof(COREOPT) / sizeof(COREOPT[0]))
+_Static_assert(sizeof(COREOPT) / sizeof(COREOPT[0]) <= 24, "cfg.core too small");
+
+int core_opt_count(void) { return NCOREOPT; }
+const char *core_opt_label(int i) { return COREOPT[i].label; }
+const char *core_opt_section(int i) { return COREOPT[i].section; }
+const char *core_opt_help(int i) { return COREOPT[i].help; }
+const char *core_opt_value(int i)
+{
+	int v = cfg.core[i];
+	return COREOPT[i].names[v >= 0 && v < COREOPT[i].n ? v : 0];
+}
+void core_opt_cycle(int i, int dir)
+{
+	cfg.core[i] = (cfg.core[i] + COREOPT[i].n + dir) % COREOPT[i].n;
+}
+
 /* keys that only make sense globally (never in a per-game file) */
 static int global_only(const char *k)
 {
@@ -127,6 +203,7 @@ static void settings_defaults(void)
 	cfg.audio = 1;
 	cfg.bezel = BEZEL_AMBIENT;
 	cfg.view = 0;
+	for (int i = 0; i < NCOREOPT; i++) cfg.core[i] = COREOPT[i].def;
 	strcpy(cfg.games_dir, WIIU_ISO_DIR);
 	memcpy(cfg.map, default_map, sizeof(cfg.map));
 }
@@ -163,6 +240,12 @@ static int settings_parse(const char *path, int isGame)
 			if (id >= 0 && id < 16 && v >= 0 && v < 16) cfg.map[id] = v;
 			continue;
 		}
+		if (!strncmp(k, "c_", 2)) {
+			int v = atoi(eq + 1);
+			for (int i = 0; i < NCOREOPT; i++)
+				if (!strcmp(COREOPT[i].key, k + 2) && v >= 0 && v < COREOPT[i].n) cfg.core[i] = v;
+			continue;
+		}
 		int v = atoi(eq + 1);
 		if (version < 2 && (!strcmp(k, "gpu_thread") || !strcmp(k, "analog")))
 			continue;
@@ -186,6 +269,7 @@ static int settings_write(const char *path, int isGame)
 	for (unsigned i = 0; i < sizeof(OPTS) / sizeof(OPTS[0]); i++)
 		if (!isGame || !global_only(OPTS[i].key))
 			fprintf(f, "%s = %d\n", OPTS[i].key, *OPTS[i].val);
+	for (int i = 0; i < NCOREOPT; i++) fprintf(f, "c_%s = %d\n", COREOPT[i].key, cfg.core[i]);
 	if (!isGame) fprintf(f, "games_dir = %s\n", cfg.games_dir);
 	for (int i = 0; i < 16; i++) fprintf(f, "map%d = %d\n", i, cfg.map[i]);
 	fclose(f);
@@ -307,6 +391,12 @@ static const char *core_var(const char *key)
 	if (!strcmp(key, "pcsx_rearmed_vibration")) return cfg.rumble ? "enabled" : "disabled";
 	if (!strcmp(key, "pcsx_rearmed_display_fps_v2")) return "disabled";
 	if (!strcmp(key, "pcsx_rearmed_rgb32_output")) return "disabled"; /* RGB565: cheapest upload */
+	if (!strncmp(key, "pcsx_rearmed_", 13))
+		for (int i = 0; i < NCOREOPT; i++)
+			if (!strcmp(key + 13, COREOPT[i].key)) {
+				int v = cfg.core[i];
+				return COREOPT[i].vals[v >= 0 && v < COREOPT[i].n ? v : 0];
+			}
 	return NULL;   /* core default */
 }
 

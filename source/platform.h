@@ -70,6 +70,7 @@ typedef struct {
 	int audio;
 	int bezel;          /* BEZEL_* */
 	int view;           /* game browser: 0 grid, 1 list, 2 compact, 3 shelf, 4 carousel */
+	int core[24];       /* extra PCSX-ReARMed options, see core_opt_* */
 	int map[16];        /* PSX button (RETRO_DEVICE_ID_JOYPAD_*) -> WIIU_BTN bit index */
 	char games_dir[256];  /* folder the game browser opens */
 } wiiu_settings;
@@ -82,6 +83,14 @@ void settings_enter_game(const char *game_key);  /* global + overrides */
 void settings_leave_game(void);                  /* back to global */
 int  settings_game_scope(void);                  /* 1 if editing this game's file */
 int  settings_set_game_scope(int on);            /* create / delete the file */
+
+/* extra core options shown in Advanced (main.c) */
+int  core_opt_count(void);
+const char *core_opt_label(int i);
+const char *core_opt_value(int i);     /* current value, as shown */
+const char *core_opt_section(int i);   /* first option of a group: its title */
+const char *core_opt_help(int i);
+void core_opt_cycle(int i, int dir);
 
 /* ---- video (video.c) ---- */
 int  video_init(void);
