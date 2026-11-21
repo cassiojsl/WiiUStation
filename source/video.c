@@ -50,6 +50,7 @@ void *video_open_font(int size)
  * 0 in the unused byte). */
 static uint32_t *conv;
 static uint32_t lut565[0x10000];
+static uint64_t convTicks;          /* time spent converting frames (performance readout) */
 
 static void build_lut(void)
 {
@@ -225,6 +226,7 @@ void video_upload(const void *data, unsigned w, unsigned h, size_t pitch)
 	if (w > TEX_W) w = TEX_W;
 	if (h > TEX_H) h = TEX_H;
 	SDL_Rect r = { 0, 0, (int)w, (int)h };
+	const uint64_t c0 = SDL_GetPerformanceCounter();
 	if (pixfmt == RETRO_PIXEL_FORMAT_XRGB8888) {
 		for (unsigned y = 0; y < h; y++) {
 			const uint32_t *src = (const uint32_t *)((const uint8_t *)data + y * pitch);
@@ -239,6 +241,7 @@ void video_upload(const void *data, unsigned w, unsigned h, size_t pitch)
 		}
 	}
 	SDL_UpdateTexture(frameTex, &r, conv, (int)(w * 4));
+	convTicks += SDL_GetPerformanceCounter() - c0;
 
 	if (cfg.aspect == WIIU_ASPECT_ZOOM && ((n++ % 15) == 0 || (int)w != frameW || (int)h != frameH))
 		measure_borders(data, w, h, pitch);
@@ -260,6 +263,26 @@ static SDL_Texture *fpsTex;
 static int fpsTexW, fpsTexH;
 
 void video_set_fps(int fps, int target) { fpsValue = fps; fpsTarget = target > 0 ? target : 60; }
+
+/* milliseconds the picture conversion + upload took since the last call */
+double video_take_conv_ms(void)
+{
+	double ms = (double)convTicks * 1000.0 / (double)SDL_GetPerformanceFrequency();
+	convTicks = 0;
+	return ms;
+}
+
+/* the per-frame averages shown under the FPS badge (milliseconds) */
+static char timingLine[96];
+static SDL_Texture *timTex;
+static int timTexW, timTexH, timDirty;
+void video_set_timing(double emu, double conv_, double draw, double wait, int vsync)
+{
+	char s[96];
+	snprintf(s, sizeof(s), "emu %.1f (picture %.1f)   draw %.1f   wait %.1f ms   VSync %s",
+	         emu, conv_, draw, wait, vsync ? "on" : "off");
+	if (strcmp(s, timingLine)) { strcpy(timingLine, s); timDirty = 1; }
+}
 
 static int wideOn;
 void video_set_widescreen(int on) { wideOn = on; }
@@ -399,6 +422,19 @@ static void draw_fps(void)
 	fill_rrect(x + 14, y + h / 2 - 5, 10, 10, 5, dot);
 	SDL_Rect d = { x + padL, y + 5, fpsTexW, fpsTexH };
 	SDL_RenderCopy(renderer, fpsTex, NULL, &d);
+	if (timingLine[0] && fpsSmall) {            /* where the frame time goes */
+		if (timDirty || !timTex) {
+			SDL_Surface *t = TTF_RenderUTF8_Blended(fpsSmall, timingLine, (SDL_Color){ 220, 226, 235, 255 });
+			if (timTex) { SDL_DestroyTexture(timTex); timTex = NULL; }
+			if (t) { timTex = SDL_CreateTextureFromSurface(renderer, t); timTexW = t->w; timTexH = t->h; SDL_FreeSurface(t); }
+			timDirty = 0;
+		}
+		if (timTex) {
+			fill_rrect(x, y + h + 6, timTexW + 24, timTexH + 8, (timTexH + 8) / 2, (SDL_Color){ 10, 12, 18, 190 });
+			SDL_Rect td = { x + 12, y + h + 10, timTexW, timTexH };
+			SDL_RenderCopy(renderer, timTex, NULL, &td);
+		}
+	}
 }
 
 /* ---- post-processing (all done by the GPU, almost free for the CPU) ---- */

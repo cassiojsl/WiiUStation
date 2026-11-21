@@ -1778,6 +1778,15 @@ static void run_game(void)
 	hotkey_pressed();   /* arm the latch */
 
 	int ffToggle = 0, ffPrev = 0, paused = 0;
+	/* performance readout and adaptive VSync: busy = emulation + drawing
+	 * (without the wait for the refresh). While it fits the frame, VSync
+	 * is on (no tearing); when the game is heavy it is turned off, as a
+	 * frame that misses the refresh would otherwise wait for the next
+	 * one: 60 fps would drop to 30. */
+	OSTime tEmu = 0, tDraw = 0, tWait = 0;
+	double busyAvg = 0;
+	int vsOn = cfg.vsync;
+	const double frameMs = 1000.0 / fps;
 	OSTime playStart = OSGetSystemTime(), playPaused = 0, pauseAt = 0;
 	uint32_t hkPrev = 0xffffffffu;   /* ignore buttons already held on entry */
 	while (!wiiu_quit) {
@@ -1849,11 +1858,23 @@ static void run_game(void)
 			for (int i = 1; i < cfg.ffspeed; i++) retro_run();
 			ffMuted = 0;
 		}
+		OSTime t0 = OSGetSystemTime();
 		retro_run();
+		OSTime t1 = OSGetSystemTime();
 		video_draw_game(0);
+		OSTime t2 = OSGetSystemTime();
 		if (ff) video_osd(">> Fast forward");
 		video_present();
+		OSTime t3 = OSGetSystemTime();
 		if (!pump_events()) break;
+		tEmu += t1 - t0; tDraw += t2 - t1; tWait += t3 - t2;
+		if (cfg.vsync && !ff) {
+			double busy = (double)(t2 - t0) * 1000.0 / OSSecondsToTicks(1);
+			busyAvg = busyAvg ? busyAvg * 0.9 + busy * 0.1 : busy;
+			if (vsOn && busyAvg > frameMs * 0.94) vsOn = 0;
+			else if (!vsOn && busyAvg < frameMs * 0.80) vsOn = 1;
+		} else if (!cfg.vsync) vsOn = 0;
+		video_set_vsync(vsOn);
 
 		/* pacing: audio sync when sound is on, timer otherwise */
 		if (ff) {
@@ -1874,6 +1895,11 @@ static void run_game(void)
 			OSTime now = OSGetSystemTime();
 			double secs = (double)(now - fpsStart) / OSSecondsToTicks(1);
 			video_set_fps(secs > 0 ? (int)(60.0 / secs + 0.5) : 0, (int)(fps + 0.5));
+			if (cfg.show_fps) {
+				const double k = 1000.0 / OSSecondsToTicks(1) / 60.0;      /* ticks -> ms per frame */
+				video_set_timing(tEmu * k, video_take_conv_ms() / 60.0, tDraw * k, tWait * k, vsOn);
+			}
+			tEmu = tDraw = tWait = 0;
 			fpsStart = now;
 			frames = 0;
 		}
