@@ -2039,7 +2039,7 @@ static void settings(void)
 		case S_CRT:    cfg.crt = !cfg.crt; break;
 		case S_DITHER: cfg.dithering = (cfg.dithering + 3 + dir) % 3; break;
 		case S_PAD:
-			cfg.analog = (cfg.analog + PAD_COUNT + dir) % PAD_COUNT;
+			cfg.analog = (cfg.analog + 1 + PAD_COUNT + 1 + dir) % (PAD_COUNT + 1) - 1;   /* Auto .. Justifier */
 			switch (cfg.analog) {
 			case PAD_DUALSHOCK: status("DualShock: some older games only work with Digital."); break;
 			case PAD_NEGCON:    status("neGcon: left stick steers, ZR / right stick up = I, ZL / down = II."); break;
@@ -2048,7 +2048,7 @@ static void settings(void)
 			case PAD_JUSTIFIER: status("Light gun: touch the GamePad screen to shoot, touch outside the picture to reload."); break;
 			}
 			break;
-		case S_PAD2:   cfg.analog2 = (cfg.analog2 + PAD_NEGCON + 1 + dir) % (PAD_NEGCON + 1); break;
+		case S_PAD2:   cfg.analog2 = (cfg.analog2 + 1 + PAD_NEGCON + 2 + dir) % (PAD_NEGCON + 2) - 1; break;
 		case S_WIDE:
 			cfg.widescreen = !cfg.widescreen;
 			if (cfg.widescreen) status("Uses the game's widescreen code from its .cht file (a cheat named widescreen or 16:9).");

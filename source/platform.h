@@ -58,8 +58,8 @@ enum { DRC_MIRROR = 0, DRC_ONLY, DRC_TV_ONLY, DRC_PANEL, DRC_COUNT };
 #define PANEL_MENU HK_COUNT
 
 /* controller types */
-enum { PAD_DIGITAL = 0, PAD_DUALSHOCK, PAD_NEGCON, PAD_MOUSE, PAD_GUNCON, PAD_JUSTIFIER, PAD_COUNT };
-const char *pad_type_name(int t);
+enum { PAD_AUTO = -1, PAD_DIGITAL = 0, PAD_DUALSHOCK, PAD_NEGCON, PAD_MOUSE, PAD_GUNCON, PAD_JUSTIFIER, PAD_COUNT };
+const char *pad_type_name(int t);        /* PAD_AUTO shows what it picked */
 int  emu_touch_is_input(void);           /* 1: GamePad touch is the gun / mouse */
 
 /* interface language */

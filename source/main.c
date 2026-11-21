@@ -117,8 +117,8 @@ static struct { const char *key; int *val; int min, max; } OPTS[] = {
 	{ "dithering",  &cfg.dithering,  0, 2 },
 	{ "bios_hle",   &cfg.bios_hle,   0, 1 },
 	{ "bootlogo",   &cfg.bootlogo,   0, 1 },
-	{ "analog",     &cfg.analog,     0, PAD_COUNT - 1 },
-	{ "analog2",    &cfg.analog2,    0, PAD_NEGCON },
+	{ "analog",     &cfg.analog,     -1, PAD_COUNT - 1 },
+	{ "analog2",    &cfg.analog2,    -1, PAD_NEGCON },
 	{ "deadzone",   &cfg.deadzone,   0, 6 },
 	{ "multitap",   &cfg.multitap,   0, 1 },
 	{ "region",     &cfg.region,     0, 2 },
@@ -314,8 +314,8 @@ static void settings_defaults(void)
 	cfg.dithering = 1;
 	cfg.bios_hle = 0;
 	cfg.bootlogo = 0;
-	cfg.analog = 0;       /* digital pad: works with every game */
-	cfg.analog2 = 0;
+	cfg.analog = PAD_AUTO;  /* DualShock for games that support it, else Digital */
+	cfg.analog2 = PAD_AUTO;
 	cfg.deadzone = 1;     /* 5% */
 	cfg.multitap = 0;
 	cfg.region = 0;
@@ -384,6 +384,8 @@ static int settings_parse(const char *path, int isGame)
 			continue;
 		if (version < 6 && !strcmp(k, "lang"))       /* following the system became the default */
 			continue;
+		if (version < 7 && (!strcmp(k, "analog") || !strcmp(k, "analog2")))   /* Auto became the default */
+			continue;
 		for (unsigned i = 0; i < sizeof(OPTS) / sizeof(OPTS[0]); i++)
 			if (!strcmp(OPTS[i].key, k) && v >= OPTS[i].min && v <= OPTS[i].max)
 				*OPTS[i].val = v;
@@ -396,7 +398,7 @@ static int settings_write(const char *path, int isGame)
 {
 	FILE *f = fopen(path, "w");
 	if (!f) return 0;
-	fprintf(f, "# WiiUStation %s\nversion = 6\n", isGame ? "per-game settings" : "settings");
+	fprintf(f, "# WiiUStation %s\nversion = 7\n", isGame ? "per-game settings" : "settings");
 	for (unsigned i = 0; i < sizeof(OPTS) / sizeof(OPTS[0]); i++)
 		if (!isGame || !global_only(OPTS[i].key))
 			fprintf(f, "%s = %d\n", OPTS[i].key, *OPTS[i].val);
@@ -678,13 +680,41 @@ int emu_player_count(void)
 }
 
 /* controller type of a PSX pad index: player 1 uses cfg.analog, the others analog2 */
-static int port_type(int port) { return port == 0 ? cfg.analog : cfg.analog2; }
+/* Auto: DualShock when the game supports the analog sticks
+ * (content/analog_ids.txt, from the libretro database), else Digital */
+static int gameAnalog;
+
+static int analog_game(const char *id)
+{
+	char line[32];
+	int found = 0;
+	if (!id || !id[0]) return 0;
+	FILE *f = fopen("fs:/vol/content/analog_ids.txt", "r");
+	if (!f) return 0;
+	while (!found && fgets(line, sizeof(line), f)) {
+		line[strcspn(line, "\r\n")] = 0;
+		found = !strcmp(line, id);
+	}
+	fclose(f);
+	return found;
+}
+
+static int port_type(int port)
+{
+	int t = port == 0 ? cfg.analog : cfg.analog2;
+	if (t == PAD_AUTO) t = gameAnalog ? PAD_DUALSHOCK : PAD_DIGITAL;
+	return t;
+}
 /* sticks are read as sticks (not as the d-pad) */
 static int port_is_analog(int port) { return port_type(port) != PAD_DIGITAL; }
 
 const char *pad_type_name(int t)
 {
 	static const char *n[PAD_COUNT] = { "Digital", "DualShock", "neGcon", "Mouse", "GunCon", "Justifier" };
+	if (t == PAD_AUTO) {
+		if (!loaded) return "Auto";
+		return gameAnalog ? "Auto (DualShock)" : "Auto (Digital)";
+	}
 	return t >= 0 && t < PAD_COUNT ? n[t] : "";
 }
 
@@ -1036,6 +1066,7 @@ int emu_load_game(const char *pathIn)
 		char aid[16] = "";
 		covers_detect_id(path, aid);
 		autofix_detect(gameName, aid);
+		gameAnalog = analog_game(aid);
 	}
 	if (!ppfFromDisc) find_ppf(path);
 	ppfFromDisc = 0;
