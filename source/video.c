@@ -49,6 +49,9 @@ void *video_open_font(int size)
  * a black screen), and it forces alpha to 0xFF (XRGB8888 frames may carry
  * 0 in the unused byte). */
 static uint32_t *conv;
+static uint32_t *s2buf;           /* Scale2x output, 2w x 2h */
+static SDL_Texture *s2Tex;
+static int s2Valid;
 static uint32_t lut565[0x10000];
 
 static void build_lut(void)
@@ -181,6 +184,29 @@ static void crop_rect(SDL_Rect *src)
 	if (src->h < frameH * 3 / 4) { src->y = 0; src->h = frameH; }
 }
 
+/* Scale2x (AdvMAME2x): doubles the picture, rounding the stair steps of
+ * diagonal edges without blurring. src is w x h, dst 2w x 2h. */
+static void scale2x(const uint32_t *src, unsigned w, unsigned h, uint32_t *dst)
+{
+	for (unsigned y = 0; y < h; y++) {
+		const uint32_t *row = src + y * w;
+		const uint32_t *up = y ? row - w : row, *dn = y + 1 < h ? row + w : row;
+		uint32_t *o0 = dst + (y * 2) * (w * 2), *o1 = o0 + w * 2;
+		for (unsigned x = 0; x < w; x++) {
+			uint32_t E = row[x], B = up[x], H = dn[x];
+			uint32_t D = x ? row[x - 1] : E, F = x + 1 < w ? row[x + 1] : E;
+			if (B != H && D != F) {
+				o0[x * 2]     = D == B ? D : E;
+				o0[x * 2 + 1] = B == F ? F : E;
+				o1[x * 2]     = D == H ? D : E;
+				o1[x * 2 + 1] = H == F ? F : E;
+			} else {
+				o0[x * 2] = o0[x * 2 + 1] = o1[x * 2] = o1[x * 2 + 1] = E;
+			}
+		}
+	}
+}
+
 void video_upload(const void *data, unsigned w, unsigned h, size_t pitch)
 {
 	static unsigned n;
@@ -203,6 +229,23 @@ void video_upload(const void *data, unsigned w, unsigned h, size_t pitch)
 		}
 	}
 	SDL_UpdateTexture(frameTex, &r, conv, (int)(w * 4));
+	s2Valid = 0;
+	if (cfg.filter == WIIU_FILTER_SCALE2X && w <= 512 && h <= 512) {
+		if (!s2buf) s2buf = SDL_malloc(1024 * 1024 * 4);
+		if (!s2Tex) {
+			s2Tex = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, 1024, 1024);
+			if (s2Tex) {
+				SDL_SetTextureBlendMode(s2Tex, SDL_BLENDMODE_NONE);
+				SDL_SetTextureScaleMode(s2Tex, SDL_ScaleModeLinear);
+			}
+		}
+		if (s2buf && s2Tex) {
+			scale2x(conv, w, h, s2buf);
+			SDL_Rect r2 = { 0, 0, (int)w * 2, (int)h * 2 };
+			SDL_UpdateTexture(s2Tex, &r2, s2buf, (int)(w * 8));
+			s2Valid = 1;
+		}
+	}
 	if (cfg.aspect == WIIU_ASPECT_ZOOM && (n++ % 15) == 0)
 		measure_borders(data, w, h, pitch);
 	frameW = w;
@@ -407,11 +450,12 @@ static void draw_sharp_bilinear(const SDL_Rect *src, const SDL_Rect *dst)
 		SDL_SetTextureBlendMode(sharpTex, SDL_BLENDMODE_NONE);
 	}
 	SDL_Rect mid = { 0, 0, src->w * kx, src->h * ky };
+	SDL_Texture *prevTarget = SDL_GetRenderTarget(renderer);
 	SDL_SetTextureScaleMode(frameTex, SDL_ScaleModeNearest);
 	SDL_SetRenderTarget(renderer, sharpTex);
 	SDL_RenderSetLogicalSize(renderer, 0, 0);
 	SDL_RenderCopy(renderer, frameTex, src, &mid);
-	SDL_SetRenderTarget(renderer, NULL);
+	SDL_SetRenderTarget(renderer, prevTarget);
 	SDL_RenderSetLogicalSize(renderer, 1280, 720);
 	SDL_RenderCopy(renderer, sharpTex, &mid, dst);
 	lastFilter = -1;
@@ -551,6 +595,114 @@ static void draw_ambient(const SDL_Rect *src, const SDL_Rect *dst)
 
 static SDL_Rect lastSrc, lastDst;     /* where the picture was drawn */
 
+/* ---- screen effects ---- */
+static SDL_Texture *fxTex;      /* 1280x720 target: the picture before the CRT curve */
+static SDL_Texture *glowTex;    /* small target: blurred copy for the glow */
+static SDL_Texture *lcdTex;     /* pixel grid, multiplied */
+static int lcdCell, lcdW, lcdH;
+
+static Uint32 native_format(void)
+{
+	SDL_RendererInfo info;
+	if (SDL_GetRendererInfo(renderer, &info) == 0 && info.num_texture_formats > 0)
+		return info.texture_formats[0];
+	return SDL_PIXELFORMAT_RGBA8888;
+}
+
+/* glow: a 1/4-size copy of the picture, scaled back up (blurred) and added */
+static void draw_glow(const SDL_Rect *src, const SDL_Rect *dst)
+{
+	if (!glowTex) {
+		glowTex = SDL_CreateTexture(renderer, native_format(), SDL_TEXTUREACCESS_TARGET, 256, 256);
+		if (!glowTex) return;
+		SDL_SetTextureScaleMode(glowTex, SDL_ScaleModeLinear);
+	}
+	SDL_Texture *prev = SDL_GetRenderTarget(renderer);
+	SDL_Rect small = { 0, 0, src->w / 4 > 0 ? src->w / 4 : 1, src->h / 4 > 0 ? src->h / 4 : 1 };
+	if (small.w > 256) small.w = 256;
+	if (small.h > 256) small.h = 256;
+	SDL_SetTextureScaleMode(frameTex, SDL_ScaleModeLinear);
+	SDL_SetRenderTarget(renderer, glowTex);
+	SDL_RenderSetLogicalSize(renderer, 0, 0);
+	SDL_RenderCopy(renderer, frameTex, src, &small);
+	SDL_SetRenderTarget(renderer, prev);
+	SDL_RenderSetLogicalSize(renderer, 1280, 720);
+	lastFilter = -1;
+	SDL_SetTextureBlendMode(glowTex, SDL_BLENDMODE_ADD);
+	SDL_SetTextureAlphaMod(glowTex, 255);
+	SDL_SetTextureColorMod(glowTex, 52, 52, 52);
+	SDL_Rect big = { dst->x - dst->w / 40, dst->y - dst->h / 40, dst->w + dst->w / 20, dst->h + dst->h / 20 };
+	SDL_RenderCopy(renderer, glowTex, &small, &big);
+}
+
+/* LCD grid: a thin dark line between the game's pixels */
+static void draw_lcd(const SDL_Rect *src, const SDL_Rect *dst)
+{
+	int cell = (dst->w + src->w / 2) / src->w;
+	if (cell < 2) cell = 2;
+	if (cell > 4) cell = 4;
+	while (frameW * cell > 2048 || frameH * cell > 2048) cell--;
+	if (cell < 2) return;
+	if (!lcdTex || cell != lcdCell || frameW != lcdW || frameH != lcdH) {
+		if (lcdTex) SDL_DestroyTexture(lcdTex);
+		int w = frameW * cell, h = frameH * cell;
+		SDL_Surface *sf = SDL_CreateRGBSurfaceWithFormat(0, w, h, 32, SDL_PIXELFORMAT_ARGB8888);
+		lcdTex = NULL;
+		if (!sf) return;
+		for (int y = 0; y < h; y++) {
+			uint32_t *row = (uint32_t *)((uint8_t *)sf->pixels + y * sf->pitch);
+			int ly = y % cell == cell - 1;
+			for (int x = 0; x < w; x++) {
+				int lx = x % cell == cell - 1;
+				row[x] = lx && ly ? 0xff8a8a8a : (lx || ly) ? 0xffb8b8b8 : 0xffffffff;
+			}
+		}
+		lcdTex = SDL_CreateTextureFromSurface(renderer, sf);
+		SDL_FreeSurface(sf);
+		if (!lcdTex) return;
+		SDL_SetTextureBlendMode(lcdTex, SDL_BLENDMODE_MOD);
+		SDL_SetTextureScaleMode(lcdTex, SDL_ScaleModeLinear);
+		lcdCell = cell; lcdW = frameW; lcdH = frameH;
+	}
+	SDL_Rect s = { src->x * cell, src->y * cell, src->w * cell, src->h * cell };
+	SDL_RenderCopy(renderer, lcdTex, &s, dst);
+}
+
+/* CRT curve: the finished picture (in fxTex) drawn on a bulging mesh, with
+ * the corners pulled in and darkened like the glass of a tube TV */
+static void draw_curved(const SDL_Rect *dst)
+{
+	enum { NX = 32, NY = 24 };
+	static SDL_Vertex v[(NX + 1) * (NY + 1)];
+	static int idx[NX * NY * 6];
+	const float k = 0.07f;
+	int n = 0, m = 0;
+	for (int j = 0; j <= NY; j++)
+		for (int i = 0; i <= NX; i++) {
+			float tx = (float)i / NX, ty = (float)j / NY;
+			float u = tx * 2 - 1, w = ty * 2 - 1, r2 = u * u + w * w;
+			float sc = (1 - k * r2) / (1 - k);
+			float px = dst->x + dst->w * (0.5f + 0.5f * u * sc);
+			float py = dst->y + dst->h * (0.5f + 0.5f * w * sc);
+			float shade = 1 - 0.30f * r2 * r2 / 4;
+			Uint8 c = (Uint8)(255 * (shade < 0 ? 0 : shade));
+			v[n].position.x = px; v[n].position.y = py;
+			v[n].color = (SDL_Color){ c, c, c, 255 };
+			v[n].tex_coord.x = (dst->x + tx * dst->w) / 1280.0f;
+			v[n].tex_coord.y = (dst->y + ty * dst->h) / 720.0f;
+			n++;
+		}
+	for (int j = 0; j < NY; j++)
+		for (int i = 0; i < NX; i++) {
+			int a = j * (NX + 1) + i, b = a + 1, c = a + NX + 1, d = c + 1;
+			idx[m++] = a; idx[m++] = b; idx[m++] = d;
+			idx[m++] = a; idx[m++] = d; idx[m++] = c;
+		}
+	SDL_SetTextureBlendMode(fxTex, SDL_BLENDMODE_NONE);
+	SDL_SetTextureScaleMode(fxTex, SDL_ScaleModeLinear);
+	SDL_RenderGeometry(renderer, fxTex, v, n, idx, m);
+}
+
 int video_screen_to_game(int sx, int sy, int *gx, int *gy)
 {
 	if (!haveFrame || lastDst.w <= 0 || lastDst.h <= 0 || frameW <= 0 || frameH <= 0) return 0;
@@ -576,7 +728,23 @@ void video_draw_game(int dim)
 	lastDst = dst;
 	if (cfg.bezel == BEZEL_AMBIENT) draw_ambient(&src, &dst);
 
-	if (cfg.filter == WIIU_FILTER_SHARP_BILINEAR) {
+	/* CRT curve: draw the picture into fxTex first, then bend it */
+	int curve = cfg.fx == FX_CURVE;
+	if (curve && !fxTex) {
+		fxTex = SDL_CreateTexture(renderer, native_format(), SDL_TEXTUREACCESS_TARGET, 1280, 720);
+		if (!fxTex) curve = 0;
+	}
+	if (curve) {
+		SDL_SetRenderTarget(renderer, fxTex);
+		SDL_RenderSetLogicalSize(renderer, 1280, 720);
+		SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+		SDL_RenderClear(renderer);
+	}
+
+	if (cfg.filter == WIIU_FILTER_SCALE2X && s2Valid && s2Tex) {
+		SDL_Rect s2 = { src.x * 2, src.y * 2, src.w * 2, src.h * 2 };
+		SDL_RenderCopy(renderer, s2Tex, &s2, &dst);
+	} else if (cfg.filter == WIIU_FILTER_SHARP_BILINEAR) {
 		draw_sharp_bilinear(&src, &dst);
 	} else {
 		if (lastFilter != cfg.filter) {
@@ -608,6 +776,13 @@ void video_draw_game(int dim)
 			SDL_Rect s = { 0, 0, dst.w, 1 };
 			SDL_RenderCopy(renderer, crtTex, &s, &dst);
 		}
+	}
+	if (cfg.fx == FX_LCD) draw_lcd(&src, &dst);
+	if (cfg.fx == FX_GLOW) draw_glow(&src, &dst);
+	if (curve) {
+		SDL_SetRenderTarget(renderer, NULL);
+		SDL_RenderSetLogicalSize(renderer, 1280, 720);
+		draw_curved(&dst);
 	}
 	if (cfg.bezel == BEZEL_CUSTOM) {
 		SDL_Texture *b = custom_bezel();

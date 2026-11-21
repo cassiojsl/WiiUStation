@@ -1115,9 +1115,14 @@ static int carousel_run(grid_t *G, entry_t *list, const char **labels, int count
 		entry_name(e, labels[G->sel], full, sizeof(full));
 		fit_text(fontTitle, full, 1160, nm, sizeof(nm));
 		text(fontTitle, CX, 590, nm, WHITE, 1);
-		if (e->dir) snprintf(info, sizeof(info), "Folder");
-		else if (e->discs > 1) snprintf(info, sizeof(info), "%s%s%d discs   %d / %d", e->id, e->id[0] ? "   " : "", e->discs, G->sel + 1, count);
-		else snprintf(info, sizeof(info), "%s%s%d / %d", e->id, e->id[0] ? "   " : "", G->sel + 1, count);
+		if (e->dir) snprintf(info, sizeof(info), "%s", tr("Folder"));
+		else if (e->discs > 1) snprintf(info, sizeof(info), tr("%s%s%d discs"), e->id, e->id[0] ? "   " : "", e->discs);
+		else snprintf(info, sizeof(info), "%s", e->id);
+		{   /* position in the list, top right (next to the folder path) */
+			char pos[24];
+			snprintf(pos, sizeof(pos), "%d / %d", G->sel + 1, count);
+			text(fontSmall, 1240, 116, pos, GREY, 2);
+		}
 		text(fontSmall, CX, 634, info, GREY, 1);
 	}
 	return tapped;
@@ -1600,12 +1605,12 @@ static void hotkeys(void);
 static void settings(void)
 {
 	enum { S_SCOPE, S_LANG, S_GAMES, S_VIEW, S_COVERS, S_RESUME, S_CORE, S_SKIP, S_FFWD, S_FFSPEED, S_FPS, S_AUDIO,
-	       S_ASPECT, S_FILTER, S_BEZEL, S_SCAN, S_CRT, S_DITHER, S_PAD, S_PAD2, S_DEADZONE, S_MTAP,
+	       S_ASPECT, S_FILTER, S_BEZEL, S_SCAN, S_CRT, S_FX, S_DITHER, S_PAD, S_PAD2, S_DEADZONE, S_MTAP,
 	       S_CONTROLS, S_HOTKEYS, S_RUMBLE, S_REGION, S_BIOS, S_LOGO, S_ADV, S_COUNT };
 	static const char *allLabels[S_COUNT] = {
 		"Settings for", "Language", "Games folder", "Game list", "Covers", "Continue where you left off", "CPU core",
 		"Frame skip", "Fast forward", "Fast forward speed", "Show FPS", "Sound", "Screen",
-		"Picture", "Border", "Scanlines", "CRT mask", "Dithering", "Player 1 controller",
+		"Picture", "Border", "Scanlines", "CRT mask", "Screen effect", "Dithering", "Player 1 controller",
 		"Player 2+ controller", "Analog dead zone", "Multitap (up to 5 players)", "Button mapping...", "Hotkeys...", "Vibration",
 		"Region", "BIOS", "PlayStation boot logo", "Advanced..."
 	};
@@ -1660,7 +1665,13 @@ static void settings(void)
 			                           cfg.aspect == WIIU_ASPECT_ZOOM ? "4:3 Auto zoom" :
 			                           cfg.aspect == WIIU_ASPECT_STRETCH ? "Stretch" : "Integer"; break;
 			case S_FILTER: values[k] = cfg.filter == WIIU_FILTER_LINEAR ? "Smooth" :
-			                           cfg.filter == WIIU_FILTER_NEAREST ? "Pixel" : "Sharp smooth"; break;
+			                           cfg.filter == WIIU_FILTER_NEAREST ? "Pixel" :
+			                           cfg.filter == WIIU_FILTER_SCALE2X ? "Scale2x" : "Sharp smooth"; break;
+			case S_FX: {
+				static const char *fxn[FX_COUNT] = { "Off", "CRT curve", "LCD grid", "Glow" };
+				values[k] = fxn[cfg.fx >= 0 && cfg.fx < FX_COUNT ? cfg.fx : 0];
+				break;
+			}
 			case S_BEZEL:  values[k] = bezel_name(cfg.bezel); break;
 			case S_SCAN:   values[k] = cfg.scanlines ? "On" : "Off"; break;
 			case S_CRT:    values[k] = cfg.crt ? "On" : "Off"; break;
@@ -1753,7 +1764,8 @@ static void settings(void)
 			if (cfg.aspect == WIIU_ASPECT_ZOOM) status("Crops the black borders the game draws, then fills the height.");
 			break;
 		}
-		case S_FILTER: cfg.filter = (cfg.filter + 3 + dir) % 3; break;
+		case S_FILTER: cfg.filter = (cfg.filter + 4 + dir) % 4; break;
+		case S_FX:     cfg.fx = (cfg.fx + FX_COUNT + dir) % FX_COUNT; break;
 		case S_SCAN:   cfg.scanlines = !cfg.scanlines; break;
 		case S_CRT:    cfg.crt = !cfg.crt; break;
 		case S_DITHER: cfg.dithering = (cfg.dithering + 3 + dir) % 3; break;
@@ -2598,7 +2610,7 @@ int menu_run(void)
 				covers_detect_id(p, id);
 				cover_or_disc(id, r.x, r.y, r.w);
 				pretty_name(p, nm, sizeof(nm));
-				fit_text(fontSmall, nm, r.w + 12, sh, sizeof(sh));
+				fit_text(fontSmall, nm, r.w - 4, sh, sizeof(sh));
 				text(fontSmall, r.x + r.w / 2, r.y + r.h + 26, sh, f ? WHITE : GREY, 1);
 				break;
 			}

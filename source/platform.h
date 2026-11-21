@@ -43,7 +43,9 @@ enum { BEZEL_OFF = 0, BEZEL_AMBIENT, BEZEL_CUSTOM,
        BEZEL_COUNT };
 const char *bezel_name(int b);   /* "Retro TV", ... */
 int bezel_next(int b, int dir);  /* menu order */
-enum { WIIU_FILTER_LINEAR = 0, WIIU_FILTER_NEAREST, WIIU_FILTER_SHARP_BILINEAR };
+enum { WIIU_FILTER_LINEAR = 0, WIIU_FILTER_NEAREST, WIIU_FILTER_SHARP_BILINEAR, WIIU_FILTER_SCALE2X };
+/* screen effects drawn on top of the filter */
+enum { FX_OFF = 0, FX_CURVE, FX_LCD, FX_GLOW, FX_COUNT };
 
 /* hotkeys: hold the modifier (hk[HK_MOD]) and press the action's button */
 enum { HK_MOD = 0, HK_SAVE, HK_LOAD, HK_SLOTUP, HK_SLOTDOWN, HK_SHOT, HK_FFWD, HK_PAUSE, HK_RESET, HK_COUNT };
@@ -69,6 +71,7 @@ typedef struct {
 	int filter;
 	int scanlines;
 	int crt;            /* CRT aperture-grille mask */
+	int fx;             /* FX_* */
 	int reverb;         /* SPU reverb (costs CPU) */
 	int dithering;      /* 0 off, 1 on, 2 force */
 	int bios_hle;       /* 1 = always HLE */
