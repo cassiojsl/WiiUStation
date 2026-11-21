@@ -112,6 +112,19 @@ controllers.
   GamePad **battery** next to the clock.
 - The game is saved when you go to the HOME Menu, in case the app is closed
   from there.
+- **Game information** (− → Information): game ID, region, size, play
+  time, save states, memory card use, cheats, translation patch.
+- **Collections**: make your own lists of games (− → Collections) and show
+  one with the ZR filter.
+- **Download all covers**: Settings → Download all covers fetches the cover
+  of every game in the games folder at once.
+- **BIOS check**: Settings → Check BIOS files identifies the files in
+  `WiiUStation/bios` and tells which regions are covered.
+- **Automatic game fixes**: known games that need one of the GPU fixes
+  (Chrono Cross, Lunar, Dark Forces, Dragon Warrior VII, Capcom 2D fighters)
+  get it while they run, unless you set that option yourself.
+- **Open the last game at start** (Settings): goes straight back to where
+  you left off; hold B during the opening to stay in the menu.
 - **Updates**: Settings → Check for updates downloads the latest release from
   GitHub and installs it to `sd:/wiiu/apps/WiiUStation.wuhb`.
 - Multi-disc games are supported (`.m3u`, or "Change disc").

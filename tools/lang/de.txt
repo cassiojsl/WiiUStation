@@ -360,3 +360,47 @@
 373|GitHub ist nicht erreichbar.
 374|Die neueste Version hat keine .wuhb-Datei.
 375|Die Versionsnummer konnte nicht gelesen werden.
+376|Letztes Spiel beim Start öffnen
+377|Alle Cover herunterladen...
+378|BIOS-Dateien prüfen...
+379|Automatische Spielkorrekturen
+380|Das letzte Spiel startet mit WiiUStation. Halte B im Intro, um ins Menü zu gehen.
+381|Bekannte Spiele erhalten die nötigen Korrekturen. Gilt ab dem nächsten geladenen Spiel.
+382|Andere
+383|Unbekannte Version (kann funktionieren)
+384|Keine BIOS-Datei
+385|Keine bekannte BIOS: Spiele nutzen die eingebaute (HLE), die die meisten Spiele startet.
+386|Fehlt für: %s (diese Spiele nutzen die eingebaute BIOS)
+387|Du hast eine BIOS für jede Region.
+388|BIOS-Dateien
+389|Der bios-Ordner ist leer.
+390|Lege BIOS-Dateien (z. B. scph5501.bin) in WiiUStation/bios ab.
+391|Alle Cover herunterladen
+392|Spiele werden gesucht...
+393|Fertig: %d Spiele
+394|Spiel %d von %d
+395|Geladen %d   Schon da %d   Nicht im Repository %d
+396|Ohne Spiel-ID %d   Fehlgeschlagen %d
+397|B: stoppen
+398|Ja
+399|Nein
+400|Neue Sammlung...
+401|Sammlungen
+402|A: zur Sammlung hinzufügen / entfernen
+403|Name der Sammlung
+404|Zur Sammlung hinzugefügt.
+405|Spiel-ID
+406|Discs
+407|Größe
+408|Spielzeit
+409|Spielzustände
+410|Memory Card
+411|Übersetzungspatch
+412|Eigene Einstellungen
+413|Unbekannt
+414|Nie gespielt
+415|%d von 10 Plätzen
+416|Noch keine
+417|Informationen...
+418|Sammlungen...
+419|Automatische Korrektur für dieses Spiel: %s

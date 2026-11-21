@@ -374,3 +374,47 @@ No release has been published yet.
 Could not reach GitHub.
 The latest release has no .wuhb file.
 Could not read the release version.
+Open the last game at start
+Download all covers...
+Check BIOS files...
+Automatic game fixes
+The last game opens when WiiUStation starts. Hold B during the opening to go to the menu.
+Known games get the fixes they need. Applies the next time a game is loaded.
+Other
+Unknown version (may still work)
+Not a BIOS file
+No known BIOS: games use the built-in one (HLE), which runs most games.
+Missing for: %s (those games use the built-in BIOS)
+You have a BIOS for every region.
+BIOS files
+The bios folder is empty.
+Put BIOS files (e.g. scph5501.bin) in WiiUStation/bios.
+Download all covers
+Looking for games...
+Finished: %d games
+Game %d of %d
+Downloaded %d   Already had %d   Not in the repository %d
+Without a game ID %d   Failed %d
+B: stop
+Yes
+No
+New collection...
+Collections
+A: add to / remove from the collection
+Collection name
+Added to the collection.
+Game ID
+Discs
+Size
+Play time
+Save states
+Memory card
+Translation patch
+Own settings
+Unknown
+Never played
+%d of 10 slots
+None yet
+Information...
+Collections...
+Automatic fix for this game: %s

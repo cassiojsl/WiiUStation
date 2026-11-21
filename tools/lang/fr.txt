@@ -360,3 +360,47 @@
 373|Impossible de joindre GitHub.
 374|La dernière version n'a pas de fichier .wuhb.
 375|Impossible de lire la version publiée.
+376|Ouvrir le dernier jeu au démarrage
+377|Télécharger toutes les jaquettes...
+378|Vérifier les fichiers BIOS...
+379|Corrections automatiques par jeu
+380|Le dernier jeu s'ouvre au démarrage de WiiUStation. Maintenez B pendant l'ouverture pour aller au menu.
+381|Les jeux connus reçoivent les corrections nécessaires. S'applique au prochain jeu chargé.
+382|Autre
+383|Version inconnue (peut fonctionner)
+384|Pas un fichier BIOS
+385|Aucune BIOS connue : les jeux utilisent celle intégrée (HLE), qui fait tourner la plupart des jeux.
+386|Manquante pour : %s (ces jeux utilisent la BIOS intégrée)
+387|Vous avez une BIOS pour chaque région.
+388|Fichiers BIOS
+389|Le dossier bios est vide.
+390|Mettez des fichiers BIOS (ex. scph5501.bin) dans WiiUStation/bios.
+391|Télécharger toutes les jaquettes
+392|Recherche des jeux...
+393|Terminé : %d jeux
+394|Jeu %d sur %d
+395|Téléchargées %d   Déjà là %d   Absentes du dépôt %d
+396|Sans ID de jeu %d   Échecs %d
+397|B : arrêter
+398|Oui
+399|Non
+400|Nouvelle collection...
+401|Collections
+402|A : ajouter à la collection / l'en retirer
+403|Nom de la collection
+404|Ajouté à la collection.
+405|ID du jeu
+406|Disques
+407|Taille
+408|Temps de jeu
+409|Sauvegardes d'état
+410|Carte mémoire
+411|Patch de traduction
+412|Réglages propres
+413|Inconnu
+414|Jamais joué
+415|%d emplacements sur 10
+416|Aucune pour l'instant
+417|Informations...
+418|Collections...
+419|Correction automatique pour ce jeu : %s
