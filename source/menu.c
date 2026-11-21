@@ -2016,6 +2016,8 @@ static void settings(void)
 			/* in a game: only what is about the game ("Settings for", then
 			 * everything from the CPU core down) */
 			if (loaded && i > S_SCOPE && i < S_CORE) continue;
+			/* about the emulator, not the game: only in the home screen's Settings */
+			if (loaded && (i == S_BIOSCHECK || i == S_AUTOFIX || i == S_UPDATE)) continue;
 			/* app-wide options are hidden while editing one game's settings */
 			if (game && (i == S_GAMES || i == S_VIEW || i == S_COVERS || i == S_RESUME ||
 			             i == S_FFWD || i == S_LANG || i == S_HOTKEYS || i == S_SFX || i == S_UPDATE ||
