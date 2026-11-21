@@ -1,0 +1,266 @@
+diff --git a/deps/libretro-common/features/features_cpu.c b/deps/libretro-common/features/features_cpu.c
+index 161aa6dc..c58851e9 100644
+--- a/deps/libretro-common/features/features_cpu.c
++++ b/deps/libretro-common/features/features_cpu.c
+@@ -87,12 +87,12 @@
+ #include <sys/sys_time.h>
+ #endif
+ 
+-#ifdef GEKKO
++#if defined(GEKKO) && !defined(WIIU)
+ #include <ogc/lwp_watchdog.h>
+ #endif
+ 
+ #ifdef WIIU
+-#include <wiiu/os/time.h>
++#include <coreinit/time.h>   /* wut */
+ #endif
+ 
+ #if defined(HAVE_LIBNX)
+@@ -187,7 +187,7 @@ retro_perf_tick_t cpu_features_get_perf_counter(void)
+    tv_sec     = (long)((ularge.QuadPart - epoch) / 10000000L);
+    tv_usec    = (long)(system_time.wMilliseconds * 1000);
+    time_ticks = (1000000 * tv_sec + tv_usec);
+-#elif defined(GEKKO)
++#elif defined(GEKKO) && !defined(WIIU)
+    time_ticks = gettime();
+ #elif !defined(__MACH__) && !defined(__FreeBSD__) && (defined(_XBOX360) || defined(__powerpc__) || defined(__ppc__) || defined(__POWERPC__) || defined(__PSL1GHT__) || defined(__PPC64__) || defined(__powerpc64__))
+    time_ticks = __mftb();
+@@ -243,10 +243,10 @@ retro_time_t cpu_features_get_time_usec(void)
+    return sysGetSystemTime();
+ #elif !defined(__PSL1GHT__) && defined(__PS3__)
+    return sys_time_get_system_time();
+-#elif defined(GEKKO)
++#elif defined(GEKKO) && !defined(WIIU)
+    return ticks_to_microsecs(gettime());
+ #elif defined(WIIU)
+-   return ticks_to_us(OSGetSystemTime());
++   return OSTicksToMicroseconds(OSGetSystemTime());
+ #elif defined(SWITCH) || defined(HAVE_LIBNX)
+    return (svcGetSystemTick() * 10) / 192;
+ #elif defined(_3DS)
+@@ -884,7 +884,7 @@ unsigned cpu_features_get_core_amount(void)
+    GetSystemInfo(&sysinfo);
+ #endif
+    return sysinfo.dwNumberOfProcessors;
+-#elif defined(GEKKO)
++#elif defined(GEKKO) && !defined(WIIU)
+    return 1;
+ #elif defined(PSP) || defined(PS2)
+    return 1;
+@@ -1386,7 +1386,7 @@ static uint64_t cpu_features_probe(void)
+    cpu |= RETRO_SIMD_VMX128;
+ #elif defined(PSP) || defined(PS2)
+    cpu |= RETRO_SIMD_VFPU;
+-#elif defined(GEKKO)
++#elif defined(GEKKO) && !defined(WIIU)
+    cpu |= RETRO_SIMD_PS;
+ #endif
+ 
+diff --git a/deps/libretro-common/rthreads/rthreads.c b/deps/libretro-common/rthreads/rthreads.c
+index 172b259f..ee50a307 100644
+--- a/deps/libretro-common/rthreads/rthreads.c
++++ b/deps/libretro-common/rthreads/rthreads.c
+@@ -49,7 +49,7 @@
+ #endif
+ #include <windows.h>
+ #endif
+-#elif defined(GEKKO)
++#elif defined(GEKKO) && !defined(WIIU)
+ #define USE_GX_THREADS
+ #include <gccore.h>
+ #include <ogc/lwp.h>
+@@ -499,6 +499,9 @@ static void scond_global_init(void);
+  * exactly the duration of the wait. An auto-reset event both parks
+  * the waiter and carries the wake, so a signal issued between
+  * enqueue and OSWaitEvent latches instead of getting lost. */
++/* WiiUStation: lets the caller pin the next created thread to a core. */
++unsigned rthreads_wiiu_next_affinity;
++
+ struct wiiu_cond_waiter
+ {
+    struct wiiu_cond_waiter *next;
+@@ -1018,7 +1021,8 @@ sthread_t *sthread_create_with_priority(void (*thread_func)(void*), void *userda
+       thread->id = (OSThread*)block;
+       if (OSCreateThread(thread->id, thread_wrap, 0, (char*)data,
+             block + sizeof(OSThread) + STACKSIZE, STACKSIZE, prio,
+-            OS_THREAD_ATTRIB_AFFINITY_ANY))
++            rthreads_wiiu_next_affinity ? rthreads_wiiu_next_affinity
++                                        : OS_THREAD_ATTRIB_AFFINITY_ANY))
+       {
+          OSSetThreadDeallocator(thread->id, wiiu_thread_dealloc);
+          OSResumeThread(thread->id);
+diff --git a/deps/lightrec/lightrec.c b/deps/lightrec/lightrec.c
+index a7fe5aa7..eb6eb5b3 100644
+--- a/deps/lightrec/lightrec.c
++++ b/deps/lightrec/lightrec.c
+@@ -821,6 +821,17 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
+ 	return func;
+ }
+ 
++#ifdef HW_WUP
++/* WiiUStation: the Cafe OS codegen area is W^X.  Every write into the code
++ * buffer (TLSF metadata and emitted code) happens between these calls,
++ * which nest and switch the area to RW and back to RX. */
++extern void wiiustation_jit_rw(void);
++extern void wiiustation_jit_rx(void);
++#else
++#define wiiustation_jit_rw() do {} while (0)
++#define wiiustation_jit_rx() do {} while (0)
++#endif
++
+ static void * lightrec_alloc_code(struct lightrec_state *state, size_t size)
+ {
+ 	void *code;
+@@ -856,7 +867,9 @@ static void lightrec_free_code(struct lightrec_state *state, void *ptr)
+ 	if (ENABLE_THREADED_COMPILER)
+ 		lightrec_code_alloc_lock(state);
+ 
++	wiiustation_jit_rw();
+ 	tlsf_free(state->tlsf, ptr);
++	wiiustation_jit_rx();
+ 
+ 	if (ENABLE_THREADED_COMPILER)
+ 		lightrec_code_alloc_unlock(state);
+@@ -864,9 +877,25 @@ static void lightrec_free_code(struct lightrec_state *state, void *ptr)
+ 
+ static char lightning_code_data[0x80000];
+ 
++static void * lightrec_emit_code_(struct lightrec_state *state,
++				  const struct block *block,
++				  jit_state_t *_jit, unsigned int *size);
++
+ static void * lightrec_emit_code(struct lightrec_state *state,
+ 				 const struct block *block,
+ 				 jit_state_t *_jit, unsigned int *size)
++{
++	void *code;
++
++	wiiustation_jit_rw();
++	code = lightrec_emit_code_(state, block, _jit, size);
++	wiiustation_jit_rx();
++	return code;
++}
++
++static void * lightrec_emit_code_(struct lightrec_state *state,
++				  const struct block *block,
++				  jit_state_t *_jit, unsigned int *size)
+ {
+ 	bool has_code_buffer = ENABLE_CODE_BUFFER && state->tlsf;
+ 	jit_word_t code_size, new_code_size;
+@@ -1894,8 +1923,10 @@ struct lightrec_state * lightrec_init(char *argv0,
+ 
+ 	if (ENABLE_CODE_BUFFER && nb > PSX_MAP_CODE_BUFFER
+ 	    && codebuf_map->address) {
++		wiiustation_jit_rw();
+ 		tlsf = tlsf_create_with_pool(codebuf_map->address,
+ 					     codebuf_map->length);
++		wiiustation_jit_rx();
+ 		if (!tlsf) {
+ 			pr_err("Unable to initialize code buffer\n");
+ 			return NULL;
+diff --git a/frontend/pcsxr-threads.c b/frontend/pcsxr-threads.c
+index dccc9d89..2dfdca60 100644
+--- a/frontend/pcsxr-threads.c
++++ b/frontend/pcsxr-threads.c
+@@ -91,8 +91,21 @@ sthread_t *pcsxr_sthread_create(void (*thread_func)(void *),
+ 		return NULL;
+ 	}
+ 	h->id = ctr_thread;
++#else
++#ifdef WIIU
++	{
++		/* Espresso: core 1 runs the emulated CPU (and GX2), core 2 the
++		 * GPU renderer, core 0 the SPU mixer and CD-ROM prefetch. */
++		extern unsigned rthreads_wiiu_next_affinity;
++		rthreads_wiiu_next_affinity = type == PCSXRT_GPU ? (1u << 2)
++		                            : type == PCSXRT_DRC ? (1u << 1)
++		                            : (1u << 0);
++		h = sthread_create(thread_func, NULL);
++		rthreads_wiiu_next_affinity = 0;
++	}
+ #else
+ 	h = sthread_create(thread_func, NULL);
++#endif
+  #if defined(__GLIBC__) || \
+     (defined(__ANDROID_API__) && __ANDROID_API__ >= 26)
+ 	if (h && (unsigned int)type < (unsigned int)PCSXRT_COUNT)
+diff --git a/libpcsxcore/lightrec/mem.h b/libpcsxcore/lightrec/mem.h
+index 9984604e..aeaf7c85 100644
+--- a/libpcsxcore/lightrec/mem.h
++++ b/libpcsxcore/lightrec/mem.h
+@@ -9,9 +9,13 @@
+ #ifdef LIGHTREC
+ 
+ #ifdef HW_WUP /* WiiU */
+-#    define WUP_RWX_MEM_BASE		0x00802000
+-#    define WUP_RWX_MEM_END		0x01000000
+-#    define CODE_BUFFER_SIZE_DFT	(WUP_RWX_MEM_END - WUP_RWX_MEM_BASE)
++/* WiiUStation: the code buffer is the Cafe OS codegen (JIT) area, whose
++ * address and size are only known at runtime (the old fixed RWX window at
++ * 0x00802000 only exists under the legacy Homebrew Launcher). */
++#    include <stdint.h>
++extern uint32_t wiiustation_jit_size;
++void *wiiustation_jit_base(void);
++#    define CODE_BUFFER_SIZE_DFT	(wiiustation_jit_size)
+ #else
+ #    define CODE_BUFFER_SIZE_DFT	(8 * 1024 * 1024)
+ #endif
+diff --git a/libpcsxcore/lightrec/mem_wiiu.c b/libpcsxcore/lightrec/mem_wiiu.c
+index 83f1e114..d4506ce2 100644
+--- a/libpcsxcore/lightrec/mem_wiiu.c
++++ b/libpcsxcore/lightrec/mem_wiiu.c
+@@ -65,7 +65,7 @@ int lightrec_init_mmap(void) {
+ 	}
+ 	if (i != 4) {
+ 		for (int i = 0; i < 4; i++)
+-			wiiu_unmap(avail_va + 0x200000 * i, 0x200000);
++			wiiu_unmap((void *)(avail_va + 0x200000 * i), 0x200000);
+ 		goto cleanup_allocations;
+ 	}
+ 	psxRegs.ptrs.psxM = (void*)avail_va;
+@@ -85,7 +85,9 @@ int lightrec_init_mmap(void) {
+ 		goto cleanup_allocations;
+ 	}
+ 
+-	code_buffer = WUP_RWX_MEM_BASE;
++	/* NULL when there is no JIT area: the frontend then disables the
++	 * dynarec (interpreter), the memory mirrors are still used. */
++	code_buffer = wiiustation_jit_base();
+ 
+ 	return 0;
+ 
+diff --git a/libpcsxcore/lightrec/plugin.c b/libpcsxcore/lightrec/plugin.c
+index 94a1ea68..5ff5da88 100644
+--- a/libpcsxcore/lightrec/plugin.c
++++ b/libpcsxcore/lightrec/plugin.c
+@@ -334,7 +334,7 @@ static struct lightrec_mem_map lightrec_map[] = {
+ 
+ 	/* Code buffer */
+ 	[PSX_MAP_CODE_BUFFER] = {
+-		.length = CODE_BUFFER_SIZE,
++		.length = 0, /* set in lightrec_plugin_init() */
+ 	},
+ };
+ 
+@@ -416,6 +416,7 @@ static int lightrec_plugin_init(void)
+ 	}
+ 
+ 	lightrec_map[PSX_MAP_CODE_BUFFER].address = code_buffer;
++	lightrec_map[PSX_MAP_CODE_BUFFER].length = CODE_BUFFER_SIZE;
+ 
+ 	use_lightrec_interpreter = !!getenv("LIGHTREC_INTERPRETER");
+ 
+diff --git a/plugins/gpulib/gpu_async.c b/plugins/gpulib/gpu_async.c
+index a67509b3..f13fafef 100644
+--- a/plugins/gpulib/gpu_async.c
++++ b/plugins/gpulib/gpu_async.c
+@@ -829,7 +829,7 @@ void gpu_async_sync_ecmds(struct psx_gpu *gpu)
+ #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+   uint32_t i, ecmds[8];
+   for (i = 1; i <= 6; i++)
+-    ecmds[i] = HTOLE32(ecmds_[i]);
++    ecmds[i] = HTOLE32(gpu->ex_regs[i]);
+ #else
+   const uint32_t *ecmds = gpu->ex_regs;
+ #endif
