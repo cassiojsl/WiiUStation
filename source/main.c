@@ -89,6 +89,7 @@ static struct { const char *key; int *val; int min, max; } OPTS[] = {
 	{ "audio",      &cfg.audio,      0, 1 },
 	{ "bezel",      &cfg.bezel,      0, BEZEL_COUNT - 1 },
 	{ "view",       &cfg.view,       0, 4 },
+	{ "cover3d",    &cfg.cover3d,    0, 1 },
 };
 
 /* ---- extra PCSX-ReARMed options (Advanced) ---- */
@@ -169,7 +170,7 @@ void core_opt_cycle(int i, int dir)
 /* keys that only make sense globally (never in a per-game file) */
 static int global_only(const char *k)
 {
-	return !strcmp(k, "view") || !strcmp(k, "games_dir") || !strcmp(k, "gpu_thread") ||
+	return !strcmp(k, "view") || !strcmp(k, "cover3d") || !strcmp(k, "games_dir") || !strcmp(k, "gpu_thread") ||
 	       !strcmp(k, "spu_thread") || !strcmp(k, "resume") || !strcmp(k, "ffwd");
 }
 

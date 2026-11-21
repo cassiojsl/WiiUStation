@@ -69,6 +69,7 @@ typedef struct {
 	int rumble;
 	int audio;
 	int bezel;          /* BEZEL_* */
+	int cover3d;        /* covers: 0 = 2D front, 1 = 3D box */
 	int view;           /* game browser: 0 grid, 1 list, 2 compact, 3 shelf, 4 carousel */
 	int core[24];       /* extra PCSX-ReARMed options, see core_opt_* */
 	int map[16];        /* PSX button (RETRO_DEVICE_ID_JOYPAD_*) -> WIIU_BTN bit index */
@@ -206,6 +207,7 @@ void  covers_request(const char *id);
 int   covers_status(const char *id);   /* 2 have, 1 downloading, 0 none */
 void *covers_texture(void *renderer, const char *id, int *w, int *h);
 void  covers_shutdown(void);
+void  covers_flush(void);              /* after changing 2D / 3D */
 const char *emu_game_id(void);
 
 /* ---- menu (menu.c) ---- */

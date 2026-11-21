@@ -574,9 +574,9 @@ static void draw_cover(const char *id, const char *caption)
 		int dw = COVER_W, dh = COVER_W * h / w;
 		if (dh > COVER_W) { dh = COVER_W; dw = COVER_W * w / h; }
 		SDL_Rect d = { COVER_X + (COVER_W - dw) / 2, y + (COVER_W - dh) / 2, dw, dh };
-		SDL_SetTextureBlendMode(t, SDL_BLENDMODE_NONE);
+		SDL_SetTextureBlendMode(t, SDL_BLENDMODE_BLEND);   /* 3D boxes have transparency */
 		SDL_RenderCopy(R, t, NULL, &d);
-		outline(d.x - 2, d.y - 2, d.w + 4, d.h + 4, GREY, 160, 2);
+		if (!cfg.cover3d) outline(d.x - 2, d.y - 2, d.w + 4, d.h + 4, GREY, 160, 2);
 	} else {
 		float cx = COVER_X + COVER_W / 2.0f, cy = y + COVER_W / 2.0f;
 		if (covers_status(id) == 1) {
@@ -866,7 +866,7 @@ static SDL_Rect cover_or_disc_r(const char *id, int x, int y, int sz, int bottom
 		d.x = x + (sz - dw) / 2;
 		d.y = bottom ? y + sz - dh : y + (sz - dh) / 2;   /* shelf: stand on the board */
 		d.w = dw; d.h = dh;
-		SDL_SetTextureBlendMode(t, SDL_BLENDMODE_NONE);
+		SDL_SetTextureBlendMode(t, SDL_BLENDMODE_BLEND);   /* 3D boxes have transparency */
 		SDL_RenderCopy(R, t, NULL, &d);
 	} else {
 		SDL_Color slot = { 26, 32, 60 };
@@ -905,7 +905,7 @@ static void cover_reflection(const char *id, SDL_Rect d, int depth, uint8_t alph
 	int idx[6] = { 0, 1, 2, 0, 2, 3 };
 	SDL_SetTextureBlendMode(t, SDL_BLENDMODE_BLEND);
 	SDL_RenderGeometry(R, t, v, 4, idx, 6);
-	SDL_SetTextureBlendMode(t, SDL_BLENDMODE_NONE);
+	SDL_SetTextureBlendMode(t, SDL_BLENDMODE_BLEND);   /* 3D boxes have transparency */
 }
 
 static void entry_name(entry_t *e, const char *label, char *out, size_t n)
@@ -1092,7 +1092,7 @@ static int carousel_run(grid_t *G, entry_t *list, const char **labels, int count
 				int a = (int)(ad * 110); if (a > 170) a = 170;
 				fill(d2.x, d2.y, d2.w, d2.h, (SDL_Color){ 4, 6, 16 }, (uint8_t)a);
 			} else {
-				outline(d2.x - 3, d2.y - 3, d2.w + 6, d2.h + 6, (SDL_Color){ 0, 140, 220 }, 255, 3);
+				if (!cfg.cover3d) outline(d2.x - 3, d2.y - 3, d2.w + 6, d2.h + 6, (SDL_Color){ 0, 140, 220 }, 255, 3);
 			}
 			if (T.tapped && T.ty >= GRID_Y && T.ty < 560 &&
 			    T.tx >= d2.x && T.tx < d2.x + d2.w && T.ty >= d2.y && T.ty < d2.y + d2.h) {
@@ -1592,11 +1592,11 @@ static void controls(void);
 
 static void settings(void)
 {
-	enum { S_SCOPE, S_GAMES, S_VIEW, S_RESUME, S_CORE, S_SKIP, S_FFWD, S_FFSPEED, S_FPS, S_AUDIO,
+	enum { S_SCOPE, S_GAMES, S_VIEW, S_COVERS, S_RESUME, S_CORE, S_SKIP, S_FFWD, S_FFSPEED, S_FPS, S_AUDIO,
 	       S_ASPECT, S_FILTER, S_BEZEL, S_SCAN, S_CRT, S_DITHER, S_PAD, S_PAD2, S_MTAP,
 	       S_CONTROLS, S_RUMBLE, S_REGION, S_BIOS, S_LOGO, S_ADV, S_COUNT };
 	static const char *allLabels[S_COUNT] = {
-		"Settings for", "Games folder", "Game list", "Continue where you left off", "CPU core",
+		"Settings for", "Games folder", "Game list", "Covers", "Continue where you left off", "CPU core",
 		"Frame skip", "Fast forward", "Fast forward speed", "Show FPS", "Sound", "Screen",
 		"Picture", "Border", "Scanlines", "CRT mask", "Dithering", "Player 1 controller",
 		"Player 2+ controller", "Multitap (up to 5 players)", "Button mapping...", "Vibration",
@@ -1613,8 +1613,8 @@ static void settings(void)
 		for (int i = 0; i < S_COUNT; i++) {
 			if (i == S_SCOPE && !loaded) continue;
 			/* app-wide options are hidden while editing one game's settings */
-			if (game && (i == S_GAMES || i == S_VIEW || i == S_RESUME || i == S_FFWD ||
-			             i == S_ADV)) continue;
+			if (game && (i == S_GAMES || i == S_VIEW || i == S_COVERS || i == S_RESUME ||
+			             i == S_FFWD)) continue;
 			map[n] = i;
 			labels[n] = allLabels[i];
 			values[n] = NULL;
@@ -1639,6 +1639,7 @@ static void settings(void)
 				break;
 			}
 			case S_VIEW:   values[k] = view_name(cfg.view); break;
+			case S_COVERS: values[k] = cfg.cover3d ? "3D box" : "2D"; break;
 			case S_RESUME: values[k] = cfg.resume ? "Ask" : "Off"; break;
 			case S_CORE:   values[k] = cfg.dynarec ? "Lightrec" : "Interpreter"; break;
 			case S_SKIP:   values[k] = cfg.frameskip ? "Auto" : "Off"; break;
@@ -1710,6 +1711,11 @@ static void settings(void)
 			break;
 		}
 		case S_VIEW:   cfg.view = view_next(cfg.view, dir); break;
+		case S_COVERS:
+			cfg.cover3d = !cfg.cover3d;
+			covers_flush();
+			if (cfg.cover3d) status("3D boxes are downloaded as you browse. Without one, the 2D cover is shown.");
+			break;
 		case S_RESUME: cfg.resume = !cfg.resume; break;
 		case S_BEZEL:
 			cfg.bezel = bezel_next(cfg.bezel, dir);
@@ -1767,9 +1773,13 @@ static void advanced(void)
 	const char *labels[MAXR], *values[MAXR];
 	char titles[8][40];
 	int kind[MAXR], n = 0, nt = 0;              /* kind: -1 title, -2/-3/-4 ours, >= 0 core option */
-	labels[n] = "#Threads"; kind[n++] = -1;
-	labels[n] = "GPU rendering on core 2"; kind[n++] = -2;
-	labels[n] = "Sound mixing on core 0"; kind[n++] = -3;
+	if (!settings_game_scope()) {      /* threads are app-wide, never per game */
+		labels[n] = "#Threads"; kind[n++] = -1;
+		labels[n] = "GPU rendering on core 2"; kind[n++] = -2;
+		labels[n] = "Sound mixing on core 0"; kind[n++] = -3;
+	} else {
+		labels[n] = "#Sound effects"; kind[n++] = -1;
+	}
 	labels[n] = "Sound reverb"; kind[n++] = -4;
 	for (int i = 0; i < core_opt_count() && n < MAXR - 2; i++) {
 		if (core_opt_section(i) && nt < 8) {

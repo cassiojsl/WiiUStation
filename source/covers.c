@@ -8,6 +8,8 @@
  *  2. Cover: sd:/wiiu/apps/WiiUStation/covers/<ID>.jpg, downloaded in the background from
  *     github.com/xlenore/psx-covers (covers/default/<ID>.jpg) over HTTPS,
  *     verified against Mozilla's root store (content/cacert.pem).
+ *     3D boxes (Settings -> Covers: 3D) come from covers/3d/<ID>.png and
+ *     are stored in covers/3d/. Without a 3D box the 2D cover is shown.
  *  3. Textures are cached for the menu.
  */
 #include <SDL2/SDL.h>
@@ -26,6 +28,18 @@
 #define COVER_DIR   WIIU_COVER_DIR
 #define ID_FILE     COVER_DIR "/ids.txt"
 #define COVER_URL   "https://raw.githubusercontent.com/xlenore/psx-covers/main/covers/default/%s.jpg"
+#define COVER3D_URL "https://raw.githubusercontent.com/xlenore/psx-covers/main/covers/3d/%s.png"
+#define COVER3D_DIR COVER_DIR "/3d"
+
+/* Covers are tracked by a key: "<ID>" for the 2D cover, "<ID>#3" for the
+ * 3D box (a PNG with transparency). */
+static int key_is_3d(const char *key) { const char *h = strchr(key, '#'); return h && h[1] == '3'; }
+static void key_id(const char *key, char *id, size_t n)
+{
+	snprintf(id, n, "%s", key);
+	char *h = strchr(id, '#');
+	if (h) *h = 0;
+}
 #define CA_FILE     "fs:/vol/content/cacert.pem"
 
 static int file_exists(const char *p)
@@ -51,7 +65,7 @@ void covers_set_loaded_id(const char *path, const char *cdromId)
 /* background downloader                                                    */
 /* ------------------------------------------------------------------------ */
 #define QSIZE 32
-static char queue[QSIZE][12];
+static char queue[QSIZE][16];
 static volatile int qhead, qtail;
 static SDL_mutex *qlock;
 static SDL_sem *qsem;
@@ -63,7 +77,7 @@ static int netReady = -1;
  * requested again. FAILED (network error) is only kept for this session. */
 enum { ST_NONE = 0, ST_PENDING, ST_MISSING, ST_FAILED, ST_DONE };
 #define MAXST 512
-static struct { char id[12]; int st; } states[MAXST];
+static struct { char id[16]; int st; } states[MAXST];
 static int nstates, missingLoaded;
 #define MISSING_FILE COVER_DIR "/missing.txt"
 
@@ -103,9 +117,12 @@ static void missing_add(const char *id)
 	fclose(f);
 }
 
-static void cover_path(const char *id, char *out, size_t n)
+static void cover_path(const char *key, char *out, size_t n)
 {
-	snprintf(out, n, "%s/%s.jpg", COVER_DIR, id);
+	char id[16];
+	key_id(key, id, sizeof(id));
+	if (key_is_3d(key)) snprintf(out, n, "%s/%s.png", COVER3D_DIR, id);
+	else snprintf(out, n, "%s/%s.jpg", COVER_DIR, id);
 }
 
 static size_t write_cb(void *p, size_t sz, size_t nm, void *ud)
@@ -113,9 +130,9 @@ static size_t write_cb(void *p, size_t sz, size_t nm, void *ud)
 	return fwrite(p, sz, nm, (FILE *)ud);
 }
 
-static int download(const char *id)
+static int download(const char *key)
 {
-	char url[256], path[256], tmp[260];
+	char id[16], url[256], path[256], tmp[260];
 	CURL *c;
 	FILE *f;
 	long code = 0;
@@ -127,10 +144,11 @@ static int download(const char *id)
 	}
 	if (!netReady) return 0;
 
-	snprintf(url, sizeof(url), COVER_URL, id);
-	cover_path(id, path, sizeof(path));
+	key_id(key, id, sizeof(id));
+	snprintf(url, sizeof(url), key_is_3d(key) ? COVER3D_URL : COVER_URL, id);
+	cover_path(key, path, sizeof(path));
 	snprintf(tmp, sizeof(tmp), "%s.part", path);
-	wiiu_mkdirs(COVER_DIR);
+	wiiu_mkdirs(key_is_3d(key) ? COVER3D_DIR : COVER_DIR);
 	f = fopen(tmp, "wb");
 	if (!f) return 0;
 	c = curl_easy_init();
@@ -160,7 +178,7 @@ static int worker_main(void *ud)
 {
 	(void)ud;
 	for (;;) {
-		char id[12];
+		char id[16];
 		SDL_SemWait(qsem);
 		SDL_LockMutex(qlock);
 		if (qhead == qtail) { SDL_UnlockMutex(qlock); continue; }
@@ -178,7 +196,7 @@ static int worker_main(void *ud)
 	return 0;
 }
 
-void covers_request(const char *id)
+static void request_key(const char *id)
 {
 	char path[256];
 	if (!id || !id[0]) return;
@@ -222,11 +240,33 @@ static void state_set(const char *id, int v)
 	SDL_UnlockMutex(qlock);
 }
 
+/* the key to show for this ID: the 3D box when chosen and available,
+ * else the 2D cover */
+static void show_key(const char *id, char *key, size_t n)
+{
+	if (cfg.cover3d) {
+		snprintf(key, n, "%s#3", id);
+		int st = state_get(key);
+		if (st != ST_MISSING) return;          /* have it, or still trying */
+	}
+	snprintf(key, n, "%s", id);
+}
+
+void covers_request(const char *id)
+{
+	char key[16];
+	if (!id || !id[0]) return;
+	show_key(id, key, sizeof(key));
+	request_key(key);
+}
+
 /* 2 = cover available, 1 = being downloaded, 0 = no cover (no SD access) */
 int covers_status(const char *id)
 {
+	char key[16];
 	if (!id || !id[0]) return 0;
-	int st = state_get(id);
+	show_key(id, key, sizeof(key));
+	int st = state_get(key);
 	return st == ST_DONE ? 2 : st == ST_PENDING ? 1 : 0;
 }
 
@@ -248,16 +288,23 @@ void covers_shutdown(void)
 /* ------------------------------------------------------------------------ */
 /* textures                                                                 */
 /* ------------------------------------------------------------------------ */
-#define TEXN 12
-static struct { char id[12]; SDL_Texture *t; int w, h; uint32_t used; } texc[TEXN];
+#define TEXN 48                    /* enough for every cover on screen */
+static struct { char id[16]; SDL_Texture *t; int w, h; uint32_t used; } texc[TEXN];
 static uint32_t texclock;
 
-void *covers_texture(void *renderer, const char *id, int *w, int *h)
+void covers_flush(void)
 {
-	char path[256];
+	for (int i = 0; i < TEXN; i++)
+		if (texc[i].t) { SDL_DestroyTexture(texc[i].t); texc[i].t = NULL; }
+}
+
+void *covers_texture(void *renderer, const char *gameId, int *w, int *h)
+{
+	char path[256], id[16];
 	SDL_Surface *s;
 	int victim = 0;
-	if (!id || !id[0]) return NULL;
+	if (!gameId || !gameId[0]) return NULL;
+	show_key(gameId, id, sizeof(id));
 	for (int i = 0; i < TEXN; i++) {
 		if (texc[i].t && !strcmp(texc[i].id, id)) {
 			texc[i].used = ++texclock;
@@ -272,12 +319,13 @@ void *covers_texture(void *renderer, const char *id, int *w, int *h)
 	int st = state_get(id);
 	if (st == ST_PENDING || st == ST_MISSING || st == ST_FAILED) return NULL;
 	cover_path(id, path, sizeof(path));
-	if (!file_exists(path)) { covers_request(id); return NULL; }
+	if (!file_exists(path)) { request_key(id); return NULL; }
 	s = IMG_Load(path);
 	if (!s) { state_set(id, ST_FAILED); return NULL; }   /* unreadable file */
 	state_set(id, ST_DONE);
 	if (texc[victim].t) SDL_DestroyTexture(texc[victim].t);
 	texc[victim].t = SDL_CreateTextureFromSurface((SDL_Renderer *)renderer, s);
+	if (texc[victim].t) SDL_SetTextureBlendMode(texc[victim].t, SDL_BLENDMODE_BLEND);
 	texc[victim].w = s->w;
 	texc[victim].h = s->h;
 	SDL_FreeSurface(s);
