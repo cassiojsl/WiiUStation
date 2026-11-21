@@ -56,38 +56,55 @@ static void callback(void *ud, Uint8 *stream, int len)
  * 4 crystal, 5 marimba, 6 click */
 enum { ST_CLASSIC = 1, ST_SOFT, ST_RETRO, ST_CRYSTAL, ST_MARIMBA, ST_CLICK, ST_COUNT };
 
-static float wave(int style, float f, float t)
+/* a sine table: the sounds are made from table lookups and running
+ * products instead of sinf / expf per sample, so changing the style in
+ * Settings is instant */
+#define SINN 4096
+static float sinTab[SINN];
+static inline float tsin(float cycles)
 {
-	const float w = 6.2831853f * f * t;
+	return sinTab[(int)(cycles * SINN) & (SINN - 1)];
+}
+
+/* p: phase in cycles; wood: the fading factor of the marimba's overtone */
+static float wave(int style, float p, float wood)
+{
 	switch (style) {
-	case ST_SOFT:    return sinf(w) + 0.15f * sinf(2 * w);
-	case ST_RETRO:   return (sinf(w) >= 0 ? 0.55f : -0.55f);                     /* square */
-	case ST_CRYSTAL: return sinf(w) + 0.5f * sinf(2.76f * w) + 0.25f * sinf(5.4f * w); /* bell */
-	case ST_MARIMBA: return sinf(w) + 0.35f * sinf(4.0f * w) * expf(-t * 60);    /* wood */
-	default:         return sinf(w) + 0.3f * sinf(2 * w) + 0.12f * sinf(3 * w);
+	case ST_SOFT:    return tsin(p) + 0.15f * tsin(2 * p);
+	case ST_RETRO:   return (p - (int)p) < 0.5f ? 0.55f : -0.55f;                     /* square */
+	case ST_CRYSTAL: return tsin(p) + 0.5f * tsin(2.76f * p) + 0.25f * tsin(5.4f * p); /* bell */
+	case ST_MARIMBA: return tsin(p) + 0.35f * tsin(4.0f * p) * wood;                 /* wood */
+	default:         return tsin(p) + 0.3f * tsin(2 * p) + 0.12f * tsin(3 * p);
 	}
 }
 
 /* notes in Hz, one after another, each with an exponential fade */
 static void synth(int id, int style, const float *notes, int nnotes, float noteSec, float decay, float vol)
 {
+	if (!sinTab[SINN / 4]) for (int i = 0; i < SINN; i++) sinTab[i] = sinf(6.2831853f * i / SINN);
 	int per = (int)(noteSec * SFX_RATE), tail = (int)(decay * SFX_RATE);
 	int len = per * (nnotes - 1) + tail;
 	int16_t *d = calloc(len, sizeof(int16_t));
 	if (!d) return;
 	uint32_t seed = 12345;
+	/* per-sample factors of the fades */
+	const float kEnv = expf(-5.0f / decay / SFX_RATE), k60 = expf(-60.0f / SFX_RATE),
+	            k900 = expf(-900.0f / SFX_RATE), k200 = expf(-200.0f / SFX_RATE);
 	for (int n = 0; n < nnotes; n++) {
 		int start = n * per;
+		float env = 1, e60 = 1, e900 = 1, e200 = 1, p = 0, dp = notes[n] / SFX_RATE;
 		for (int i = 0; start + i < len && i < tail; i++) {
-			float t = (float)i / SFX_RATE;
-			float env = expf(-t * 5.0f / decay) * (i < 96 ? i / 96.0f : 1.0f);
 			float v;
 			if (style == ST_CLICK) {           /* filtered noise burst */
 				seed = seed * 1103515245u + 12345u;
-				v = ((int)(seed >> 16 & 0x7fff) - 16384) / 16384.0f * expf(-t * 900) + 0.4f * sinf(6.2831853f * notes[n] * t) * expf(-t * 200);
-			} else v = wave(style, notes[n], t);
-			int x = d[start + i] + (int)(v * env * vol * 9000.0f);
+				v = ((int)(seed >> 16 & 0x7fff) - 16384) / 16384.0f * e900 + 0.4f * tsin(p) * e200;
+			} else v = wave(style, p, e60);
+			float a = env * (i < 96 ? i / 96.0f : 1.0f);
+			int x = d[start + i] + (int)(v * a * vol * 9000.0f);
 			d[start + i] = (int16_t)(x > 32767 ? 32767 : x < -32768 ? -32768 : x);
+			p += dp;
+			if (p >= 1024.0f) p -= 1024.0f;    /* keep the float precise */
+			env *= kEnv; e60 *= k60; e900 *= k900; e200 *= k200;
 		}
 	}
 	sfxData[id] = d;
@@ -98,7 +115,7 @@ static void sfx_build(void)
 {
 	static int builtFor = -1;
 	int st = cfg.menusfx;
-	if (st < ST_CLASSIC || st >= ST_COUNT) st = ST_CLASSIC;
+	if (st < ST_CLASSIC || st >= ST_COUNT) st = ST_SOFT;
 	if (builtFor == st) return;
 	/* stop what is playing before replacing the sounds */
 	SDL_LockAudio();
@@ -106,7 +123,6 @@ static void sfx_build(void)
 	SDL_UnlockAudio();
 	for (int i = 0; i < SFX_COUNT; i++) { free(sfxData[i]); sfxData[i] = NULL; }
 	builtFor = st;
-	const float intro[5] = { 523.3f, 659.3f, 784.0f, 1046.5f, 1568.0f };   /* C major, up */
 	const float err[2] = { 311.1f, 293.7f };
 	switch (st) {
 	case ST_SOFT: {
@@ -153,13 +169,23 @@ static void sfx_build(void)
 	}
 	}
 	synth(SFX_ERROR, st == ST_CLICK ? ST_CLASSIC : st, err, 2, 0.08f, 0.15f, 0.40f);
-	synth(SFX_INTRO, st == ST_CLICK || st == ST_RETRO ? ST_CLASSIC : st, intro, 5, 0.11f, 1.6f, 0.5f);
+	/* the opening chime is made when it is played (intro_build) */
+}
+
+static void intro_build(void)
+{
+	const float intro[5] = { 523.3f, 659.3f, 784.0f, 1046.5f, 1568.0f };   /* C major, up */
+	int st = cfg.menusfx;
+	if (st < ST_CLASSIC || st >= ST_COUNT) st = ST_SOFT;
+	if (!sfxData[SFX_INTRO])
+		synth(SFX_INTRO, st == ST_CLICK || st == ST_RETRO ? ST_CLASSIC : st, intro, 5, 0.11f, 1.6f, 0.5f);
 }
 
 void sfx_play(int id)
 {
 	if (!cfg.menusfx || id < 0 || id >= SFX_COUNT) return;
 	sfx_build();
+	if (id == SFX_INTRO) intro_build();
 	if (!sfxData[id]) return;
 	if (!opened && audio_init(44100.0) < 0) return;
 	SDL_LockAudio();
@@ -177,6 +203,7 @@ void sfx_prepare(void)
 {
 	if (!cfg.menusfx) return;
 	sfx_build();
+	intro_build();
 	if (!opened) audio_init(44100.0);
 }
 

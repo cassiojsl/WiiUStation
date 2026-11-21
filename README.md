@@ -101,6 +101,10 @@ controllers.
 - **GamePad screen**: same as the TV, GamePad only, TV only, or a control
   panel (game on the TV, touch buttons on the GamePad). With GamePad only or
   TV only, the sound comes out only on that screen.
+- **Theme colour**: blue, purple, pink, red, orange, gold, green, teal or
+  graphite (Settings → Theme colour).
+- **Updates**: when a newer release is on GitHub, a notice appears on the
+  home screen (X or a tap opens the update).
 - **Language**: English, Português, Español, Français, Deutsch, Italiano,
   Nederlands, Русский or 日本語. It follows the Wii U's language unless you
   choose one in Settings → Language.

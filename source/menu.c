@@ -38,9 +38,52 @@ static const SDL_Color GREY   = { 150, 158, 178, 255 };
 static const SDL_Color DIM    = { 100, 108, 128, 255 };
 static const SDL_Color PS_GREEN  = {  64, 226, 160, 255 };  /* triangle */
 static const SDL_Color PS_RED    = { 255,  92,  92, 255 };  /* circle   */
-static const SDL_Color PS_BLUE   = { 124, 178, 232, 255 };  /* cross    */
+static const SDL_Color PS_CROSS  = { 124, 178, 232, 255 };  /* cross    */
+static SDL_Color th(int r, int g, int b);
+#define PS_BLUE th(124, 178, 232)                            /* the theme's light colour */
 static const SDL_Color PS_PINK   = { 255, 105, 248, 255 };  /* square   */
 static const SDL_Color PS_YELLOW = { 255, 204,  32, 255 };
+
+/* ---- colour themes: the menu's blues turned to the chosen hue ---- */
+static SDL_Color th(int r, int g, int b)
+{
+	/* the theme's hue (degrees), how much colour and brightness are kept */
+	static const float hue[THEME_COUNT]  = { 210, 272, 322, 356, 24, 44, 142, 178, 215 };
+	static const float satk[THEME_COUNT] = { 1, 1, 1, 1, 1, 0.95f, 0.85f, 1, 0.10f };
+	static const float valk[THEME_COUNT] = { 1, 1, 1, 1, 1, 0.92f, 0.80f, 0.92f, 1 };
+	SDL_Color c = { (Uint8)r, (Uint8)g, (Uint8)b, 255 };
+	int t = cfg.theme;
+	if (t <= 0 || t >= THEME_COUNT) return c;
+	float fr = r / 255.0f, fg = g / 255.0f, fb = b / 255.0f;
+	float mx = fmaxf(fr, fmaxf(fg, fb)), mn = fminf(fr, fminf(fg, fb)), d = mx - mn;
+	float h = 0, sat = mx > 0 ? d / mx : 0, v = mx;
+	if (d > 0) {
+		if (mx == fr) h = 60 * fmodf((fg - fb) / d, 6);
+		else if (mx == fg) h = 60 * ((fb - fr) / d + 2);
+		else h = 60 * ((fr - fg) / d + 4);
+	}
+	/* the blues lie around 210 degrees: keep a little of their spread
+	 * around the new hue, so the dark background and the bright accents
+	 * stay one family */
+	h = fmodf(hue[t] + (h - 210) * 0.35f + 720, 360);
+	if (t == THEME_GRAPHITE) v *= 1 - 0.55f * sat;   /* a colourful accent becomes a mid grey */
+	sat *= satk[t];
+	v *= valk[t];
+	float C = v * sat, X = C * (1 - fabsf(fmodf(h / 60, 2) - 1)), m = v - C, o[3];
+	int seg = (int)(h / 60) % 6;
+	switch (seg) {
+	case 0: o[0] = C; o[1] = X; o[2] = 0; break;
+	case 1: o[0] = X; o[1] = C; o[2] = 0; break;
+	case 2: o[0] = 0; o[1] = C; o[2] = X; break;
+	case 3: o[0] = 0; o[1] = X; o[2] = C; break;
+	case 4: o[0] = X; o[1] = 0; o[2] = C; break;
+	default: o[0] = C; o[1] = 0; o[2] = X; break;
+	}
+	c.r = (Uint8)((o[0] + m) * 255 + 0.5f);
+	c.g = (Uint8)((o[1] + m) * 255 + 0.5f);
+	c.b = (Uint8)((o[2] + m) * 255 + 0.5f);
+	return c;
+}
 
 #define TCACHE 200
 typedef struct {
@@ -275,8 +318,8 @@ static void symbol(int which, float x, float y, float s)
 		ring(x, y, h, t, PS_RED);
 		break;
 	case SYM_CROSS:
-		bar(x - h * 0.8f, y - h * 0.8f, x + h * 0.8f, y + h * 0.8f, t, PS_BLUE);
-		bar(x - h * 0.8f, y + h * 0.8f, x + h * 0.8f, y - h * 0.8f, t, PS_BLUE);
+		bar(x - h * 0.8f, y - h * 0.8f, x + h * 0.8f, y + h * 0.8f, t, PS_CROSS);
+		bar(x - h * 0.8f, y + h * 0.8f, x + h * 0.8f, y - h * 0.8f, t, PS_CROSS);
 		break;
 	case SYM_TRIANGLE:
 		bar(x, y - h, x - h, y + h * 0.75f, t, PS_GREEN);
@@ -345,8 +388,8 @@ static void draw_background(void)
 	} else {
 		/* vertical gradient, slowly breathing between two blues */
 		float p = 0.5f + 0.5f * sinf(tf * 0.25f);
-		SDL_Color top = { (uint8_t)(6 + 6 * p), (uint8_t)(10 + 8 * p), (uint8_t)(34 + 14 * p), 255 };
-		SDL_Color bot = { (uint8_t)(10 + 8 * (1 - p)), (uint8_t)(30 + 14 * (1 - p)), (uint8_t)(86 + 20 * (1 - p)), 255 };
+		SDL_Color top = th((int)(6 + 6 * p), (int)(10 + 8 * p), (int)(34 + 14 * p));
+		SDL_Color bot = th((int)(10 + 8 * (1 - p)), (int)(30 + 14 * (1 - p)), (int)(86 + 20 * (1 - p)));
 		SDL_Vertex g[4] = {
 			{ { 0, 0 }, top, { 0, 0 } }, { { 1280, 0 }, top, { 0, 0 } },
 			{ { 1280, 720 }, bot, { 0, 0 } }, { { 0, 720 }, bot, { 0, 0 } },
@@ -500,7 +543,7 @@ static int draw_header(const char *title, int showBack)
 	fill(0, 0, 1280, 104, hdr, 90);
 
 	if (showBack) {
-		SDL_Color panel = { 44, 50, 78 };
+		SDL_Color panel = th(44, 50, 78);
 		rrect(BACK_X, BACK_Y, BACK_W, BACK_H, BACK_H / 2, panel, 255);
 		float ax = BACK_X + 30, ay = BACK_Y + BACK_H / 2.0f;
 		float tri[6] = { ax - 12, ay, ax + 8, ay - 14, ax + 8, ay + 14 };
@@ -751,7 +794,7 @@ static void draw_cover(const char *id, const char *caption)
 {
 	int w = 0, h = 0;
 	SDL_Texture *t = id && id[0] ? (SDL_Texture *)covers_texture(R, id, &w, &h) : NULL;
-	SDL_Color panel = { 14, 18, 40 };
+	SDL_Color panel = th(14, 18, 40);
 	int y = 128;
 	rrect(COVER_X - 12, y - 8, COVER_W + 24, COVER_W + 80, 18, panel, 190);
 	if (t && w > 0 && h > 0) {
@@ -768,7 +811,7 @@ static void draw_cover(const char *id, const char *caption)
 			text(fontSmall, (int)cx, (int)cy + 90, "Loading cover", DIM, 1);
 		} else {
 			/* no ID: a plain disc */
-			ring(cx, cy, 130, 100, (SDL_Color){ 60, 66, 92, 255 });
+			ring(cx, cy, 130, 100, th(60, 66, 92));
 			ring(cx, cy, 30, 6, GREY);
 			text(fontSmall, (int)cx, (int)cy + 160, "No cover", DIM, 1);
 		}
@@ -822,7 +865,7 @@ static int list_run(list_t *L, const char **labels, const char **values, int cou
 	int first = (int)L->scroll;
 	float frac = L->scroll - first;
 
-	SDL_Color panel = { 14, 18, 40 };
+	SDL_Color panel = th(14, 18, 40);
 	rrect(LIST_X - 20, LIST_Y - 8, LIST_W + 40, ROWS * ROW_H + 16, 18, panel, 190);
 	SDL_RenderSetClipRect(R, &(SDL_Rect){ LIST_X - 20, LIST_Y - 8, LIST_W + 40, ROWS * ROW_H + 16 });
 	{
@@ -830,7 +873,7 @@ static int list_run(list_t *L, const char **labels, const char **values, int cou
 		float ty = LIST_Y + (L->sel - L->scroll) * ROW_H;
 		if (!L->hyInit) { L->hy = ty; L->hyInit = 1; }
 		L->hy += (ty - L->hy) * 0.4f;
-		SDL_Color hl = { 0, 110, 190 };
+		SDL_Color hl = th(0, 110, 190);
 		rrect(LIST_X - 12, (int)L->hy + 4, LIST_W + 24, ROW_H - 8, 14, hl, 255);
 	}
 
@@ -839,7 +882,7 @@ static int list_run(list_t *L, const char **labels, const char **values, int cou
 		int y = LIST_Y + (int)((i - frac) * ROW_H);
 		int selected = idx == L->sel;
 		if (!selected) {
-			SDL_Color sep = { 60, 70, 110 };
+			SDL_Color sep = th(60, 70, 110);
 			fill(LIST_X, y + ROW_H - 1, LIST_W, 1, sep, 120);
 		}
 		int tx = LIST_X;
@@ -916,7 +959,7 @@ static int text_prompt(const char *title, const char *initial, char *out, size_t
 		uint32_t b = poll_buttons();
 		draw_background();
 		draw_header(title, 0);
-		SDL_Color card = { 14, 18, 40 };
+		SDL_Color card = th(14, 18, 40);
 		rrect(240, 280, 800, 120, 22, card, 240);
 		text(fontItem, 640, 340, buf[0] ? buf : "Type a name...", buf[0] ? WHITE : DIM, 1);
 		draw_footer("Use the keyboard on the GamePad");
@@ -1135,11 +1178,11 @@ static SDL_Rect cover_or_disc_r(const char *id, int x, int y, int sz, int bottom
 		SDL_SetTextureBlendMode(t, SDL_BLENDMODE_BLEND);   /* 3D boxes have transparency */
 		SDL_RenderCopy(R, t, NULL, &d);
 	} else {
-		SDL_Color slot = { 26, 32, 60 };
+		SDL_Color slot = th(26, 32, 60);
 		fill(x, y, sz, sz, slot, 220);
 		if (covers_status(id) == 1) spinner(x + sz / 2.0f, y + sz / 2.0f, sz * 0.14f, PS_BLUE);
 		else {
-			ring(x + sz / 2.0f, y + sz / 2.0f, sz * 0.36f, sz * 0.26f, (SDL_Color){ 60, 66, 92, 255 });
+			ring(x + sz / 2.0f, y + sz / 2.0f, sz * 0.36f, sz * 0.26f, th(60, 66, 92));
 			ring(x + sz / 2.0f, y + sz / 2.0f, sz * 0.09f, 3, GREY);
 		}
 	}
@@ -1192,7 +1235,7 @@ static void detect_entry(entry_t *e, const char *dir)
 
 static void folder_icon(int x, int y, int sz)
 {
-	SDL_Color folder = { 40, 48, 84 };
+	SDL_Color folder = th(40, 48, 84);
 	fill(x, y, sz, sz, folder, 220);
 	fill(x + sz * 21 / 100, y + sz * 28 / 100, sz * 58 / 100, sz * 42 / 100, PS_YELLOW, 200);
 	fill(x + sz * 21 / 100, y + sz * 22 / 100, sz * 32 / 100, sz * 8 / 100, PS_YELLOW, 200);
@@ -1205,7 +1248,7 @@ static void disc_badge(entry_t *e, int x, int y, int sz)
 		char dn[16];
 		snprintf(dn, sizeof(dn), tr(sz < 150 ? "%d CD" : "%d discs"), e->discs);
 		int bw = sz < 150 ? 62 : 92;
-		SDL_Color badge = { 0, 110, 190 };
+		SDL_Color badge = th(0, 110, 190);
 		rrect(x + 6, y + sz - 34, bw, 28, 14, badge, 255);
 		text(fontSmall, x + 6 + bw / 2, y + sz - 20, dn, WHITE, 1);
 	}
@@ -1241,7 +1284,7 @@ static int grid_run(grid_t *G, entry_t *list, const char **labels, int count, co
 		if (!G->hInit) { G->hx = tx; G->hy = ty; G->hInit = 1; }
 		G->hx += (tx - G->hx) * 0.4f;
 		G->hy += (ty - G->hy) * 0.4f;
-		SDL_Color hl = { 0, 110, 190 };
+		SDL_Color hl = th(0, 110, 190);
 		if (S->names)
 			rrect((int)G->hx, (int)G->hy, S->cellW - 12, S->cellH - 10, 18, hl, 255);
 		else {   /* a frame hugging the cover */
@@ -1347,9 +1390,9 @@ static int carousel_run(grid_t *G, entry_t *list, const char **labels, int count
 			}
 			if (ad > 0.05f) {   /* dim the side covers */
 				int a = (int)(ad * 110); if (a > 170) a = 170;
-				fill(d2.x, d2.y, d2.w, d2.h, (SDL_Color){ 4, 6, 16 }, (uint8_t)a);
+				fill(d2.x, d2.y, d2.w, d2.h, th(4, 6, 16), (uint8_t)a);
 			} else {
-				if (!cfg.cover3d) outline(d2.x - 3, d2.y - 3, d2.w + 6, d2.h + 6, (SDL_Color){ 0, 140, 220 }, 255, 3);
+				if (!cfg.cover3d) outline(d2.x - 3, d2.y - 3, d2.w + 6, d2.h + 6, th(0, 140, 220), 255, 3);
 			}
 			if (T.tapped && T.ty >= GRID_Y && T.ty < 560 &&
 			    T.tx >= d2.x && T.tx < d2.x + d2.w && T.ty >= d2.y && T.ty < d2.y + d2.h) {
@@ -1905,11 +1948,11 @@ static void bios_screen(void);
 
 static void settings(void)
 {
-	enum { S_SCOPE, S_LANG, S_SFX, S_AUTOSTART, S_GAMES, S_VIEW, S_COVERS, S_ALLCOVERS, S_RESUME, S_CORE, S_SKIP, S_FFWD, S_FFSPEED, S_FPS, S_VSYNC, S_AUDIO,
+	enum { S_SCOPE, S_LANG, S_THEME, S_SFX, S_AUTOSTART, S_GAMES, S_VIEW, S_COVERS, S_ALLCOVERS, S_RESUME, S_CORE, S_SKIP, S_FFWD, S_FFSPEED, S_FPS, S_VSYNC, S_AUDIO,
 	       S_ASPECT, S_FILTER, S_BEZEL, S_WIDE, S_SCAN, S_CRT, S_FX, S_DRC, S_DITHER, S_PAD, S_GYRO, S_PAD2, S_DEADZONE, S_MTAP,
 	       S_CONTROLS, S_HOTKEYS, S_RUMBLE, S_REGION, S_BIOS, S_BIOSCHECK, S_LOGO, S_AUTOFIX, S_ADV, S_UPDATE, S_COUNT };
 	static const char *allLabels[S_COUNT] = {
-		"Settings for", "Language", "Menu sounds", "Open the last game at start", "Games folder", "Game list", "Covers", "Download all covers...", "Continue where you left off", "CPU core",
+		"Settings for", "Language", "Theme colour", "Menu sounds", "Open the last game at start", "Games folder", "Game list", "Covers", "Download all covers...", "Continue where you left off", "CPU core",
 		"Frame skip", "Fast forward", "Fast forward speed", "Show FPS", "VSync (no tearing)", "Sound", "Screen",
 		"Picture", "Border", "Widescreen (16:9)", "Scanlines", "CRT mask", "Screen effect", "GamePad screen", "Dithering", "Player 1 controller", "Aim with GamePad motion",
 		"Player 2+ controller", "Analog dead zone", "Multitap (up to 5 players)", "Button mapping...", "Hotkeys...", "Vibration",
@@ -1919,6 +1962,7 @@ static void settings(void)
 	static const char *allHelp[S_COUNT] = {
 		"Choose whether changes apply to all games or only to this one.",
 		"The language of WiiUStation. System follows the Wii U's language.",
+		"The colour of the menu.",
 		"Sounds when you move and choose in the menu, and their style.",
 		"Opens the last game right away when WiiUStation starts.",
 		"The folder the game list opens in.",
@@ -2002,6 +2046,11 @@ static void settings(void)
 			case S_VIEW:   values[k] = view_name(cfg.view); break;
 			case S_COVERS: values[k] = cfg.cover3d ? "3D box" : "2D"; break;
 			case S_LANG:   values[k] = lang_name(cfg.lang); break;
+			case S_THEME: {
+				static const char *tn[THEME_COUNT] = { "Blue", "Purple", "Pink", "Red", "Orange", "Gold", "Green", "Teal", "Graphite" };
+				values[k] = tn[cfg.theme >= 0 && cfg.theme < THEME_COUNT ? cfg.theme : 0];
+				break;
+			}
 			case S_SFX: {
 				static const char *sn[7] = { "Off", "Classic", "Soft", "Retro 8-bit", "Crystal", "Marimba", "Click" };
 				values[k] = sn[cfg.menusfx >= 0 && cfg.menusfx <= 6 ? cfg.menusfx : 1];
@@ -2081,7 +2130,7 @@ static void settings(void)
 			SDL_SetRenderDrawColor(R, 0, 0, 0, 255);
 			SDL_RenderClear(R);
 			if (pv) SDL_RenderCopy(R, pv, NULL, NULL);
-			SDL_Color k = { 0, 0, 0 }, hi = { 0, 140, 220 };
+			SDL_Color k = { 0, 0, 0 }, hi = th(0, 140, 220);
 			fill(0, 596, 1280, 124, k, 190);
 			char cnt[16];
 			int pos = 0, tot = 0;
@@ -2115,6 +2164,9 @@ static void settings(void)
 			int t = list_run(&L, labels, values, n, 1, &arrow, NULL);
 			if (t >= 0) { if (loaded && IS_PIC(map[t])) picMode = 1; else dir = 1; }
 			if (arrow) dir = arrow;
+			/* changing a picture option (left / right, the arrows) also opens
+			 * it over the game, so the change is seen at once */
+			if (dir && loaded && IS_PIC(map[L.sel])) picMode = 1;
 			draw_footer(canPic ? "A: adjust it with the game on screen" : cur >= 0 ? allHelp[cur] : NULL);
 			present();
 		}
@@ -2218,6 +2270,7 @@ static void settings(void)
 		               break;
 		case S_CONTROLS: controls(); transition(); break;
 		case S_HOTKEYS:  hotkeys(); transition(); break;
+		case S_THEME:    cfg.theme = (cfg.theme + THEME_COUNT + dir) % THEME_COUNT; break;
 		case S_SFX:      cfg.menusfx = (cfg.menusfx + 7 + dir) % 7; sfx_play(SFX_OK); break;
 		case S_AUTOSTART:
 			cfg.autostart = !cfg.autostart;
@@ -2375,7 +2428,7 @@ static void credits(void)
 
 		draw_background();
 		int back = draw_header("Credits", 1);
-		SDL_Color panel = { 10, 14, 34 };
+		SDL_Color panel = th(10, 14, 34);
 		fill(90, 120, 1100, 536, panel, 170);
 		SDL_RenderSetClipRect(R, &(SDL_Rect){ 90, 124, 1100, 528 });
 		for (int i = 0; i < n; i++) {
@@ -2532,7 +2585,7 @@ static void update_screen(void)
 			if (st == 2) { state = 5; sfx_play(SFX_OK); }
 			else if (st == -1) { state = 6; sfx_play(SFX_ERROR); }
 			else {
-				SDL_Color bg = { 26, 32, 60 }, fg = { 0, 140, 220 };
+				SDL_Color bg = th(26, 32, 60), fg = th(0, 140, 220);
 				rrect(240, 380, 800, 26, 13, bg, 255);
 				rrect(240, 380, (int)(800 * (f < 0.02f ? 0.02f : f)), 26, 13, fg, 255);
 			}
@@ -2711,7 +2764,7 @@ static void all_covers(void)
 			float f = (float)cur / n;
 			snprintf(m, sizeof(m), done ? tr("Finished: %d games") : tr("Game %d of %d"), done ? n : cur + 1, n);
 			text(fontItem, 640, 260, m, WHITE, 1);
-			SDL_Color bg = { 26, 32, 60 }, fg = { 0, 140, 220 };
+			SDL_Color bg = th(26, 32, 60), fg = th(0, 140, 220);
 			rrect(240, 300, 800, 26, 13, bg, 255);
 			rrect(240, 300, (int)(800 * (f < 0.02f ? 0.02f : f)), 26, 13, fg, 255);
 			snprintf(m, sizeof(m), tr("Downloaded %d   Already had %d   Not in the repository %d"), got, had, missing);
@@ -3370,11 +3423,11 @@ static void gallery(void)
 					int i = r * COLS + c;
 					if (i >= count) break;
 					int x = GX + c * CW, y = GY + (int)((r - scroll) * CH);
-					if (i == sel) rrect(x - 6, y - 6, TW + 12, TH + 12, 12, (SDL_Color){ 0, 140, 220 }, 255);
+					if (i == sel) rrect(x - 6, y - 6, TW + 12, TH + 12, 12, th(0, 140, 220), 255);
 					SDL_Texture *t = GAL_TEX(i);
 					SDL_Rect dr = { x, y, TW, TH };
 					if (t) SDL_RenderCopy(R, t, NULL, &dr);
-					else fill(x, y, TW, TH, (SDL_Color){ 26, 32, 60 }, 255);
+					else fill(x, y, TW, TH, th(26, 32, 60), 255);
 					if (tap_in(x, y, TW, TH)) { if (sel == i) view = 1; sel = i; }
 				}
 			SDL_RenderSetClipRect(R, NULL);
@@ -3428,7 +3481,7 @@ static void icon(int kind, float cx, float cy, float s, SDL_Color c)
 		float q[10] = { x0, y0, x0 + w * 0.72f, y0, x0 + w, y0 + h * 0.2f, x0 + w, y0 + h, x0, y0 + h };
 		poly(q, 5, c, 255);
 		for (int i = 0; i < 2; i++)
-			rrect((int)(x0 + w * 0.16f), (int)(y0 + h * (0.52f + i * 0.2f)), (int)(w * 0.68f), (int)(h * 0.08f), 2, (SDL_Color){ 30, 36, 64 }, 255);
+			rrect((int)(x0 + w * 0.16f), (int)(y0 + h * (0.52f + i * 0.2f)), (int)(w * 0.68f), (int)(h * 0.08f), 2, th(30, 36, 64), 255);
 		break;
 	}
 	case H_EXIT: {    /* power symbol */
@@ -3503,7 +3556,7 @@ static int slot_picker(int save)
 
 		draw_background();
 		int back = draw_header(save ? "Save state" : "Load state", 1);
-		SDL_Color card = { 14, 18, 40 }, hl = { 0, 140, 220 }, slotc = { 26, 32, 60 };
+		SDL_Color card = th(14, 18, 40), hl = th(0, 140, 220), slotc = th(26, 32, 60);
 
 		/* ---- slot list ---- */
 		for (int i = 0; i < 10; i++) {
@@ -3647,7 +3700,7 @@ static int ask_resume(void)
 		if (b & (WIIU_BTN_LEFT | WIIU_BTN_RIGHT)) sel = !sel;
 		draw_background();
 		draw_header(NULL, 0);
-		SDL_Color card = { 14, 18, 40 }, hl = { 0, 140, 220 }, btn = { 40, 46, 74 };
+		SDL_Color card = th(14, 18, 40), hl = th(0, 140, 220), btn = th(40, 46, 74);
 		rrect(640 - cw / 2, 220, cw, 310, 26, card, 240);
 		text(fontTitle, 640, 290, "Continue where you left off?", WHITE, 1);
 		char nm[80];
@@ -3683,7 +3736,7 @@ static int choose_disc(const char *title, int ndisc, int current)
 		if (b & WIIU_BTN_RIGHT) sel = (sel + 1) % ndisc;
 		draw_background();
 		int back = draw_header(NULL, 1);
-		SDL_Color card = { 14, 18, 40 }, hl = { 0, 140, 220 }, btn = { 40, 46, 74 };
+		SDL_Color card = th(14, 18, 40), hl = th(0, 140, 220), btn = th(40, 46, 74);
 		int w = 170, gap = 20, tot = ndisc * w + (ndisc - 1) * gap;
 		if (tot > 1140) { w = (1140 - (ndisc - 1) * gap) / ndisc; tot = 1140; }
 		rrect(70, 200, 1140, 340, 26, card, 240);
@@ -3767,7 +3820,7 @@ static int nav(const hitem_t *it, int n, int cur, int dx, int dy)
 
 static void pill(const SDL_Rect *r, const char *label, int focused)
 {
-	SDL_Color bg = { 40, 46, 74 };
+	SDL_Color bg = th(40, 46, 74);
 	if (!focused) rrect(r->x, r->y, r->w, r->h, r->h / 2, bg, 255);
 	text(fontSmall, r->x + r->w / 2, r->y + r->h / 2, label, WHITE, 1);
 }
@@ -3791,7 +3844,7 @@ static void action_icon(int kind, float cx, float cy, float s, SDL_Color c)
 	case H_SHOT:                     /* camera */
 		rrect((int)(cx - s * 0.48f), (int)(cy - s * 0.28f), (int)(s * 0.96f), (int)(s * 0.66f), 8, c, 255);
 		rrect((int)(cx - s * 0.18f), (int)(cy - s * 0.42f), (int)(s * 0.36f), (int)(s * 0.2f), 4, c, 255);
-		ring(cx, cy + s * 0.05f, s * 0.22f, s * 0.08f, (SDL_Color){ 14, 18, 40, 255 });
+		ring(cx, cy + s * 0.05f, s * 0.22f, s * 0.08f, th(14, 18, 40));
 		break;
 	case H_RESET: {                  /* circular arrow */
 		const int N = 18;
@@ -3911,6 +3964,7 @@ int menu_run(void)
 	char path[512], m[128];
 
 	menu_fonts();
+	update_check_background();
 	{
 		if (!introShown) {
 			introShown = 1;
@@ -3991,7 +4045,28 @@ int menu_run(void)
 		/* ---- draw ---- */
 		draw_background();
 		draw_header(NULL, 0);
-		SDL_Color card = { 14, 18, 40 };
+		{   /* a newer version on GitHub (checked in the background): a notice
+		     * in the header; X or a tap on it opens the update screen */
+			const char *upd = update_available();
+			if (upd) {
+				char msg[160];
+				snprintf(msg, sizeof(msg), tr("Version %s is available."), upd);
+				int tw = 0;
+				TTF_SizeUTF8(fontSmall, msg, &tw, NULL);
+				int pw = tw + 84, px = 640 - pw / 2;
+				float pulse = 0.5f + 0.5f * sinf(SDL_GetTicks() / 300.0f);
+				rrect(px, 32, pw, 42, 21, th(0, 140, 220), (uint8_t)(190 + 50 * pulse));
+				wiiu_button(px + 26, 53, "X");
+				text(fontSmall, px + 50, 53, msg, WHITE, 0);
+				if ((b & WIIU_BTN_X) || tap_in(px, 32, pw, 42)) {
+					sfx_play(SFX_OK);
+					update_screen();
+					transition();
+					continue;
+				}
+			}
+		}
+		SDL_Color card = th(14, 18, 40);
 		if (loaded) {
 			rrect(50, 120, 1180, 180, 22, card, 220);
 			cover_or_disc(emu_game_id(), 70, 135, 150);
@@ -4017,7 +4092,7 @@ int menu_run(void)
 			/* the size changes at once; only the position glides */
 			fx += (r.x - fx) * 0.35f; fy += (r.y - fy) * 0.35f;
 			fw = r.w; fh = r.h;
-			SDL_Color hl = { 0, 140, 220 };
+			SDL_Color hl = th(0, 140, 220);
 			int rad = it[sel].kind == H_RESUME ? (int)(fh / 2) : 18;
 			rrect((int)fx - 6, (int)fy - 6, (int)fw + 12, (int)fh + 12, rad + 6, hl, 255);
 		}
@@ -4027,7 +4102,7 @@ int menu_run(void)
 			int f = i == sel;
 			switch (it[i].kind) {
 			case H_RESUME: {
-				SDL_Color go = { 0, 120, 200 };
+				SDL_Color go = th(0, 120, 200);
 				rrect(r.x, r.y, r.w, r.h, r.h / 2, go, 255);
 				float tri[6] = { r.x + 40, r.y + 22, r.x + 40, r.y + r.h - 22, r.x + 66, r.y + r.h / 2.0f };
 				poly(tri, 3, WHITE, 255);

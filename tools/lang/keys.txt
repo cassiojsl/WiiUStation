@@ -473,3 +473,14 @@ Auto (DualShock)
 Auto (Digital)
 Up / Down: other picture options
 A: adjust it with the game on screen
+Theme colour
+The colour of the menu.
+Blue
+Purple
+Pink
+Red
+Orange
+Gold
+Green
+Teal
+Graphite

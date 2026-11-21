@@ -459,3 +459,14 @@
 472|Auto (digitale)
 473|Su / Giù: altre opzioni immagine
 474|A: regola vedendo il gioco a schermo
+475|Colore del tema
+476|Il colore del menu.
+477|Blu
+478|Viola
+479|Rosa
+480|Rosso
+481|Arancione
+482|Oro
+483|Verde
+484|Turchese
+485|Grafite

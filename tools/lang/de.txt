@@ -459,3 +459,14 @@
 472|Auto (Digital)
 473|Hoch / Runter: weitere Bildoptionen
 474|A: mit dem Spiel im Bild einstellen
+475|Designfarbe
+476|Die Farbe des Menüs.
+477|Blau
+478|Lila
+479|Rosa
+480|Rot
+481|Orange
+482|Gold
+483|Grün
+484|Türkis
+485|Graphit

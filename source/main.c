@@ -134,6 +134,7 @@ static struct { const char *key; int *val; int min, max; } OPTS[] = {
 	{ "sort",       &cfg.sort,       0, 2 },
 	{ "regionf",    &cfg.regionf,    0, 4 + 64 },
 	{ "menusfx",    &cfg.menusfx,    0, 6 },
+	{ "theme",      &cfg.theme,      0, THEME_COUNT - 1 },
 	{ "autostart",  &cfg.autostart,  0, 1 },
 	{ "autofix",    &cfg.autofix,    0, 1 },
 	{ "lang",       &cfg.lang,       -1, LANG_COUNT - 1 },
@@ -293,7 +294,7 @@ const char *emu_autofix_name(void)
 /* keys that only make sense globally (never in a per-game file) */
 static int global_only(const char *k)
 {
-	return !strcmp(k, "view") || !strcmp(k, "cover3d") || !strcmp(k, "menusfx") || !strcmp(k, "autostart") || !strcmp(k, "autofix") || !strcmp(k, "sort") || !strcmp(k, "regionf") || !strcmp(k, "lang") || !strncmp(k, "hk", 2) || !strcmp(k, "games_dir") || !strcmp(k, "gpu_thread") ||
+	return !strcmp(k, "view") || !strcmp(k, "cover3d") || !strcmp(k, "menusfx") || !strcmp(k, "theme") || !strcmp(k, "autostart") || !strcmp(k, "autofix") || !strcmp(k, "sort") || !strcmp(k, "regionf") || !strcmp(k, "lang") || !strncmp(k, "hk", 2) || !strcmp(k, "games_dir") || !strcmp(k, "gpu_thread") ||
 	       !strcmp(k, "spu_thread") || !strcmp(k, "resume") || !strcmp(k, "ffwd");
 }
 
@@ -328,7 +329,7 @@ static void settings_defaults(void)
 	cfg.audio = 1;
 	cfg.bezel = BEZEL_AMBIENT;
 	cfg.view = 4;         /* carousel */
-	cfg.menusfx = 1;
+	cfg.menusfx = 2;                 /* Soft */
 	cfg.lang = LANG_AUTO;  /* the Wii U's language */
 	cfg.vsync = 1;
 	cfg.autofix = 1;
@@ -389,6 +390,8 @@ static int settings_parse(const char *path, int isGame)
 			continue;
 		if (version < 7 && (!strcmp(k, "analog") || !strcmp(k, "analog2")))   /* Auto became the default */
 			continue;
+		if (version < 8 && !strcmp(k, "menusfx") && v == 1)   /* Soft replaced Classic as the default */
+			continue;
 		for (unsigned i = 0; i < sizeof(OPTS) / sizeof(OPTS[0]); i++)
 			if (!strcmp(OPTS[i].key, k) && v >= OPTS[i].min && v <= OPTS[i].max)
 				*OPTS[i].val = v;
@@ -401,7 +404,7 @@ static int settings_write(const char *path, int isGame)
 {
 	FILE *f = fopen(path, "w");
 	if (!f) return 0;
-	fprintf(f, "# WiiUStation %s\nversion = 7\n", isGame ? "per-game settings" : "settings");
+	fprintf(f, "# WiiUStation %s\nversion = 8\n", isGame ? "per-game settings" : "settings");
 	for (unsigned i = 0; i < sizeof(OPTS) / sizeof(OPTS[0]); i++)
 		if (!isGame || !global_only(OPTS[i].key))
 			fprintf(f, "%s = %d\n", OPTS[i].key, *OPTS[i].val);

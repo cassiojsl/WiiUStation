@@ -228,3 +228,34 @@ int update_progress(float *frac)
 	*frac = dlTotal > 0 ? (float)(dlNow / dlTotal) : 0;
 	return dlState;
 }
+
+/* ---- a check in the background when the menu starts, for the notice on
+ * the home screen ---- */
+static volatile int bgState;           /* 0 not started, 1 checking, 2 newer, 3 current or error */
+static char bgTag[32];
+
+static int bg_thread(void *ud)
+{
+	(void)ud;
+	char tag[32], err[128];
+	SDL_Delay(4000);                    /* leave the start-up to the menu */
+	int r = update_check(tag, sizeof(tag), err, sizeof(err));
+	if (r == 1) snprintf(bgTag, sizeof(bgTag), "%s", tag);
+	bgState = r == 1 ? 2 : 3;
+	return 0;
+}
+
+void update_check_background(void)
+{
+	if (bgState) return;
+	bgState = 1;
+	SDL_Thread *t = SDL_CreateThread(bg_thread, "updchk", NULL);
+	if (!t) { bgState = 3; return; }
+	SDL_DetachThread(t);
+}
+
+/* the newer version found by the background check, or NULL */
+const char *update_available(void)
+{
+	return bgState == 2 ? bgTag : NULL;
+}

@@ -459,3 +459,14 @@
 472|Auto (digitaal)
 473|Omhoog / Omlaag: andere beeldopties
 474|A: aanpassen met de game in beeld
+475|Themakleur
+476|De kleur van het menu.
+477|Blauw
+478|Paars
+479|Roze
+480|Rood
+481|Oranje
+482|Goud
+483|Groen
+484|Turquoise
+485|Grafiet

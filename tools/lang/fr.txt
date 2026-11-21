@@ -459,3 +459,14 @@
 472|Auto (numérique)
 473|Haut / Bas : autres options d'image
 474|A : régler en voyant le jeu à l'écran
+475|Couleur du thème
+476|La couleur du menu.
+477|Bleu
+478|Violet
+479|Rose
+480|Rouge
+481|Orange
+482|Doré
+483|Vert
+484|Turquoise
+485|Graphite

@@ -69,6 +69,8 @@ int  lang_system(void);                  /* the Wii U's language */
 int  lang_current(void);                 /* the one in use */
 const char *tr(const char *en);          /* translated text (lang.c) */
 
+enum { THEME_BLUE, THEME_PURPLE, THEME_PINK, THEME_RED, THEME_ORANGE, THEME_GOLD, THEME_GREEN, THEME_TEAL, THEME_GRAPHITE, THEME_COUNT };
+
 typedef struct {
 	int dynarec;        /* Lightrec */
 	int gpu_thread;     /* render on core 2 */
@@ -102,6 +104,7 @@ typedef struct {
 	int lang;           /* LANG_*, LANG_AUTO = follow the Wii U */
 	int sort;           /* game list: 0 name, 1 last played, 2 most played */
 	int regionf;        /* game list: 0 all, 1 USA, 2 Europe, 3 Japan, 4 favourites, 5+ a collection */
+	int theme;          /* menu colours (THEME_*) */
 	int menusfx;        /* menu sounds: 0 off, 1 classic, 2 soft, 3 retro, 4 crystal, 5 marimba, 6 click */
 	int autostart;      /* open the last game when the app starts */
 	int autofix;        /* apply the built-in fixes for known games */
@@ -272,6 +275,8 @@ void emu_save_memcards(void);
 /* ---- updates from GitHub releases (update.c) ---- */
 const char *app_version(void);
 int  net_download(const char *url, const char *path);   /* 1 ok, -1 404, 0 failed */
+void update_check_background(void);
+const char *update_available(void);
 int  update_check(char *tag, size_t tn, char *err, size_t en);   /* 1 newer, 0 current, -1 error */
 int  update_start(void);
 int  update_progress(float *frac);       /* 1 running, 2 installed, -1 failed */

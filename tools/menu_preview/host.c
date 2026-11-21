@@ -111,6 +111,8 @@ void emu_coll_toggle(const char *c, const char *p) { (void)c; (void)p; }
 int net_status(void) { return getenv("NET") ? atoi(getenv("NET")) : 1; }
 void sfx_play(int id) { (void)id; }
 void sfx_prepare(void) {}
+void update_check_background(void) {}
+const char *update_available(void) { return getenv("UPD"); }
 const char *app_version(void) { return "v1.0.0"; }
 int update_check(char *t, size_t tn, char *e, size_t en) { snprintf(t, tn, "v1.1.0"); (void)e; (void)en; return 1; }
 int update_start(void) { return 1; }
@@ -166,6 +168,7 @@ int main(int argc, char **argv)
 	SDL_Window *w = SDL_CreateWindow("m", 0, 0, 1280, 720, SDL_WINDOW_HIDDEN);
 	ren = SDL_CreateRenderer(w, -1, SDL_RENDERER_SOFTWARE);
 	if (getenv("PT")) cfg.lang = atoi(getenv("PT"));
+	if (getenv("THEME")) cfg.theme = atoi(getenv("THEME"));
 	strcpy(cfg.games_dir, WIIU_ISO_DIR); cfg.dynarec = 1; cfg.gpu_thread = 1; cfg.bezel = 1; memcpy(cfg.map, default_map, sizeof(cfg.map));
 	if (strcmp(mode, "intro")) introShown = 1;
 	if (getenv("SHOT")) shotAt = atoi(getenv("SHOT")), quitAt = shotAt + 2;
