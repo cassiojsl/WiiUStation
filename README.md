@@ -95,7 +95,7 @@ controllers.
   Justifier. The light guns and the mouse use the GamePad touch screen.
   Analog dead zone and the core's analog options.
 - **Screen effects**: CRT curve, LCD grid and glow. While a game is running,
-  the picture options in Settings show a live preview.
+  the picture options in Settings are changed over the game, full screen.
 - **VSync**: on by default, so the picture doesn't tear; the audio rate
   adapts a little to stay in step with the screen.
 - **GamePad screen**: same as the TV, GamePad only, TV only, or a control

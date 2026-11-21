@@ -471,3 +471,4 @@ Preview
 Auto
 Auto (DualShock)
 Auto (Digital)
+Up / Down: other picture options

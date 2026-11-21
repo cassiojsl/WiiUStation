@@ -446,3 +446,4 @@
 { "Click", "Clic" },
 { "Preview", "Anteprima" },
 { "Auto (Digital)", "Auto (digitale)" },
+{ "Up / Down: other picture options", "Su / Giù: altre opzioni immagine" },

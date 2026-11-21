@@ -424,6 +424,7 @@
 { "Unknown", "Desconhecido" },
 { "Unknown version (may still work)", "Versão desconhecida (pode funcionar)" },
 { "Up", "Cima" },
+{ "Up / Down: other picture options", "Cima / Baixo: outras opções de imagem" },
 { "Up to 5 players, for games that support the Multitap.", "Até 5 jogadores, para jogos compatíveis com o Multitap." },
 { "Use the keyboard on the GamePad", "Use o teclado do GamePad" },
 { "Uses a real BIOS from the bios folder when there is one, or always the built-in one.", "Usa uma BIOS real da pasta bios quando houver, ou sempre a embutida." },

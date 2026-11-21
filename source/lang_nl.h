@@ -437,3 +437,4 @@
 { "Click", "Klik" },
 { "Preview", "Voorbeeld" },
 { "Auto (Digital)", "Auto (digitaal)" },
+{ "Up / Down: other picture options", "Omhoog / Omlaag: andere beeldopties" },

@@ -458,3 +458,4 @@
 { "Auto", "自動" },
 { "Auto (DualShock)", "自動(DualShock)" },
 { "Auto (Digital)", "自動(デジタル)" },
+{ "Up / Down: other picture options", "上 / 下: ほかの画面設定" },

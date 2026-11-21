@@ -431,3 +431,4 @@
 { "Crystal", "Kristall" },
 { "Click", "Klick" },
 { "Preview", "Vorschau" },
+{ "Up / Down: other picture options", "Hoch / Runter: weitere Bildoptionen" },

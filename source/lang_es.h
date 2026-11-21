@@ -449,3 +449,4 @@
 { "Crystal", "Cristal" },
 { "Click", "Clic" },
 { "Preview", "Vista previa" },
+{ "Up / Down: other picture options", "Arriba / Abajo: otras opciones de imagen" },

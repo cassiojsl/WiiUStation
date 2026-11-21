@@ -457,3 +457,4 @@
 470|Auto
 471|Auto (DualShock)
 472|Auto (numérique)
+473|Haut / Bas : autres options d'image

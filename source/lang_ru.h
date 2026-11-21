@@ -458,3 +458,4 @@
 { "Auto", "Авто" },
 { "Auto (DualShock)", "Авто (DualShock)" },
 { "Auto (Digital)", "Авто (цифровой)" },
+{ "Up / Down: other picture options", "Вверх / Вниз: другие настройки изображения" },
