@@ -309,7 +309,7 @@ static void settings_defaults(void)
 	cfg.spu_thread = 0;   /* off: sound was lost with Lightrec + SPU thread */
 	cfg.frameskip = 0;
 	cfg.show_fps = 0;
-	cfg.aspect = WIIU_ASPECT_ZOOM;   /* 4:3 with the game's own black borders cropped */
+	cfg.aspect = WIIU_ASPECT_4_3;
 	cfg.filter = WIIU_FILTER_LINEAR;
 	cfg.scanlines = 0;
 	cfg.crt = 0;
@@ -392,6 +392,8 @@ static int settings_parse(const char *path, int isGame)
 			continue;
 		if (version < 8 && !strcmp(k, "menusfx") && v == 1)   /* Soft replaced Classic as the default */
 			continue;
+		if (version < 9 && !strcmp(k, "aspect"))     /* 4:3 became the default */
+			continue;
 		for (unsigned i = 0; i < sizeof(OPTS) / sizeof(OPTS[0]); i++)
 			if (!strcmp(OPTS[i].key, k) && v >= OPTS[i].min && v <= OPTS[i].max)
 				*OPTS[i].val = v;
@@ -404,7 +406,7 @@ static int settings_write(const char *path, int isGame)
 {
 	FILE *f = fopen(path, "w");
 	if (!f) return 0;
-	fprintf(f, "# WiiUStation %s\nversion = 8\n", isGame ? "per-game settings" : "settings");
+	fprintf(f, "# WiiUStation %s\nversion = 9\n", isGame ? "per-game settings" : "settings");
 	for (unsigned i = 0; i < sizeof(OPTS) / sizeof(OPTS[0]); i++)
 		if (!isGame || !global_only(OPTS[i].key))
 			fprintf(f, "%s = %d\n", OPTS[i].key, *OPTS[i].val);

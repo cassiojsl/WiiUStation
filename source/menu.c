@@ -3892,7 +3892,6 @@ static void intro(void)
 	 * without a stall: the sounds and audio device, the caption's text and
 	 * the first shapes drawn */
 	sfx_prepare();
-	text_wrap(fontSmall, 640, 560, 1000, "PlayStation (PS1) emulator for the Wii U, based on PCSX-ReARMed", GREY);
 	bgNV = bgNI = 0;
 	bg_ngon(640, 330, 60, 28, 7, 0, (SDL_Color){ 0, 0, 0, 0 });
 	SDL_RenderGeometry(R, NULL, bgV, bgNV, bgIdx, bgNI);
@@ -3929,7 +3928,7 @@ static void intro(void)
 		for (int i = 0; i < 4; i++) {
 			float sx = i == 0 || i == 3 ? -120 : 1400, sy = i < 2 ? -120 : 840;
 			float a = -1.5707963f + i * 1.5707963f + t * 0.6f;
-			float ex = 640 + cosf(a) * 230, ey = 330 + sinf(a) * 150;
+			float ex = 640 + cosf(a) * 390, ey = 330 + sinf(a) * 215;
 			float x = sx + (ex - sx) * k, y = sy + (ey - sy) * k, rot = (1 - k) * 6 + t;
 			SDL_Color c = tint[i];
 			c.a = (Uint8)(200 * (k < 1 ? k : 1));
@@ -3948,14 +3947,12 @@ static void intro(void)
 			float p = (t - 0.4f) / 0.6f;
 			if (p > 1) p = 1;
 			float sc = 0.7f + 0.3f * (1 - (1 - p) * (1 - p));
-			int h = (int)(150 * sc), w = logoW * h / logoH;
+			int h = (int)(200 * sc), w = logoW * h / logoH;
 			SDL_Rect d = { 640 - w / 2, 330 - h / 2, w, h };
 			SDL_SetTextureAlphaMod(logoTex, (Uint8)(255 * p));
 			SDL_RenderCopy(R, logoTex, NULL, &d);
 			SDL_SetTextureAlphaMod(logoTex, 255);
 		}
-		if (t > 1.1f)
-			text_wrap(fontSmall, 640, 560, 1000, "PlayStation (PS1) emulator for the Wii U, based on PCSX-ReARMed", GREY);
 		/* fade out at the end */
 		if (now > LEN - 400) fill(0, 0, 1280, 720, (SDL_Color){ 0, 0, 0 }, (uint8_t)((now - (LEN - 400)) * 255 / 400));
 		SDL_RenderPresent(R);
