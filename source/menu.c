@@ -378,12 +378,21 @@ typedef struct {
 } touch_t;
 static touch_t T;
 
+/* set when the menu opens: the touch that opened it (still on the screen)
+ * must not become a tap in the menu, so it is ignored until lifted */
+static int touchBlock;
+
 static void poll_touch(void)
 {
 	const wiiu_pad_state *gp = wiiu_input_get(0);
 	int on = gp->connected && (gp->held & WIIU_BTN_TOUCH);
 	T.tapped = 0;
 	T.dx = T.dy = 0;
+	if (touchBlock) {
+		if (!on) touchBlock = 0;
+		T.down = 0;
+		return;
+	}
 	if (on) {
 		if (!T.down) {
 			T.down = 1;
@@ -2511,6 +2520,7 @@ int menu_run(void)
 	menu_fonts();
 	poll_buttons();
 	T.down = T.tapped = 0;
+	touchBlock = 1;
 	transition();
 
 	for (;;) {
