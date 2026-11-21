@@ -549,6 +549,20 @@ static void draw_ambient(const SDL_Rect *src, const SDL_Rect *dst)
 	}
 }
 
+static SDL_Rect lastSrc, lastDst;     /* where the picture was drawn */
+
+int video_screen_to_game(int sx, int sy, int *gx, int *gy)
+{
+	if (!haveFrame || lastDst.w <= 0 || lastDst.h <= 0 || frameW <= 0 || frameH <= 0) return 0;
+	float u = (float)(sx - lastDst.x) / lastDst.w, v = (float)(sy - lastDst.y) / lastDst.h;
+	if (u < 0 || u >= 1 || v < 0 || v >= 1) return 0;
+	/* back through the auto-zoom crop to the whole frame */
+	float fx = (lastSrc.x + u * lastSrc.w) / frameW, fy = (lastSrc.y + v * lastSrc.h) / frameH;
+	*gx = (int)(fx * 65534.0f) - 32767;
+	*gy = (int)(fy * 65534.0f) - 32767;
+	return 1;
+}
+
 void video_draw_game(int dim)
 {
 	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
@@ -558,6 +572,8 @@ void video_draw_game(int dim)
 	SDL_Rect src, dst;
 	crop_rect(&src);
 	compute_dest(&dst, &src);
+	lastSrc = src;
+	lastDst = dst;
 	if (cfg.bezel == BEZEL_AMBIENT) draw_ambient(&src, &dst);
 
 	if (cfg.filter == WIIU_FILTER_SHARP_BILINEAR) {

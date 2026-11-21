@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 #include <strings.h>
 #include <stdarg.h>
 #include <errno.h>
@@ -106,8 +107,9 @@ static struct { const char *key; int *val; int min, max; } OPTS[] = {
 	{ "dithering",  &cfg.dithering,  0, 2 },
 	{ "bios_hle",   &cfg.bios_hle,   0, 1 },
 	{ "bootlogo",   &cfg.bootlogo,   0, 1 },
-	{ "analog",     &cfg.analog,     0, 1 },
-	{ "analog2",    &cfg.analog2,    0, 1 },
+	{ "analog",     &cfg.analog,     0, PAD_COUNT - 1 },
+	{ "analog2",    &cfg.analog2,    0, PAD_NEGCON },
+	{ "deadzone",   &cfg.deadzone,   0, 6 },
 	{ "multitap",   &cfg.multitap,   0, 1 },
 	{ "region",     &cfg.region,     0, 2 },
 	{ "resume",     &cfg.resume,     0, 1 },
@@ -165,6 +167,22 @@ static const coreopt_t COREOPT[] = {
 	  { "enabled", "disabled" }, { "On", "Off" } },
 	{ "exception_emulation", "Exception emulation", NULL,
 	  "Rarely needed. Interpreter only.", 2, 0, OFFON },
+	{ "analog_axis_modifier", "Analog range", "Controller",
+	  "Square lets the stick reach the corners, like some games expect.", 2, 0,
+	  { "circle", "square" }, { "Circle", "Square" } },
+	{ "analog_combo", "Digital/analog switch combo", NULL,
+	  "Buttons that toggle the DualShock's analog mode, like the ANALOG button.", 5, 0,
+	  { "disabled", "l1+r1+select", "l1+r1+start", "l1+r1+l3", "l1+r1+r3" },
+	  { "Off", "L1+R1+Select", "L1+R1+Start", "L1+R1+L3", "L1+R1+R3" } },
+	{ "input_sensitivity", "Mouse speed", NULL,
+	  "For the PlayStation Mouse: how fast the pointer moves.", 6, 2,
+	  { "0.50", "0.75", "1.00", "1.25", "1.50", "2.00" }, { "50%", "75%", "100%", "125%", "150%", "200%" } },
+	{ "negcon_deadzone", "neGcon twist dead zone", NULL,
+	  "For the neGcon: how far the stick moves before steering starts.", 5, 0,
+	  { "0", "5", "10", "15", "20" }, { "0%", "5%", "10%", "15%", "20%" } },
+	{ "negcon_response", "neGcon steering response", NULL,
+	  "Quadratic and Cubic give finer control near the centre.", 3, 0,
+	  { "linear", "quadratic", "cubic" }, { "Linear", "Quadratic", "Cubic" } },
 	{ "gpu_peops_odd_even_bit", "Odd/even bit hack", "GPU fixes",
 	  "Fixes lock-ups in games such as Chrono Cross.", 2, 0, OFFON },
 	{ "gpu_peops_expand_screen_width", "Expand screen width", NULL,
@@ -183,7 +201,7 @@ static const coreopt_t COREOPT[] = {
 	  "Emulates the GPU busy flag. Fixes some games, a bit slower.", 2, 0, OFFON },
 };
 #define NCOREOPT (int)(sizeof(COREOPT) / sizeof(COREOPT[0]))
-_Static_assert(sizeof(COREOPT) / sizeof(COREOPT[0]) <= 24, "cfg.core too small");
+_Static_assert(sizeof(COREOPT) / sizeof(COREOPT[0]) <= 32, "cfg.core too small");
 
 int core_opt_count(void) { return NCOREOPT; }
 const char *core_opt_label(int i) { return COREOPT[i].label; }
@@ -227,6 +245,7 @@ static void settings_defaults(void)
 	cfg.bootlogo = 0;
 	cfg.analog = 0;       /* digital pad: works with every game */
 	cfg.analog2 = 0;
+	cfg.deadzone = 1;     /* 5% */
 	cfg.multitap = 0;
 	cfg.region = 0;
 	cfg.resume = 1;
@@ -579,12 +598,76 @@ int emu_player_count(void)
 	return n;
 }
 
-/* pad type of a PSX pad index: player 1 uses cfg.analog, the others analog2 */
-static int port_is_analog(int port) { return port == 0 ? cfg.analog : cfg.analog2; }
+/* controller type of a PSX pad index: player 1 uses cfg.analog, the others analog2 */
+static int port_type(int port) { return port == 0 ? cfg.analog : cfg.analog2; }
+/* sticks are read as sticks (not as the d-pad) */
+static int port_is_analog(int port) { return port_type(port) != PAD_DIGITAL; }
+
+const char *pad_type_name(int t)
+{
+	static const char *n[PAD_COUNT] = { "Digital", "DualShock", "neGcon", "Mouse", "GunCon", "Justifier" };
+	return t >= 0 && t < PAD_COUNT ? n[t] : "";
+}
+
+/* the GamePad screen is the light gun / mouse for player 1 */
+int emu_touch_is_input(void)
+{
+	return cfg.analog == PAD_MOUSE || cfg.analog == PAD_GUNCON || cfg.analog == PAD_JUSTIFIER;
+}
+
+#define DEV_DUALSHOCK RETRO_DEVICE_SUBCLASS(RETRO_DEVICE_ANALOG, 1)
+#define DEV_NEGCON    RETRO_DEVICE_SUBCLASS(RETRO_DEVICE_ANALOG, 2)
+#define DEV_GUNCON    RETRO_DEVICE_SUBCLASS(RETRO_DEVICE_LIGHTGUN, 0)
+#define DEV_JUSTIFIER RETRO_DEVICE_SUBCLASS(RETRO_DEVICE_LIGHTGUN, 1)
+#define DEV_MOUSE     RETRO_DEVICE_SUBCLASS(RETRO_DEVICE_MOUSE, 0)
+
+static unsigned port_device(int port)
+{
+	switch (port_type(port)) {
+	case PAD_DUALSHOCK: return DEV_DUALSHOCK;
+	case PAD_NEGCON:    return DEV_NEGCON;
+	case PAD_MOUSE:     return DEV_MOUSE;
+	case PAD_GUNCON:    return DEV_GUNCON;
+	case PAD_JUSTIFIER: return DEV_JUSTIFIER;
+	default:            return RETRO_DEVICE_JOYPAD;
+	}
+}
+
+/* touch state for the gun and the mouse, updated once per frame */
+static struct { int down, inside, gx, gy, lastX, lastY, dx, dy; } touch;
+
+static void touch_update(void)
+{
+	const wiiu_pad_state *gp = wiiu_input_get(0);
+	int down = gp->connected && (gp->held & WIIU_BTN_TOUCH);
+	touch.dx = touch.dy = 0;
+	if (down) {
+		int gx, gy;
+		if (touch.down) { touch.dx = gp->touch_x - touch.lastX; touch.dy = gp->touch_y - touch.lastY; }
+		touch.lastX = gp->touch_x;
+		touch.lastY = gp->touch_y;
+		touch.inside = video_screen_to_game(gp->touch_x, gp->touch_y, &gx, &gy);
+		if (touch.inside) { touch.gx = gx; touch.gy = gy; }   /* the aim stays when released */
+	}
+	touch.down = down;
+}
+
+/* radial dead zone, then rescaled so full tilt still reaches 1 */
+static float dead(float v, float other)
+{
+	float dz = cfg.deadzone * 0.05f;
+	float mag = sqrtf(v * v + other * other);
+	if (dz <= 0) return v;
+	if (mag <= dz) return 0;
+	float k = (mag - dz) / (1 - dz) / mag;
+	v *= k;
+	return v > 1 ? 1 : v < -1 ? -1 : v;
+}
 
 static void input_poll_cb(void)
 {
 	wiiu_input_update();
+	touch_update();
 }
 
 /* Default mapping, by position: A=Circle B=Cross X=Triangle Y=Square.
@@ -638,6 +721,34 @@ static int16_t input_state_cb(unsigned port, unsigned device, unsigned index, un
 		if (id == RETRO_DEVICE_ID_JOYPAD_MASK) return (int16_t)m;
 		return (m >> id) & 1;
 	}
+	case RETRO_DEVICE_LIGHTGUN: {
+		/* player 1 aims by touching the GamePad screen; touching outside
+		 * the picture reloads. A / B / + are the gun's other buttons. */
+		uint32_t h = wiiu_input_get(0)->held | p->held;
+		switch (id) {
+		case RETRO_DEVICE_ID_LIGHTGUN_SCREEN_X:     return (int16_t)touch.gx;
+		case RETRO_DEVICE_ID_LIGHTGUN_SCREEN_Y:     return (int16_t)touch.gy;
+		case RETRO_DEVICE_ID_LIGHTGUN_IS_OFFSCREEN: return touch.down && !touch.inside;
+		case RETRO_DEVICE_ID_LIGHTGUN_TRIGGER:      return (touch.down && touch.inside) || (h & WIIU_BTN_ZR) != 0;
+		case RETRO_DEVICE_ID_LIGHTGUN_RELOAD:       return (touch.down && !touch.inside) || (h & WIIU_BTN_ZL) != 0;
+		case RETRO_DEVICE_ID_LIGHTGUN_AUX_A:        return (h & WIIU_BTN_A) != 0;
+		case RETRO_DEVICE_ID_LIGHTGUN_AUX_B:        return (h & WIIU_BTN_B) != 0;
+		case RETRO_DEVICE_ID_LIGHTGUN_START:        return (h & WIIU_BTN_PLUS) != 0;
+		}
+		return 0;
+	}
+	case RETRO_DEVICE_MOUSE: {
+		/* drag on the GamePad screen, or the right stick; ZR / A = left
+		 * button, ZL / B = right button */
+		uint32_t h = p->held;
+		switch (id) {
+		case RETRO_DEVICE_ID_MOUSE_X: return (int16_t)(touch.dx / 2 + (int)(dead(p->rx, p->ry) * 8));
+		case RETRO_DEVICE_ID_MOUSE_Y: return (int16_t)(touch.dy / 2 - (int)(dead(p->ry, p->rx) * 8));
+		case RETRO_DEVICE_ID_MOUSE_LEFT:  return (h & (WIIU_BTN_ZR | WIIU_BTN_A)) != 0;
+		case RETRO_DEVICE_ID_MOUSE_RIGHT: return (h & (WIIU_BTN_ZL | WIIU_BTN_B)) != 0;
+		}
+		return 0;
+	}
 	case RETRO_DEVICE_ANALOG: {
 		float v;
 		if (index == RETRO_DEVICE_INDEX_ANALOG_BUTTON) {
@@ -645,9 +756,9 @@ static int16_t input_state_cb(unsigned port, unsigned device, unsigned index, un
 			return ((m >> id) & 1) ? 0x7fff : 0;
 		}
 		if (index == RETRO_DEVICE_INDEX_ANALOG_LEFT)
-			v = id == RETRO_DEVICE_ID_ANALOG_X ? p->lx : -p->ly;
+			v = id == RETRO_DEVICE_ID_ANALOG_X ? dead(p->lx, p->ly) : -dead(p->ly, p->lx);
 		else
-			v = id == RETRO_DEVICE_ID_ANALOG_X ? p->rx : -p->ry;
+			v = id == RETRO_DEVICE_ID_ANALOG_X ? dead(p->rx, p->ry) : -dead(p->ry, p->rx);
 		return (int16_t)(v * 32767.0f);
 	}
 	}
@@ -720,9 +831,7 @@ void emu_apply_settings(void)
 	varsDirty = 1;
 	if (loaded) {
 		for (int port = 0; port < NPORTS; port++) {
-			unsigned dev = port_is_analog(port) ? RETRO_DEVICE_SUBCLASS(RETRO_DEVICE_ANALOG, 1)
-			                                    : RETRO_DEVICE_JOYPAD;
-			retro_set_controller_port_device(port, dev);
+			retro_set_controller_port_device(port, port_device(port));
 		}
 	}
 }
@@ -1094,11 +1203,13 @@ static int hotkey_pressed(void)
 		const wiiu_pad_state *p = wiiu_input_get(i);
 		if (!p->connected) continue;
 		any |= p->held;
-		if (p->held & (WIIU_BTN_HOME | WIIU_BTN_TOUCH)) trigger = 1;
+		if (p->held & WIIU_BTN_HOME) trigger = 1;
+		if ((p->held & WIIU_BTN_TOUCH) && !emu_touch_is_input()) trigger = 1;
 		if ((p->held & (WIIU_BTN_STICKL | WIIU_BTN_STICKR)) ==
 		    (WIIU_BTN_STICKL | WIIU_BTN_STICKR)) trigger = 1;
 	}
 	if (latch) {   /* wait for the buttons that opened/closed the menu */
+		if (emu_touch_is_input()) any &= ~WIIU_BTN_TOUCH;
 		if (!(any & (WIIU_BTN_HOME | WIIU_BTN_TOUCH | WIIU_BTN_STICKL | WIIU_BTN_STICKR)))
 			latch = 0;
 		return 0;

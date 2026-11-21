@@ -1600,19 +1600,19 @@ static void hotkeys(void);
 static void settings(void)
 {
 	enum { S_SCOPE, S_LANG, S_GAMES, S_VIEW, S_COVERS, S_RESUME, S_CORE, S_SKIP, S_FFWD, S_FFSPEED, S_FPS, S_AUDIO,
-	       S_ASPECT, S_FILTER, S_BEZEL, S_SCAN, S_CRT, S_DITHER, S_PAD, S_PAD2, S_MTAP,
+	       S_ASPECT, S_FILTER, S_BEZEL, S_SCAN, S_CRT, S_DITHER, S_PAD, S_PAD2, S_DEADZONE, S_MTAP,
 	       S_CONTROLS, S_HOTKEYS, S_RUMBLE, S_REGION, S_BIOS, S_LOGO, S_ADV, S_COUNT };
 	static const char *allLabels[S_COUNT] = {
 		"Settings for", "Language", "Games folder", "Game list", "Covers", "Continue where you left off", "CPU core",
 		"Frame skip", "Fast forward", "Fast forward speed", "Show FPS", "Sound", "Screen",
 		"Picture", "Border", "Scanlines", "CRT mask", "Dithering", "Player 1 controller",
-		"Player 2+ controller", "Multitap (up to 5 players)", "Button mapping...", "Hotkeys...", "Vibration",
+		"Player 2+ controller", "Analog dead zone", "Multitap (up to 5 players)", "Button mapping...", "Hotkeys...", "Vibration",
 		"Region", "BIOS", "PlayStation boot logo", "Advanced..."
 	};
 	const char *labels[S_COUNT], *values[S_COUNT];
 	int map[S_COUNT];
 	list_t L = { 0, 0 };
-	char scopeStr[96], gd[80], ffs[8];
+	char scopeStr[96], gd[80], ffs[8], dzs[8];
 	transition();
 
 	for (;;) {
@@ -1665,8 +1665,9 @@ static void settings(void)
 			case S_SCAN:   values[k] = cfg.scanlines ? "On" : "Off"; break;
 			case S_CRT:    values[k] = cfg.crt ? "On" : "Off"; break;
 			case S_DITHER: values[k] = cfg.dithering == 0 ? "Off" : cfg.dithering == 1 ? "On" : "Force"; break;
-			case S_PAD:    values[k] = cfg.analog ? "DualShock" : "Digital"; break;
-			case S_PAD2:   values[k] = cfg.analog2 ? "DualShock" : "Digital"; break;
+			case S_PAD:    values[k] = pad_type_name(cfg.analog); break;
+			case S_PAD2:   values[k] = pad_type_name(cfg.analog2); break;
+			case S_DEADZONE: snprintf(dzs, sizeof(dzs), "%d%%", cfg.deadzone * 5); values[k] = dzs; break;
 			case S_MTAP:   values[k] = cfg.multitap ? "On" : "Off"; break;
 			case S_RUMBLE: values[k] = cfg.rumble ? "On" : "Off"; break;
 			case S_REGION: values[k] = cfg.region == 0 ? "Auto" : cfg.region == 1 ? "NTSC (60 Hz)" : "PAL (50 Hz)"; break;
@@ -1756,10 +1757,18 @@ static void settings(void)
 		case S_SCAN:   cfg.scanlines = !cfg.scanlines; break;
 		case S_CRT:    cfg.crt = !cfg.crt; break;
 		case S_DITHER: cfg.dithering = (cfg.dithering + 3 + dir) % 3; break;
-		case S_PAD:    cfg.analog = !cfg.analog;
-		               if (cfg.analog) status("DualShock: some older games only work with Digital.");
-		               break;
-		case S_PAD2:   cfg.analog2 = !cfg.analog2; break;
+		case S_PAD:
+			cfg.analog = (cfg.analog + PAD_COUNT + dir) % PAD_COUNT;
+			switch (cfg.analog) {
+			case PAD_DUALSHOCK: status("DualShock: some older games only work with Digital."); break;
+			case PAD_NEGCON:    status("neGcon: left stick steers, ZR / right stick up = I, ZL / down = II."); break;
+			case PAD_MOUSE:     status("Mouse: drag on the GamePad or use the right stick. ZR = left, ZL = right button."); break;
+			case PAD_GUNCON:
+			case PAD_JUSTIFIER: status("Light gun: touch the GamePad screen to shoot, touch outside the picture to reload."); break;
+			}
+			break;
+		case S_PAD2:   cfg.analog2 = (cfg.analog2 + PAD_NEGCON + 1 + dir) % (PAD_NEGCON + 1); break;
+		case S_DEADZONE: cfg.deadzone = (cfg.deadzone + 7 + dir) % 7; break;
 		case S_MTAP:   cfg.multitap = !cfg.multitap;
 		               status(cfg.multitap ? "Players 1-4 on port 1, player 5 on port 2. Applies on resume."
 		                                   : "Two players.");

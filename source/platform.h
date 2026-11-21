@@ -50,6 +50,11 @@ enum { HK_MOD = 0, HK_SAVE, HK_LOAD, HK_SLOTUP, HK_SLOTDOWN, HK_SHOT, HK_FFWD, H
 const char *hotkey_name(int i);
 const char *button_name(int bit);       /* "A", "ZL", "None" for -1 ... */
 
+/* controller types */
+enum { PAD_DIGITAL = 0, PAD_DUALSHOCK, PAD_NEGCON, PAD_MOUSE, PAD_GUNCON, PAD_JUSTIFIER, PAD_COUNT };
+const char *pad_type_name(int t);
+int  emu_touch_is_input(void);           /* 1: GamePad touch is the gun / mouse */
+
 /* interface language */
 enum { LANG_EN = 0, LANG_PT };
 const char *tr(const char *en);          /* translated text (lang.c) */
@@ -68,8 +73,9 @@ typedef struct {
 	int dithering;      /* 0 off, 1 on, 2 force */
 	int bios_hle;       /* 1 = always HLE */
 	int bootlogo;       /* show BIOS boot logo */
-	int analog;         /* player 1 pad type: 1 = DualShock */
-	int analog2;        /* player 2 pad type */
+	int analog;         /* player 1 controller: PAD_* */
+	int analog2;        /* players 2+: PAD_DIGITAL, PAD_DUALSHOCK or PAD_NEGCON */
+	int deadzone;       /* analog stick dead zone, in 5% steps */
 	int multitap;       /* 4 players on port 1 */
 	int region;         /* 0 auto, 1 NTSC, 2 PAL */
 	int resume;         /* offer to continue where you left off */
@@ -81,7 +87,7 @@ typedef struct {
 	int lang;           /* LANG_* */
 	int cover3d;        /* covers: 0 = 2D front, 1 = 3D box */
 	int view;           /* game browser: 0 grid, 1 list, 2 compact, 3 shelf, 4 carousel */
-	int core[24];       /* extra PCSX-ReARMed options, see core_opt_* */
+	int core[32];       /* extra PCSX-ReARMed options, see core_opt_* */
 	int hk[HK_COUNT];   /* hotkeys: WIIU_BTN bit index, -1 = none; hk[0] = modifier */
 	int map[16];        /* PSX button (RETRO_DEVICE_ID_JOYPAD_*) -> WIIU_BTN bit index */
 	char games_dir[256];  /* folder the game browser opens */
@@ -115,6 +121,8 @@ void video_present(void);
 void video_osd(const char *msg);
 void video_set_fps(int fps, int target);  /* shown when Show FPS is on */
 void video_set_game_id(const char *id);
+/* screen point (1280x720) -> game frame, -32767..32767; 0 when outside the picture */
+int  video_screen_to_game(int sx, int sy, int *gx, int *gy);
 void video_fade_in(void);
 /* save the last game frame as PNG; width 0 = full size, else scaled */
 int  video_save_frame(const char *path, int width);
