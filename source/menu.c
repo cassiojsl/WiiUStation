@@ -855,6 +855,7 @@ static int entry_region(const char *name, const char *id)
 static const char *sort_name(int v) { return v == 1 ? "Last played" : v == 2 ? "Most played" : "Name"; }
 static const char *regionf_name(int v)
 {
+	if (v >= 5) return emu_coll_name(v - 5);
 	return v == 1 ? "USA" : v == 2 ? "Europe" : v == 3 ? "Japan" : v == 4 ? "Favourites" : "All games";
 }
 
@@ -1526,6 +1527,7 @@ rescan:
 			snprintf(full, sizeof(full), "%s/%s", browsePath, list[i].name);
 			list[i].fav = !list[i].dir && emu_fav_is(full);
 			if (!list[i].dir && (favOnly || cfg.regionf == 4) && !list[i].fav) continue;
+			if (!list[i].dir && cfg.regionf >= 5 && !emu_coll_has(emu_coll_name(cfg.regionf - 5), full)) continue;
 			if (!list[i].dir && searchText[0]) {
 				pretty_name(list[i].name, nm, sizeof(nm));
 				if (!contains_ci(nm, searchText)) continue;
@@ -1657,7 +1659,7 @@ rescan:
 		}
 		if (!pickDir && (b & WIIU_BTN_ZR)) {
 			char m[96];
-			cfg.regionf = (cfg.regionf + 1) % 5;
+			cfg.regionf = (cfg.regionf + 1) % (5 + emu_coll_count());
 			settings_save();
 			snprintf(m, sizeof(m), tr("Showing: %s"), tr(regionf_name(cfg.regionf)));
 			status(m);
@@ -2450,6 +2452,55 @@ static int pick_image(const char *title, const char *dir, const char *prefix, ch
 /* ------------------------------------------------------------------------ */
 /* game options (- in the game browser)                                     */
 /* ------------------------------------------------------------------------ */
+/* which collections a game is in; "New collection..." makes one with it */
+static void game_collections(entry_t *e, const char *dir)
+{
+	char full[768];
+	snprintf(full, sizeof(full), "%s/%s", dir, e->name);
+	list_t L = { 0, 0 };
+	transition();
+	for (;;) {
+		int n = emu_coll_count();
+		const char *labels[66], *values[66];
+		for (int i = 0; i < n && i < 64; i++) {
+			labels[i] = emu_coll_name(i);
+			values[i] = emu_coll_has(labels[i], full) ? "Yes" : "No";
+		}
+		labels[n] = "New collection...";
+		values[n] = NULL;
+		int rows = n + 1;
+		if (L.sel >= rows) L.sel = rows - 1;
+		poll_touch();
+		uint32_t b = poll_buttons();
+		int act = -1;
+		if (b & WIIU_BTN_UP)   L.sel = L.sel > 0 ? L.sel - 1 : rows - 1;
+		if (b & WIIU_BTN_DOWN) L.sel = L.sel < rows - 1 ? L.sel + 1 : 0;
+		if (b & WIIU_BTN_A) act = L.sel;
+		draw_background();
+		int back = draw_header("Collections", 1);
+		int t = list_run(&L, labels, values, rows, 0, NULL, NULL);
+		if (t >= 0) act = t;
+		draw_footer("A: add to / remove from the collection");
+		present();
+		if (back || (b & WIIU_BTN_B) || wiiu_quit) return;
+		if (act < 0) continue;
+		if (act < n) {
+			char nm[64];
+			snprintf(nm, sizeof(nm), "%s", emu_coll_name(act));
+			emu_coll_toggle(nm, full);
+			if (cfg.regionf >= 5 + emu_coll_count()) cfg.regionf = 0;   /* its last game was removed */
+		} else {
+			char nm[64];
+			if (text_prompt("Collection name", "", nm, sizeof(nm)) && nm[0]) {
+				for (char *c = nm; *c; c++) if (*c == '|') *c = '/';
+				if (!emu_coll_has(nm, full)) emu_coll_toggle(nm, full);
+				status("Added to the collection.");
+			}
+			transition();
+		}
+	}
+}
+
 /* the game's details: ID, region, size, play time, saves, cheats, patch */
 static long long dir_size_prefix(const char *dir, const char *prefix)
 {
@@ -2555,8 +2606,8 @@ static void game_info(entry_t *e, const char *dir)
 
 static void game_options(entry_t *e, const char *dir)
 {
-	enum { O_INFO, O_ID, O_SHOT, O_IMAGE, O_REMOVE, O_RESETTIME, O_COUNT };
-	const char *labels[O_COUNT] = { "Information...", "Type the game ID...", "Cover from a screenshot...",
+	enum { O_INFO, O_COLL, O_ID, O_SHOT, O_IMAGE, O_REMOVE, O_RESETTIME, O_COUNT };
+	const char *labels[O_COUNT] = { "Information...", "Collections...", "Type the game ID...", "Cover from a screenshot...",
 		"Cover from an image in covers/import...", "Remove custom cover", "Reset play time" };
 	const char *values[O_COUNT] = { 0 };
 	char key[256], full[768], title[96], img[768], pt[48];
@@ -2590,6 +2641,10 @@ static void game_options(entry_t *e, const char *dir)
 		switch (act) {
 		case O_INFO:
 			game_info(e, dir);
+			transition();
+			break;
+		case O_COLL:
+			game_collections(e, dir);
 			transition();
 			break;
 		case O_ID: {

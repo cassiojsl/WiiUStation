@@ -98,7 +98,7 @@ typedef struct {
 	int bezel;          /* BEZEL_* */
 	int lang;           /* LANG_* */
 	int sort;           /* game list: 0 name, 1 last played, 2 most played */
-	int regionf;        /* game list: 0 all, 1 USA, 2 Europe, 3 Japan */
+	int regionf;        /* game list: 0 all, 1 USA, 2 Europe, 3 Japan, 4 favourites, 5+ a collection */
 	int menusfx;        /* menu sounds and the opening */
 	int autostart;      /* open the last game when the app starts */
 	int cover3d;        /* covers: 0 = 2D front, 1 = 3D box */
@@ -247,6 +247,11 @@ int  emu_cheat_enabled(int i);
 void emu_cheat_toggle(int i);
 int  emu_fav_is(const char *path);
 void emu_fav_toggle(const char *path);
+/* collections: named lists of games (by file name) */
+int  emu_coll_count(void);
+const char *emu_coll_name(int i);
+int  emu_coll_has(const char *coll, const char *path);
+void emu_coll_toggle(const char *coll, const char *path);
 int  emu_disk_count(void);
 int  emu_disk_index(void);
 int  emu_disk_set(int index);

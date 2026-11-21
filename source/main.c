@@ -130,7 +130,7 @@ static struct { const char *key; int *val; int min, max; } OPTS[] = {
 	{ "view",       &cfg.view,       0, 4 },
 	{ "cover3d",    &cfg.cover3d,    0, 1 },
 	{ "sort",       &cfg.sort,       0, 2 },
-	{ "regionf",    &cfg.regionf,    0, 3 },
+	{ "regionf",    &cfg.regionf,    0, 4 + 64 },
 	{ "menusfx",    &cfg.menusfx,    0, 1 },
 	{ "autostart",  &cfg.autostart,  0, 1 },
 	{ "lang",       &cfg.lang,       0, LANG_COUNT - 1 },
@@ -1360,6 +1360,82 @@ void emu_fav_toggle(const char *path)
 	if (!f) return;
 	for (i = 0; i < nfavs; i++) fprintf(f, "%s\n", favs[i]);
 	fclose(f);
+}
+
+/* ---- collections (collections.txt: "collection|file name" per line) ---- */
+#define COLL_FILE WIIU_APP_DIR "/collections.txt"
+static struct { char coll[64]; char file[256]; } *cent;
+static int ncent = -1;
+static char collNames[64][64];
+static int ncoll;
+
+static void coll_names(void)
+{
+	ncoll = 0;
+	for (int i = 0; i < ncent && ncoll < 64; i++) {
+		int k;
+		for (k = 0; k < ncoll; k++) if (!strcmp(collNames[k], cent[i].coll)) break;
+		if (k == ncoll) snprintf(collNames[ncoll++], 64, "%s", cent[i].coll);
+	}
+}
+
+static void coll_load(void)
+{
+	char line[400];
+	if (ncent >= 0) return;
+	ncent = 0;
+	FILE *f = fopen(COLL_FILE, "r");
+	if (f) {
+		while (fgets(line, sizeof(line), f)) {
+			line[strcspn(line, "\r\n")] = 0;
+			char *bar = strchr(line, '|');
+			if (!bar || bar == line || !bar[1]) continue;
+			*bar = 0;
+			cent = realloc(cent, (ncent + 1) * sizeof(*cent));
+			snprintf(cent[ncent].coll, 64, "%s", line);
+			snprintf(cent[ncent].file, 256, "%s", bar + 1);
+			ncent++;
+		}
+		fclose(f);
+	}
+	coll_names();
+}
+
+static void coll_write(void)
+{
+	FILE *f = fopen(COLL_FILE, "w");
+	if (!f) return;
+	for (int i = 0; i < ncent; i++) fprintf(f, "%s|%s\n", cent[i].coll, cent[i].file);
+	fclose(f);
+	coll_names();
+}
+
+int emu_coll_count(void) { coll_load(); return ncoll; }
+const char *emu_coll_name(int i) { coll_load(); return i >= 0 && i < ncoll ? collNames[i] : ""; }
+
+int emu_coll_has(const char *coll, const char *path)
+{
+	coll_load();
+	for (int i = 0; i < ncent; i++)
+		if (!strcmp(cent[i].coll, coll) && !strcmp(cent[i].file, base_of(path))) return 1;
+	return 0;
+}
+
+void emu_coll_toggle(const char *coll, const char *path)
+{
+	coll_load();
+	for (int i = 0; i < ncent; i++)
+		if (!strcmp(cent[i].coll, coll) && !strcmp(cent[i].file, base_of(path))) {
+			memmove(&cent[i], &cent[i + 1], (ncent - i - 1) * sizeof(*cent));
+			ncent--;
+			coll_write();
+			return;
+		}
+	cent = realloc(cent, (ncent + 1) * sizeof(*cent));
+	snprintf(cent[ncent].coll, 64, "%s", coll);
+	snprintf(cent[ncent].file, 256, "%s", base_of(path));
+	ncent++;
+	coll_write();
 }
 
 int emu_disk_count(void) { return haveDisk ? (int)disk.get_num_images() : 0; }
