@@ -325,6 +325,30 @@ index 94a1ea68..5ff5da88 100644
  
  	use_lightrec_interpreter = !!getenv("LIGHTREC_INTERPRETER");
  
+diff --git a/libpcsxcore/ppf.c b/libpcsxcore/ppf.c
+index e257e62f..51e67f52 100644
+--- a/libpcsxcore/ppf.c
++++ b/libpcsxcore/ppf.c
+@@ -191,6 +191,10 @@ static void AddToPPF(s32 ladr, s32 pos, s32 anz, unsigned char *ppfmem) {
+ 	}
+ }
+ 
++/* WiiUStation: the frontend can name the patch file for the game it loads
++ * (<game>.ppf next to the game or in the patches folder). */
++char wiiustation_ppf_path[MAXPATHLEN];
++
+ void BuildPPFCache(const char *fname) {
+ 	FILE			*ppffile;
+ 	char			buffer[12];
+@@ -206,6 +210,8 @@ void BuildPPFCache(const char *fname) {
+ 
+ 	if (CdromId[0] == '\0') return;
+ 
++	if (!fname && wiiustation_ppf_path[0])
++		fname = wiiustation_ppf_path;
+ 	if (!fname) {
+ 		// Generate filename in the format of SLUS_123.45
+ 		buffer[0] = toupper(CdromId[0]);
 diff --git a/plugins/dfsound/spu.c b/plugins/dfsound/spu.c
 index 76f76afe..3f8be392 100644
 --- a/plugins/dfsound/spu.c

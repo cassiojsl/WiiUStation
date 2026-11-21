@@ -206,6 +206,8 @@ int  jit_available(void);
 
 /* ---- emulator (main.c) ---- */
 int  emu_load_game(const char *path);
+void emu_background_save(void);          /* before the HOME Menu */
+int  emu_ppf_active(void);
 int  emu_load_game_disc(const char *m3u, int index, const char *disc_path);
 void emu_unload_game(void);
 int  emu_game_loaded(void);

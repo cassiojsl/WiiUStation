@@ -1072,6 +1072,7 @@ int pump_events(void)
 	if (background && !wiiu_quit) {
 		int wasPaused = SDL_GetAudioStatus() != SDL_AUDIO_PLAYING;
 		audio_pause(1);
+		emu_background_save();     /* the app may be closed from there */
 		wiiu_input_rumble(0, 0);
 		for (;;) {
 			if (!SDL_WaitEventTimeout(&ev, 100)) continue;

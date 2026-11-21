@@ -841,8 +841,48 @@ void emu_apply_settings(void)
 
 /* Multi-disc: start an .m3u at a given disc (disc_path as the core will
  * build it: <m3u folder>/<entry>). */
+/* Translation patches: <game>.ppf in WiiUStation/patches or next to the
+ * game, or <GAME-ID>.ppf in WiiUStation/patches. The core applies it to
+ * every sector it reads (fan translations, fixes). */
+extern char wiiustation_ppf_path[];
+static int ppfActive, ppfFromDisc;
+
+static void find_ppf(const char *gamefile)
+{
+	char base[256], dir[512], p[768], id[16];
+	struct stat st;
+	const char *slash = strrchr(gamefile, '/');
+	snprintf(base, sizeof(base), "%s", slash ? slash + 1 : gamefile);
+	char *dot = strrchr(base, '.');
+	if (dot) *dot = 0;
+	snprintf(dir, sizeof(dir), "%.*s", slash ? (int)(slash - gamefile) : 0, gamefile);
+	wiiustation_ppf_path[0] = 0;
+	ppfActive = 0;
+	const char *cand[3] = { WIIU_APP_DIR "/patches/%s.ppf", "%s/%s.ppf", NULL };
+	snprintf(p, sizeof(p), cand[0], base);
+	if (stat(p, &st) != 0) snprintf(p, sizeof(p), cand[1], dir, base);
+	if (stat(p, &st) != 0 && covers_detect_id(gamefile, id)) snprintf(p, sizeof(p), WIIU_APP_DIR "/patches/%s.ppf", id);
+	if (stat(p, &st) == 0 && strlen(p) < 255) {
+		strcpy(wiiustation_ppf_path, p);
+		ppfActive = 1;
+	}
+}
+
+int emu_ppf_active(void) { return ppfActive; }
+
+/* the HOME Menu may close the app: save the memory cards and the resume
+ * state before Cafe OS takes over */
+void emu_background_save(void)
+{
+	if (!loaded) return;
+	emu_save_memcards();
+	if (cfg.resume) emu_state_save(-1);
+}
+
 int emu_load_game_disc(const char *m3u, int index, const char *disc_path)
 {
+	find_ppf(disc_path && disc_path[0] ? disc_path : m3u);
+	ppfFromDisc = 1;
 	if (haveDiskExt && diskExt.set_initial_image && index > 0)
 		diskExt.set_initial_image(index, disc_path);
 	return emu_load_game(m3u);
@@ -869,6 +909,8 @@ int emu_load_game(const char *path)
 		settings_enter_game(key);
 	}
 	varsDirty = 1;
+	if (!ppfFromDisc) find_ppf(path);
+	ppfFromDisc = 0;
 	if (!retro_load_game(&gi)) { settings_leave_game(); return -1; }
 	loaded = 1;
 	retro_get_system_av_info(&av);
@@ -880,6 +922,7 @@ int emu_load_game(const char *path)
 	video_set_game_id(gameId);
 	recent_add(path);
 	cheats_load();
+	if (ppfActive) video_osd(tr("Translation patch applied."));
 	return 0;
 }
 
@@ -1383,6 +1426,7 @@ int main(int argc, char **argv)
 	wiiu_mkdirs(WIIU_STATE_DIR);
 	wiiu_mkdirs(WIIU_COVER_DIR);
 	wiiu_mkdirs(WIIU_BEZEL_DIR);
+	wiiu_mkdirs(WIIU_APP_DIR "/patches");
 	jit_available();          /* probe codegen on the main core */
 	settings_load();
 
