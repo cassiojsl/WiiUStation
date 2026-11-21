@@ -10,6 +10,7 @@
 #include <SDL2/SDL_image.h>
 #include <coreinit/memory.h>
 #include <string.h>
+#include <math.h>
 #include <stdio.h>
 
 #include "platform.h"
@@ -30,10 +31,9 @@ static int           lastFilter = -1;
 static int           haveFrame;
 static unsigned      framesIn, framesNull;
 
-static TTF_Font     *osdFont;
+static TTF_Font     *osdFont, *fpsBig, *fpsSmall;
 static char          osdMsg[128];
 static uint32_t      osdUntil;
-static char          fpsText[32];
 
 void *video_open_font(int size)
 {
@@ -89,12 +89,16 @@ int video_init(void)
 	TTF_Init();
 	IMG_Init(IMG_INIT_JPG | IMG_INIT_PNG);
 	osdFont = video_open_font(26);
+	fpsBig = video_open_font(30);
+	fpsSmall = video_open_font(16);
 	return 0;
 }
 
 void video_shutdown(void)
 {
 	if (osdFont) TTF_CloseFont(osdFont);
+	if (fpsBig) TTF_CloseFont(fpsBig);
+	if (fpsSmall) TTF_CloseFont(fpsSmall);
 	TTF_Quit();
 	if (frameTex) SDL_DestroyTexture(frameTex);
 	if (renderer) SDL_DestroyRenderer(renderer);
@@ -213,10 +217,11 @@ void video_osd(const char *msg)
 	osdUntil = SDL_GetTicks() + 2500;
 }
 
-void video_set_fps_text(const char *txt)
-{
-	strncpy(fpsText, txt, sizeof(fpsText) - 1);
-}
+static int fpsValue = -1, fpsDrawn = -2, fpsTarget = 60;
+static SDL_Texture *fpsTex;
+static int fpsTexW, fpsTexH;
+
+void video_set_fps(int fps, int target) { fpsValue = fps; fpsTarget = target > 0 ? target : 60; }
 
 static void compute_dest(SDL_Rect *r, const SDL_Rect *src)
 {
@@ -255,20 +260,92 @@ static void compute_dest(SDL_Rect *r, const SDL_Rect *src)
 	}
 }
 
+/* filled rounded rectangle, any alpha (one triangle fan, no overlaps) */
+static void fill_rrect(int x, int y, int w, int h, int r, SDL_Color c)
+{
+	enum { SEG = 6 };
+	SDL_Vertex v[1 + 4 * (SEG + 1)];
+	int idx[3 * 4 * (SEG + 1)], n = 1, m = 0;
+	if (r * 2 > h) r = h / 2;
+	if (r * 2 > w) r = w / 2;
+	const float cx[4] = { x + w - r, x + r, x + r, x + w - r };
+	const float cy[4] = { y + r, y + r, y + h - r, y + h - r };
+	v[0].position.x = x + w / 2.0f; v[0].position.y = y + h / 2.0f;
+	v[0].color = c;
+	for (int q = 0; q < 4; q++)
+		for (int i = 0; i <= SEG; i++) {
+			float a = (q * 90 + i * 90.0f / SEG) * 3.14159265f / 180.0f;
+			v[n].position.x = cx[q] + cosf(a) * r;
+			v[n].position.y = cy[q] - sinf(a) * r;
+			v[n].color = c;
+			v[n].tex_coord.x = v[n].tex_coord.y = 0;
+			n++;
+		}
+	for (int i = 1; i < n; i++) {
+		idx[m++] = 0; idx[m++] = i; idx[m++] = i + 1 < n ? i + 1 : 1;
+	}
+	SDL_RenderGeometry(renderer, NULL, v, n, idx, m);
+}
+
 static void draw_text(int x, int y, const char *s, SDL_Color c)
 {
 	if (!osdFont || !s || !*s) return;
 	SDL_Surface *surf = TTF_RenderUTF8_Blended(osdFont, s, c);
 	if (!surf) return;
 	SDL_Texture *t = SDL_CreateTextureFromSurface(renderer, surf);
-	SDL_Rect bg = { x - 6, y - 2, surf->w + 12, surf->h + 4 };
 	SDL_Rect dst = { x, y, surf->w, surf->h };
 	SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 160);
-	SDL_RenderFillRect(renderer, &bg);
+	fill_rrect(x - 16, y - 8, surf->w + 32, surf->h + 16, (surf->h + 16) / 2,
+	           (SDL_Color){ 12, 14, 20, 200 });
 	SDL_RenderCopy(renderer, t, NULL, &dst);
 	SDL_DestroyTexture(t);
 	SDL_FreeSurface(surf);
+}
+
+/* FPS badge: a dark pill with a coloured dot (green = full speed,
+ * amber = a bit slow, red = slow), the number and a small "FPS" label.
+ * The text is rendered only when the number changes (once a second). */
+static void draw_fps(void)
+{
+	if (fpsValue < 0 || !fpsBig || !fpsSmall) return;
+	if (fpsValue != fpsDrawn || !fpsTex) {
+		char num[16];
+		SDL_Color white = { 255, 255, 255, 255 }, grey = { 170, 178, 190, 255 };
+		snprintf(num, sizeof(num), "%d", fpsValue);
+		SDL_Surface *a = TTF_RenderUTF8_Blended(fpsBig, num, white);
+		SDL_Surface *b = TTF_RenderUTF8_Blended(fpsSmall, "FPS", grey);
+		if (fpsTex) { SDL_DestroyTexture(fpsTex); fpsTex = NULL; }
+		if (a && b) {
+			SDL_Surface *c = SDL_CreateRGBSurfaceWithFormat(0, a->w + 6 + b->w, a->h, 32,
+			                                                SDL_PIXELFORMAT_ARGB8888);
+			if (c) {
+				SDL_Rect ra = { 0, 0, a->w, a->h };
+				/* "FPS" sits on the number's baseline */
+				SDL_Rect rb = { a->w + 6, a->h - b->h - (a->h - TTF_FontAscent(fpsBig)) / 3, b->w, b->h };
+				SDL_SetSurfaceBlendMode(a, SDL_BLENDMODE_NONE);
+				SDL_BlitSurface(a, NULL, c, &ra);
+				SDL_SetSurfaceBlendMode(b, SDL_BLENDMODE_NONE);
+				SDL_BlitSurface(b, NULL, c, &rb);
+				fpsTex = SDL_CreateTextureFromSurface(renderer, c);
+				fpsTexW = c->w; fpsTexH = c->h;
+				SDL_FreeSurface(c);
+			}
+		}
+		if (a) SDL_FreeSurface(a);
+		if (b) SDL_FreeSurface(b);
+		fpsDrawn = fpsValue;
+	}
+	if (!fpsTex) return;
+	const int x = 20, y = 18, padL = 34, padR = 16, h = fpsTexH + 10;
+	int target = fpsTarget;
+	SDL_Color dot = fpsValue >= target - 3 ? (SDL_Color){ 70, 220, 120, 255 } :
+	                fpsValue >= target * 3 / 4 ? (SDL_Color){ 255, 190, 60, 255 } :
+	                (SDL_Color){ 255, 80, 80, 255 };
+	SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+	fill_rrect(x, y, padL + fpsTexW + padR, h, h / 2, (SDL_Color){ 10, 12, 18, 190 });
+	fill_rrect(x + 14, y + h / 2 - 5, 10, 10, 5, dot);
+	SDL_Rect d = { x + padL, y + 5, fpsTexW, fpsTexH };
+	SDL_RenderCopy(renderer, fpsTex, NULL, &d);
 }
 
 /* ---- post-processing (all done by the GPU, almost free for the CPU) ---- */
@@ -381,7 +458,12 @@ static SDL_Texture *custom_bezel(void)
 static const struct { int id; const char *name, *file; } BEZELS[] = {
 	{ BEZEL_OFF,       "Off",          NULL },
 	{ BEZEL_AMBIENT,   "Ambient",      NULL },
+	{ BEZEL_TUBETV,    "Tube TV",      "tubetv" },
+	{ BEZEL_CLASSICTV, "Classic TV",   "classictv" },
 	{ BEZEL_TV,        "Retro TV",     "tv" },
+	{ BEZEL_PIXELSKY,  "Pixel sky",    "pixelsky" },
+	{ BEZEL_PIXELCITY, "Pixel city",   "pixelcity" },
+	{ BEZEL_PIXELCASTLE, "Pixel castle", "pixelcastle" },
 	{ BEZEL_GREY,      "Grey console", "grey" },
 	{ BEZEL_CARBON,    "Carbon",       "carbon" },
 	{ BEZEL_SYNTHWAVE, "Synthwave",    "synthwave" },
@@ -422,7 +504,9 @@ static SDL_Texture *builtin_bezel(int b)
 				builtinTex = SDL_CreateTextureFromSurface(renderer, s);
 				if (builtinTex) {
 					SDL_SetTextureBlendMode(builtinTex, SDL_BLENDMODE_BLEND);
-					SDL_SetTextureScaleMode(builtinTex, SDL_ScaleModeLinear);
+					/* pixel art stays crisp when scaled */
+					SDL_SetTextureScaleMode(builtinTex, !strncmp(f, "pixel", 5) ?
+					                        SDL_ScaleModeNearest : SDL_ScaleModeLinear);
 				}
 				SDL_FreeSurface(s);
 			}
@@ -549,7 +633,7 @@ int video_save_frame(const char *path, int width)
 }
 
 static uint32_t gameFade;
-void video_fade_in(void) { gameFade = SDL_GetTicks(); }
+void video_fade_in(void) { gameFade = SDL_GetTicks(); fpsValue = -1; }
 
 void video_present(void)
 {
@@ -559,15 +643,9 @@ void video_present(void)
 		SDL_SetRenderDrawColor(renderer, 0, 0, 0, (Uint8)(255 - dt * 255 / 400));
 		SDL_RenderFillRect(renderer, NULL);
 	}
-	SDL_Color green = { 150, 255, 150, 255 }, white = { 255, 255, 255, 255 };
-	if (cfg.show_fps && fpsText[0]) {
-		char t[128];
-		snprintf(t, sizeof(t), "%s  %dx%d %s  frames %u/%u", fpsText, frameW, frameH,
-		         pixfmt == RETRO_PIXEL_FORMAT_XRGB8888 ? "XRGB8888" : "RGB565",
-		         framesIn, framesNull);
-		draw_text(16, 12, t, green);
-	}
-	if (osdMsg[0] && SDL_GetTicks() < osdUntil) draw_text(16, 720 - 48, osdMsg, white);
+	SDL_Color white = { 255, 255, 255, 255 };
+	if (cfg.show_fps) draw_fps();
+	if (osdMsg[0] && SDL_GetTicks() < osdUntil) draw_text(36, 720 - 56, osdMsg, white);
 	SDL_RenderPresent(renderer);
 }
 

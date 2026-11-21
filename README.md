@@ -59,9 +59,11 @@ controllers.
   - filters: Smooth, Pixel, Sharp smooth;
   - effects: scanlines, CRT mask;
   - screen: 4:3, stretch, integer scale;
-  - borders: **Ambient**, a soft, dimmed copy of the game behind it; 7
-    built-in bezels (Retro TV, Grey console, Carbon, Synthwave, Wood, White,
-    Space) that always fit around the picture, including with Auto zoom; or
+  - borders: **Ambient**, a soft, dimmed copy of the game behind it; 12
+    built-in bezels that always fit around the picture, including with Auto
+    zoom: tube TVs (Tube TV, Classic TV, Retro TV, with a curved-glass look),
+    pixel art (Pixel sky, Pixel city, Pixel castle), Grey console, Carbon,
+    Synthwave, Wood, White and Space; or
     **Custom image**, your own PNG bezels.
 - **Saves**: memory cards are saved automatically. There are 10 save-state
   slots, each with a thumbnail.

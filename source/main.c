@@ -1026,10 +1026,8 @@ static void run_game(void)
 
 		if (++frames == 60) {
 			OSTime now = OSGetSystemTime();
-			char t[32];
 			double secs = (double)(now - fpsStart) / OSSecondsToTicks(1);
-			snprintf(t, sizeof(t), "%.1f FPS", secs > 0 ? 60.0 / secs : 0.0);
-			video_set_fps_text(t);
+			video_set_fps(secs > 0 ? (int)(60.0 / secs + 0.5) : 0, (int)(fps + 0.5));
 			fpsStart = now;
 			frames = 0;
 		}

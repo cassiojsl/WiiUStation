@@ -38,7 +38,9 @@ enum { WIIU_ASPECT_4_3 = 0, WIIU_ASPECT_STRETCH, WIIU_ASPECT_INTEGER, WIIU_ASPEC
 /* values are stored in settings.cfg: keep the first three as they were */
 enum { BEZEL_OFF = 0, BEZEL_AMBIENT, BEZEL_CUSTOM,
        BEZEL_TV, BEZEL_GREY, BEZEL_CARBON, BEZEL_SYNTHWAVE, BEZEL_WOOD,
-       BEZEL_WHITE, BEZEL_SPACE, BEZEL_COUNT };
+       BEZEL_WHITE, BEZEL_SPACE,
+       BEZEL_TUBETV, BEZEL_CLASSICTV, BEZEL_PIXELSKY, BEZEL_PIXELCITY, BEZEL_PIXELCASTLE,
+       BEZEL_COUNT };
 const char *bezel_name(int b);   /* "Retro TV", ... */
 int bezel_next(int b, int dir);  /* menu order */
 enum { WIIU_FILTER_LINEAR = 0, WIIU_FILTER_NEAREST, WIIU_FILTER_SHARP_BILINEAR };
@@ -90,7 +92,7 @@ void video_upload(const void *data, unsigned w, unsigned h, size_t pitch);
 void video_draw_game(int dim);
 void video_present(void);
 void video_osd(const char *msg);
-void video_set_fps_text(const char *txt);
+void video_set_fps(int fps, int target);  /* shown when Show FPS is on */
 void video_set_game_id(const char *id);
 void video_fade_in(void);
 /* save the last game frame as PNG; width 0 = full size, else scaled */
