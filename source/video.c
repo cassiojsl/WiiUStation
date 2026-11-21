@@ -109,9 +109,15 @@ void video_set_pixel_format(int fmt)
 	pixfmt = fmt;
 }
 
-/* ---- auto zoom: find the black borders the game draws itself ---- */
-static float cropL, cropT, cropR, cropB;      /* smoothed, in source pixels */
-static int   wantL, wantT, wantR, wantB;      /* last measurement */
+/* ---- auto zoom: remove the black bars the game draws above and below ----
+ * Only the top and bottom are cropped. The borders are measured during the
+ * first ~2 seconds of real picture, the smallest value seen is kept (so no
+ * picture is ever cut), and then the crop is locked: no zooming in and out
+ * with the scenes. It is measured again only if the resolution changes. */
+static int   zoomW, zoomH;                 /* resolution the lock belongs to */
+static int   minT, minB, samples, locked;
+static int   lockT, lockB;
+static float cropT, cropB;                 /* eased towards the lock */
 
 static int px_dark(const void *row, unsigned x)
 {
@@ -126,57 +132,49 @@ static int px_dark(const void *row, unsigned x)
 	return r + g + b < 40;
 }
 
+static int row_dark(const void *data, size_t pitch, unsigned y, unsigned w)
+{
+	const uint8_t *row = (const uint8_t *)data + (size_t)y * pitch;
+	for (unsigned i = 0; i < 32; i++)
+		if (!px_dark(row, i * w / 32)) return 0;
+	return 1;
+}
+
 static void measure_borders(const void *data, unsigned w, unsigned h, size_t pitch)
 {
-	/* sample 32 points per row/column; a line is "border" when all are dark */
-	#define ROW(y) ((const uint8_t *)data + (size_t)(y) * pitch)
-	unsigned t = 0, b = h, l = 0, r = w;
-	while (t < h / 4) {
-		int dark = 1;
-		for (unsigned i = 0; i < 32 && dark; i++) dark = px_dark(ROW(t), i * w / 32);
-		if (!dark) break;
-		t++;
+	unsigned t = 0, b = 0;
+	if ((int)w != zoomW || (int)h != zoomH) {      /* new resolution: measure again */
+		zoomW = w; zoomH = h;
+		minT = minB = 1 << 30;
+		samples = 0;
+		locked = 0;
 	}
-	while (b > h - h / 4) {
-		int dark = 1;
-		for (unsigned i = 0; i < 32 && dark; i++) dark = px_dark(ROW(b - 1), i * w / 32);
-		if (!dark) break;
-		b--;
+	if (locked) return;
+	while (t < h / 5 && row_dark(data, pitch, t, w)) t++;
+	while (b < h / 5 && row_dark(data, pitch, h - 1 - b, w)) b++;
+	if (t >= h / 5 && b >= h / 5) return;           /* black / fading frame: no info */
+	if ((int)t < minT) minT = t;
+	if ((int)b < minB) minB = b;
+	if (++samples >= 8) {                           /* ~2 s of picture */
+		lockT = minT;
+		lockB = minB;
+		/* keep it symmetric so the picture stays centred */
+		if (lockT > lockB + 4) lockT = lockB + 4;
+		if (lockB > lockT + 4) lockB = lockT + 4;
+		locked = 1;
 	}
-	while (l < w / 4) {
-		int dark = 1;
-		for (unsigned i = 0; i < 32 && dark; i++) dark = px_dark(ROW(t + i * (b - t) / 32), l);
-		if (!dark) break;
-		l++;
-	}
-	while (r > w - w / 4) {
-		int dark = 1;
-		for (unsigned i = 0; i < 32 && dark; i++) dark = px_dark(ROW(t + i * (b - t) / 32), r - 1);
-		if (!dark) break;
-		r--;
-	}
-	/* an all-black frame (fades, loading) says nothing: keep the old crop */
-	if (t >= h / 4 || b <= h - h / 4 || l >= w / 4 || r <= w - w / 4) {
-		if (t >= h / 4 && b <= h - h / 4) return;
-	}
-	wantT = t; wantB = h - b; wantL = l; wantR = w - r;
-	#undef ROW
 }
 
 static void crop_rect(SDL_Rect *src)
 {
 	src->x = 0; src->y = 0; src->w = frameW; src->h = frameH;
 	if (cfg.aspect != WIIU_ASPECT_ZOOM) return;
-	cropL += (wantL - cropL) * 0.1f;
-	cropT += (wantT - cropT) * 0.1f;
-	cropR += (wantR - cropR) * 0.1f;
-	cropB += (wantB - cropB) * 0.1f;
-	src->x = (int)(cropL + 0.5f);
+	float t = locked ? lockT : 0, b = locked ? lockB : 0;
+	cropT += (t - cropT) * 0.08f;                   /* one smooth move, once */
+	cropB += (b - cropB) * 0.08f;
 	src->y = (int)(cropT + 0.5f);
-	src->w = frameW - src->x - (int)(cropR + 0.5f);
 	src->h = frameH - src->y - (int)(cropB + 0.5f);
-	if (src->w < frameW / 2) { src->x = 0; src->w = frameW; }
-	if (src->h < frameH / 2) { src->y = 0; src->h = frameH; }
+	if (src->h < frameH * 3 / 4) { src->y = 0; src->h = frameH; }
 }
 
 void video_upload(const void *data, unsigned w, unsigned h, size_t pitch)
@@ -225,7 +223,8 @@ static void compute_dest(SDL_Rect *r, const SDL_Rect *src)
 	const int W = 1280, H = 720;
 	switch (cfg.aspect) {
 	case WIIU_ASPECT_ZOOM: {
-		/* keep the 4:3 pixel shape of the cropped area, fill the height */
+		/* the full frame is 4:3; the cropped part keeps the same pixel shape
+		 * and is scaled to the full height (so it gets a bit wider) */
 		float aspect = (4.0f / 3.0f) * ((float)src->w / frameW) / ((float)src->h / frameH);
 		r->h = H;
 		r->w = (int)(H * aspect);
