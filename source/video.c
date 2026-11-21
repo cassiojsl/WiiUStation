@@ -27,6 +27,7 @@ static int           texFmt = -1;
 static int           frameW = 320, frameH = 240;
 static int           lastFilter = -1;
 static int           haveFrame;
+static unsigned      framesIn, framesNull;
 
 static TTF_Font     *osdFont;
 static char          osdMsg[128];
@@ -42,14 +43,33 @@ void *video_open_font(int size)
 	return TTF_OpenFontRW(SDL_RWFromConstMem(data, (int)len), 1, size);
 }
 
+/* Frames are always converted to opaque ARGB8888 before upload: that is
+ * the texture path proven to work with SDL2's Wii U renderer (RGB565 gave
+ * a black screen), and it forces alpha to 0xFF (XRGB8888 frames may carry
+ * 0 in the unused byte). */
+static uint32_t *conv;
+static uint32_t lut565[0x10000];
+
+static void build_lut(void)
+{
+	for (int i = 0; i < 0x10000; i++) {
+		uint32_t r = (i >> 11) & 0x1f, g = (i >> 5) & 0x3f, b = i & 0x1f;
+		r = (r << 3) | (r >> 2);
+		g = (g << 2) | (g >> 4);
+		b = (b << 3) | (b >> 2);
+		lut565[i] = 0xff000000u | (r << 16) | (g << 8) | b;
+	}
+}
+
 static void create_texture(void)
 {
-	Uint32 f = pixfmt == RETRO_PIXEL_FORMAT_XRGB8888 ? SDL_PIXELFORMAT_ARGB8888
-	                                                 : SDL_PIXELFORMAT_RGB565;
-	if (texFmt == pixfmt && frameTex) return;
-	if (frameTex) SDL_DestroyTexture(frameTex);
-	frameTex = SDL_CreateTexture(renderer, f, SDL_TEXTUREACCESS_STREAMING, TEX_W, TEX_H);
-	texFmt = pixfmt;
+	if (frameTex) return;
+	frameTex = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888,
+	                             SDL_TEXTUREACCESS_STREAMING, TEX_W, TEX_H);
+	SDL_SetTextureBlendMode(frameTex, SDL_BLENDMODE_NONE);
+	if (!conv) conv = (uint32_t *)SDL_malloc(TEX_W * TEX_H * 4);
+	build_lut();
+	texFmt = 0;
 	lastFilter = -1;
 	haveFrame = 0;
 }
@@ -85,16 +105,29 @@ void *video_renderer(void) { return renderer; }
 void video_set_pixel_format(int fmt)
 {
 	pixfmt = fmt;
-	create_texture();
 }
 
 void video_upload(const void *data, unsigned w, unsigned h, size_t pitch)
 {
-	if (!data || !w || !h) return;      /* duped frame: keep the old one */
+	if (!data || !w || !h) { framesNull++; return; }   /* duped frame */
+	framesIn++;
 	if (w > TEX_W) w = TEX_W;
 	if (h > TEX_H) h = TEX_H;
 	SDL_Rect r = { 0, 0, (int)w, (int)h };
-	SDL_UpdateTexture(frameTex, &r, data, (int)pitch);
+	if (pixfmt == RETRO_PIXEL_FORMAT_XRGB8888) {
+		for (unsigned y = 0; y < h; y++) {
+			const uint32_t *src = (const uint32_t *)((const uint8_t *)data + y * pitch);
+			uint32_t *dst = conv + y * w;
+			for (unsigned x = 0; x < w; x++) dst[x] = src[x] | 0xff000000u;
+		}
+	} else {
+		for (unsigned y = 0; y < h; y++) {
+			const uint16_t *src = (const uint16_t *)((const uint8_t *)data + y * pitch);
+			uint32_t *dst = conv + y * w;
+			for (unsigned x = 0; x < w; x++) dst[x] = lut565[src[x]];
+		}
+	}
+	SDL_UpdateTexture(frameTex, &r, conv, (int)(w * 4));
 	frameW = w;
 	frameH = h;
 	haveFrame = 1;
@@ -188,7 +221,13 @@ void video_draw_game(int dim)
 void video_present(void)
 {
 	SDL_Color green = { 150, 255, 150, 255 }, white = { 255, 255, 255, 255 };
-	if (cfg.show_fps && fpsText[0]) draw_text(16, 12, fpsText, green);
+	if (cfg.show_fps && fpsText[0]) {
+		char t[128];
+		snprintf(t, sizeof(t), "%s  %dx%d %s  frames %u/%u", fpsText, frameW, frameH,
+		         pixfmt == RETRO_PIXEL_FORMAT_XRGB8888 ? "XRGB8888" : "RGB565",
+		         framesIn, framesNull);
+		draw_text(16, 12, t, green);
+	}
 	if (osdMsg[0] && SDL_GetTicks() < osdUntil) draw_text(16, 720 - 48, osdMsg, white);
 	SDL_RenderPresent(renderer);
 }
