@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 #include "platform.h"
 
@@ -194,15 +195,40 @@ static long file_size(const char *p)
 	return stat(p, &st) == 0 ? (long)st.st_size : -1;
 }
 
+/* writes src over dst in place (same file, new contents, cut to the new
+ * length): works on a file that is open and can't be replaced */
+static int overwrite_file(const char *src, const char *dst)
+{
+	FILE *in = fopen(src, "rb");
+	if (!in) return 0;
+	FILE *out = fopen(dst, "r+b");
+	if (!out) { fclose(in); return 0; }
+	static char buf[64 * 1024];
+	size_t n;
+	long total = 0;
+	int ok = 1;
+	while ((n = fread(buf, 1, sizeof(buf), in)) > 0) {
+		if (fwrite(buf, 1, n, out) != n) { ok = 0; break; }
+		total += (long)n;
+	}
+	fclose(in);
+	if (fflush(out) != 0) ok = 0;
+	if (ok && ftruncate(fileno(out), total) != 0) ok = 0;
+	fclose(out);
+	return ok && file_size(dst) == total;
+}
+
 static int download_thread(void *ud)
 {
 	(void)ud;
 	char tmp[300], old[300];
 	long code = 0;
 	dlErr[0] = 0;
-	snprintf(tmp, sizeof(tmp), "%s.part", WUHB_PATH);
+	/* downloaded into the data folder first (a .bin, so the Wii U menu
+	 * doesn't list it as an app) */
+	snprintf(tmp, sizeof(tmp), "%s/update.bin", WIIU_APP_DIR);
 	snprintf(old, sizeof(old), "%s.old", WUHB_PATH);
-	wiiu_mkdirs(WIIU_SD_ROOT "/wiiu/apps");
+	wiiu_mkdirs(WIIU_APP_DIR);
 	remove(tmp);
 	FILE *f = fopen(tmp, "wb");
 	if (!f) { snprintf(dlErr, sizeof(dlErr), "%s", tr("Could not write to the SD card.")); dlState = -1; return 0; }
@@ -237,12 +263,12 @@ static int download_thread(void *ud)
 		return 0;
 	}
 	/* Replace the installed app; it takes effect the next time it starts.
-	 * The running app's file can be in use: then it is renamed aside
-	 * first, and if even that fails the new version is kept next to it. */
-	remove(old);
-	if (remove(WUHB_PATH) != 0 && file_size(WUHB_PATH) >= 0)
-		rename(WUHB_PATH, old);
-	if (rename(tmp, WUHB_PATH) == 0) { remove(old); dlState = 2; return 0; }
+	 * The running app's file can't be deleted or renamed while it is open,
+	 * so the new version is written over it in place. */
+	if (remove(WUHB_PATH) == 0 || file_size(WUHB_PATH) < 0) {
+		if (rename(tmp, WUHB_PATH) == 0) { dlState = 2; return 0; }
+	}
+	if (overwrite_file(tmp, WUHB_PATH)) { remove(tmp); dlState = 2; return 0; }
 	char side[300];
 	snprintf(side, sizeof(side), "%s/wiiu/apps/WiiUStation-%s.wuhb", WIIU_SD_ROOT, latestTag);
 	remove(side);

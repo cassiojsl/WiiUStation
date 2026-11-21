@@ -482,3 +482,5 @@
 495|sd:/wiiu/apps/WiiUStation-%s.wuhb として保存しました。それを開いてから、古い WiiUStation.wuhb を削除してください。
 496|SDカードの WiiUStation.wuhb を置き換えられませんでした。
 497|ダウンロードしました。
+498|インストールしました。
+499|Aを押してWiiUStationを終了し、もう一度開くと新しいバージョンになります。

@@ -482,3 +482,5 @@
 495|Guardado como sd:/wiiu/apps/WiiUStation-%s.wuhb: ábrelo y luego borra el WiiUStation.wuhb antiguo.
 496|No se pudo reemplazar WiiUStation.wuhb en la tarjeta SD.
 497|Descargado.
+498|Instalado.
+499|Pulsa A para cerrar WiiUStation y ábrelo de nuevo para usar la nueva versión.

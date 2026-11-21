@@ -482,3 +482,5 @@
 495|Opgeslagen als sd:/wiiu/apps/WiiUStation-%s.wuhb: open die en verwijder daarna de oude WiiUStation.wuhb.
 496|Kon WiiUStation.wuhb op de SD-kaart niet vervangen.
 497|Gedownload.
+498|Geïnstalleerd.
+499|Druk op A om WiiUStation te sluiten en open het daarna opnieuw voor de nieuwe versie.

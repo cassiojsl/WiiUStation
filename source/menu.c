@@ -1965,6 +1965,9 @@ static void advanced(void);
 static void controls(void);
 static void hotkeys(void);
 static void update_screen(void);
+/* set once a new version was written over the app: the app closes, as it
+ * can no longer read its own files */
+static int quitAfterUpdate;
 static void all_covers(void);
 static void bios_screen(void);
 static int pick_games_folder(void);
@@ -2290,7 +2293,7 @@ static void settings(void)
 			cfg.autostart = !cfg.autostart;
 			if (cfg.autostart) status("The last game opens when WiiUStation starts. Hold B during the opening to go to the menu.");
 			break;
-		case S_UPDATE:   update_screen(); transition(); break;
+		case S_UPDATE:   update_screen(); if (quitAfterUpdate) return; transition(); break;
 		case S_ALLCOVERS: all_covers(); transition(); break;
 		case S_BIOSCHECK: bios_screen(); transition(); break;
 		case S_AUTOFIX:
@@ -2643,8 +2646,8 @@ static void update_screen(void)
 		        snprintf(line2, sizeof(line2), tr("Version %s"), app_version()); break;
 		case 3: snprintf(line1, sizeof(line1), "%s", err); snprintf(line2, sizeof(line2), tr("Version %s"), app_version()); break;
 		case 4: snprintf(line1, sizeof(line1), tr("Downloading %s..."), tag); line2[0] = 0; break;
-		case 5: snprintf(line1, sizeof(line1), "%s", tr("Installed. Close WiiUStation and open it again to use the new version."));
-		        line2[0] = 0; break;
+		case 5: snprintf(line1, sizeof(line1), "%s", tr("Installed."));
+		        snprintf(line2, sizeof(line2), "%s", tr("Press A to close WiiUStation, then open it again to use the new version.")); break;
 		case 6: snprintf(line1, sizeof(line1), "%s", tr("The download failed. Nothing was changed."));
 		        snprintf(line2, sizeof(line2), "%s", update_error()); break;
 		case 7: snprintf(line1, sizeof(line1), "%s", tr("Downloaded.")); snprintf(line2, sizeof(line2), "%s", update_error()); break;
@@ -2660,6 +2663,10 @@ static void update_screen(void)
 			continue;
 		}
 		if (state == 4) continue;          /* can't leave while writing the file */
+		if (state == 5) {                  /* installed: the app closes */
+			if ((b & (WIIU_BTN_A | WIIU_BTN_B)) || T.tapped || back || wiiu_quit) { quitAfterUpdate = 1; return; }
+			continue;
+		}
 		if (back || (b & WIIU_BTN_B) || wiiu_quit) return;
 		if (state == 1 && ((b & WIIU_BTN_A) || T.tapped)) {
 			if (update_start()) state = 4;
@@ -4151,6 +4158,7 @@ int menu_run(void)
 				if ((b & WIIU_BTN_X) || tap_in(px, 32, pw, 42)) {
 					sfx_play(SFX_OK);
 					update_screen();
+					if (quitAfterUpdate) return 0;
 					transition();
 					continue;
 				}
@@ -4310,6 +4318,7 @@ int menu_run(void)
 			break;
 		case H_SETTINGS:
 			settings();
+			if (quitAfterUpdate) return 0;
 			transition();
 			break;
 		case H_CREDITS:

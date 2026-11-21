@@ -483,3 +483,5 @@
 { "Saved as sd:/wiiu/apps/WiiUStation-%s.wuhb: open that one, then delete the old WiiUStation.wuhb.", "Сохранено как sd:/wiiu/apps/WiiUStation-%s.wuhb: откройте его, затем удалите старый WiiUStation.wuhb." },
 { "Could not replace WiiUStation.wuhb on the SD card.", "Не удалось заменить WiiUStation.wuhb на SD-карте." },
 { "Downloaded.", "Загружено." },
+{ "Installed.", "Установлено." },
+{ "Press A to close WiiUStation, then open it again to use the new version.", "Нажмите A, чтобы закрыть WiiUStation, затем откройте его снова для новой версии." },
