@@ -483,6 +483,26 @@ static int draw_header(const char *title, int showBack)
 			snprintf(clk, sizeof(clk), "%02d:%02d", tm->tm_hour, tm->tm_min);
 			cw = text(fontTitle, 1240, 52, clk, GREY, 2);
 		}
+		/* Wi-Fi: three arcs and a dot, crossed out when offline */
+		{
+			int net = net_status();
+			float wx = 1240 - cw - (wiiu_battery() >= 0 ? 130 : 44), wy = 66;
+			SDL_Color on = { 200, 210, 230 }, off = { 80, 88, 110 };
+			SDL_Color wc = net == 1 ? on : off;
+			for (int k = 0; k < 3; k++) {
+				float r = 8 + k * 8;
+				const int N = 10;
+				for (int i = 0; i < N; i++) {      /* a 90-degree arc, opening upwards */
+					float a0 = -2.356f + i * 1.5708f / N, a1 = a0 + 1.5708f / N;
+					float q[8] = { wx + cosf(a0) * r, wy + sinf(a0) * r, wx + cosf(a1) * r, wy + sinf(a1) * r,
+					               wx + cosf(a1) * (r - 3.5f), wy + sinf(a1) * (r - 3.5f),
+					               wx + cosf(a0) * (r - 3.5f), wy + sinf(a0) * (r - 3.5f) };
+					poly(q, 4, wc, 255);
+				}
+			}
+			ring(wx, wy - 1, 3, 3, wc);
+			if (net == 0) bar(wx - 15, wy - 25, wx + 15, wy + 2, 3, (SDL_Color){ 255, 90, 90 });
+		}
 		/* GamePad battery: 1-6 = level (1 critical), 0 = charging */
 		int bat = wiiu_battery();
 		if (bat >= 0) {

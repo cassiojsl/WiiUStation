@@ -338,6 +338,27 @@ void covers_shutdown(void)
 	if (netReady > 0) ACClose();
 }
 
+/* ---- network status for the menu (Wi-Fi icon) ----
+ * The connection is started in the background the first time; after that
+ * the state is asked again at most every two seconds. */
+int net_status(void)
+{
+	static int started, last = -1;
+	static uint32_t when;
+	uint32_t now = SDL_GetTicks();
+	if (!started) {
+		started = 1;
+		if (NNResult_IsSuccess(ACInitialize())) ACConnectAsync();
+		when = now;
+		return -1;
+	}
+	if (now - when < 2000 && last >= 0) return last;
+	when = now;
+	BOOL c = FALSE;
+	if (NNResult_IsSuccess(ACIsApplicationConnected(&c))) last = c ? 1 : 0;
+	return last;
+}
+
 /* ------------------------------------------------------------------------ */
 /* textures                                                                 */
 /* ------------------------------------------------------------------------ */

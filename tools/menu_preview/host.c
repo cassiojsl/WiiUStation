@@ -98,6 +98,7 @@ void covers_remember_id(const char *p, const char *i) { (void)p; (void)i; }
 long emu_playtime(const char *k, long long *l) { if (l) *l = 0; return strlen(k) * 977; }
 void emu_playtime_reset(const char *k) { (void)k; }
 int wiiu_battery(void) { return 4; }
+int net_status(void) { return getenv("NET") ? atoi(getenv("NET")) : 1; }
 void sfx_play(int id) { (void)id; }
 const char *app_version(void) { return "v1.0.0"; }
 int update_check(char *t, size_t tn, char *e, size_t en) { snprintf(t, tn, "v1.1.0"); (void)e; (void)en; return 1; }
