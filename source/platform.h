@@ -167,6 +167,7 @@ extern volatile int wiiu_quit;
 int  audio_init(double rate);
 void audio_shutdown(void);
 void audio_pause(int pause);
+void audio_route(int tv, int drc);       /* which screens play the sound */
 void audio_push(const int16_t *frames, size_t count);
 size_t audio_queued_frames(void);
 size_t audio_target_frames(void);

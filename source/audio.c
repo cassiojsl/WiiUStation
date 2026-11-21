@@ -9,6 +9,10 @@
 #include <stdlib.h>
 #include <math.h>
 #include "platform.h"
+#ifdef __WIIU__
+#include <sndcore2/device.h>
+#endif
+static void route_apply(void);
 
 #define RING_FRAMES 16384            /* stereo frames, power of two */
 static int16_t ring[RING_FRAMES * 2];
@@ -181,10 +185,30 @@ int audio_init(double rate)
 	want.callback = callback;
 	if (SDL_OpenAudio(&want, &have) < 0) return -1;
 	outRate = have.freq;
+	route_apply();
 	rpos = wpos = 0;
 	resamplePos = 0;
 	opened = 1;
 	return 0;
+}
+
+/* which screens play the sound: during a game "GamePad only" mutes the TV
+ * and "TV only" mutes the GamePad; everywhere else both play */
+static int routeTv = 1, routeDrc = 1;
+
+static void route_apply(void)
+{
+#ifdef __WIIU__
+	AXSetDeviceVolume(AX_DEVICE_TYPE_TV, 0, routeTv ? 0x8000 : 0);
+	AXSetDeviceVolume(AX_DEVICE_TYPE_DRC, 0, routeDrc ? 0x8000 : 0);
+#endif
+}
+
+void audio_route(int tv, int drc)
+{
+	routeTv = tv;
+	routeDrc = drc;
+	if (opened) route_apply();
 }
 
 void audio_shutdown(void)

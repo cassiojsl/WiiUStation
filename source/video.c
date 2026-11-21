@@ -865,6 +865,9 @@ int video_screen_modes_ok(void)
 void video_set_ingame(int on)
 {
 	ingame = on;
+	/* the sound follows the picture */
+	int mode = on && video_screen_modes_ok() ? cfg.drc : DRC_MIRROR;
+	audio_route(mode != DRC_ONLY, mode != DRC_TV_ONLY);
 	blankFrames = 3;     /* clear the screen that stops showing the game */
 }
 
