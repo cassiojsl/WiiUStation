@@ -525,6 +525,44 @@ static int draw_header(const char *title, int showBack)
 	return showBack && tap_in(BACK_X, BACK_Y, BACK_W, BACK_H);
 }
 
+/* a second line of information in the header, between the Back button and
+ * the title (cut with "..." to fit), so it never sits under the list */
+static void header_sub(const char *title, const char *str, SDL_Color c)
+{
+	int tw = 0;
+	char fitted[256];
+	if (!str || !*str) return;
+	if (title && fontTitle) TTF_SizeUTF8(fontTitle, tr(title), &tw, NULL);
+	int x0 = BACK_X + BACK_W + 28, x1 = 1240 - tw - 40;
+	if (x1 - x0 < 120) return;
+	const char *t = tr(str);
+	int w = 0;
+	if (TTF_SizeUTF8(fontSmall, t, &w, NULL) == 0 && w > x1 - x0) {
+		/* two lines: break at the last space that fits on the first */
+		char a[256], b[256];
+		snprintf(a, sizeof(a), "%s", t);
+		int cut = -1;
+		for (int i = 0; a[i]; i++)
+			if (a[i] == ' ') {
+				char save = a[i];
+				a[i] = 0;
+				int wa = 0;
+				TTF_SizeUTF8(fontSmall, a, &wa, NULL);
+				a[i] = save;
+				if (wa <= x1 - x0) cut = i; else break;
+			}
+		if (cut > 0) {
+			a[cut] = 0;
+			fit_text(fontSmall, a + cut + 1, x1 - x0, b, sizeof(b));
+			text(fontSmall, x0, 38, a, c, 0);
+			text(fontSmall, x0, 68, b, c, 0);
+			return;
+		}
+	}
+	fit_text(fontSmall, t, x1 - x0, fitted, sizeof(fitted));
+	text(fontSmall, x0, 52, fitted, c, 0);
+}
+
 /* Wii U style button glyph: light disc with a dark letter */
 static void wiiu_button(int x, int y, const char *label)
 {
@@ -1700,7 +1738,7 @@ rescan:
 			         searchText[0] ? tr("   Search: \"") : "", searchText, searchText[0] ? "\"" : "",
 			         cfg.sort ? "   \xc2\xb7 " : "", cfg.sort ? tr(sort_name(cfg.sort)) : "",
 			         cfg.regionf ? "   \xc2\xb7 " : "", cfg.regionf ? tr(regionf_name(cfg.regionf)) : "");
-			text(fontSmall, LIST_X, 116, sub, DIM, 0);
+			header_sub(title, sub, GREY);
 		}
 		int t = -1;
 		if (count == 0) {
@@ -2275,7 +2313,7 @@ static void bios_screen(void)
 		}
 		draw_background();
 		int back = draw_header("BIOS files", 1);
-		text(fontSmall, LIST_X, 116, summary, have[1] || have[2] || have[3] ? GREY : PS_YELLOW, 0);
+		header_sub("BIOS files", summary, have[1] || have[2] || have[3] ? GREY : PS_YELLOW);
 		if (n) list_run(&L, labels, values, n, 0, NULL, NULL);
 		else {
 			text(fontItem, 640, 330, "The bios folder is empty.", GREY, 1);
@@ -2956,7 +2994,7 @@ static void card_view(const char *file)
 		{
 			char info[96];
 			snprintf(info, sizeof(info), tr("%d of 15 blocks free"), mc_free_blocks(card));
-			text(fontSmall, LIST_X, 116, info, DIM, 0);
+			header_sub(title, info, GREY);
 		}
 		if (n) {
 			list_run(&L, labels, values, n, 0, NULL, NULL);
