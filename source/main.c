@@ -357,10 +357,7 @@ static int settings_parse(const char *path, int isGame)
 		char *k = line;
 		while (*k == ' ') k++;
 		for (char *e = eq - 1; e >= k && *e == ' '; e--) *e = 0;
-		if (isGame == 1 && global_only(k)) continue;
-		/* the file of the old builds (isGame 2): only the games folder is
-		 * taken; its other values (sound off, ...) were test settings */
-		if (isGame == 2 && strcmp(k, "games_dir")) continue;
+		if (isGame && global_only(k)) continue;
 		if (!strcmp(k, "games_dir")) {
 			char *v = eq + 1;
 			while (*v == ' ') v++;
@@ -428,8 +425,7 @@ static void game_cfg_path(char *out, size_t n)
 void settings_load(void)
 {
 	settings_defaults();
-	if (!settings_parse(WIIU_CONFIG_FILE, 0))
-		settings_parse(WIIU_OLD_DIR "/wiiustation.cfg", 2);   /* older builds: the games folder */
+	settings_parse(WIIU_CONFIG_FILE, 0);
 	if (gameKey[0]) {
 		char p[256];
 		game_cfg_path(p, sizeof(p));
@@ -495,21 +491,9 @@ static char gamePath[512], gameName[256], gameId[16];
 extern char CdromId[];   /* PCSX-ReARMed: e.g. "SCUS94244" */
 static int loaded;
 
-/* BIOS: the app folder, or the folder older builds used if it has one */
+/* BIOS: the app's bios folder */
 static const char *bios_dir(void)
 {
-	static const char *names[] = { "scph1001.bin", "SCPH1001.BIN", "scph5501.bin", "SCPH5501.BIN",
-	                               "scph7001.bin", "SCPH7001.BIN", "scph5500.bin", "scph5502.bin", NULL };
-	char p[256];
-	struct stat st;
-	for (int i = 0; names[i]; i++) {
-		snprintf(p, sizeof(p), "%s/%s", WIIU_BIOS_DIR, names[i]);
-		if (!stat(p, &st)) return WIIU_BIOS_DIR;
-	}
-	for (int i = 0; names[i]; i++) {
-		snprintf(p, sizeof(p), "%s/bios/%s", WIIU_OLD_DIR, names[i]);
-		if (!stat(p, &st)) return WIIU_OLD_DIR "/bios";
-	}
 	return WIIU_BIOS_DIR;
 }
 
@@ -955,19 +939,7 @@ static void load_memcard(void)
 	srmShadow = NULL;
 	if (!size || !data) return;
 	srm_path(path, sizeof(path));
-	if (read_file(path, data, size) <= 0) {
-		/* memory card written by an older build */
-		char old[512], base[256];
-		strncpy(base, gameName, sizeof(base) - 1);
-		base[sizeof(base) - 1] = 0;
-		char *dot = strrchr(base, '.');
-		if (dot) *dot = 0;
-		snprintf(old, sizeof(old), "%s/saves/%s.srm", WIIU_OLD_DIR, base);
-		/* if found, srmShadow stays NULL so the next save writes it to the
-		 * new folder */
-		read_file(old, data, size);
-		return;
-	}
+	if (read_file(path, data, size) <= 0) return;   /* a new card */
 	{
 		srmShadow = malloc(size);
 		if (srmShadow) memcpy(srmShadow, data, size);

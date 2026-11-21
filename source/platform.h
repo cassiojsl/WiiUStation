@@ -28,7 +28,6 @@ extern "C" {
 #define WIIU_BEZEL_DIR   WIIU_APP_DIR "/bezels"
 #define WIIU_CONFIG_FILE WIIU_APP_DIR "/settings.cfg"
 /* used by test builds before the folder move */
-#define WIIU_OLD_DIR     WIIU_SD_ROOT "/wiisxrx"
 
 int wiiu_mkdirs(const char *path);
 
