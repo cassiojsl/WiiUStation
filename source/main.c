@@ -520,6 +520,8 @@ static const char *core_var(const char *key)
 	if (!strcmp(key, "pcsx_rearmed_region"))
 		return cfg.region == 1 ? "NTSC" : cfg.region == 2 ? "PAL" : "auto";
 	if (!strcmp(key, "pcsx_rearmed_vibration")) return cfg.rumble ? "enabled" : "disabled";
+	/* slot 2 off: the core's default ("shared") would create pcsx-card2.mcd */
+	if (!strcmp(key, "pcsx_rearmed_memcard2")) return "none";
 	if (!strcmp(key, "pcsx_rearmed_display_fps_v2")) return "disabled";
 	if (!strcmp(key, "pcsx_rearmed_rgb32_output")) return "disabled"; /* RGB565: cheapest upload */
 	if (!strcmp(key, "pcsx_rearmed_show_overscan") && emu_widescreen_active()) return "hack";
