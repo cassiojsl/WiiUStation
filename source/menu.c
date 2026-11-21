@@ -364,6 +364,10 @@ static uint32_t poll_buttons(void)
 	} else if (!(held & repeatMask)) {
 		repeatMask = 0;
 	}
+	if (pressed & (WIIU_BTN_UP | WIIU_BTN_DOWN | WIIU_BTN_LEFT | WIIU_BTN_RIGHT | WIIU_BTN_L | WIIU_BTN_R))
+		sfx_play(SFX_MOVE);
+	if (pressed & WIIU_BTN_A) sfx_play(SFX_OK);
+	else if (pressed & WIIU_BTN_B) sfx_play(SFX_BACK);
 	return pressed;
 }
 
@@ -408,7 +412,7 @@ static void poll_touch(void)
 		}
 	} else if (T.down) {
 		T.down = 0;
-		if (!T.dragging) { T.tapped = 1; T.tx = T.sx; T.ty = T.sy; }
+		if (!T.dragging) { T.tapped = 1; T.tx = T.sx; T.ty = T.sy; sfx_play(SFX_OK); }
 	}
 }
 
@@ -474,9 +478,28 @@ static int draw_header(const char *title, int showBack)
 		time_t now = time(NULL);
 		struct tm *tm = localtime(&now);
 		char clk[16];
+		int cw = 0;
 		if (tm) {
 			snprintf(clk, sizeof(clk), "%02d:%02d", tm->tm_hour, tm->tm_min);
-			text(fontTitle, 1240, 52, clk, GREY, 2);
+			cw = text(fontTitle, 1240, 52, clk, GREY, 2);
+		}
+		/* GamePad battery: 1-6 = level (1 critical), 0 = charging */
+		int bat = wiiu_battery();
+		if (bat >= 0) {
+			int bx = 1240 - cw - 86, by = 38, bw = 54, bh = 28;
+			SDL_Color frame = GREY, lvl = bat == 1 ? (SDL_Color){ 255, 80, 80 } : bat == 2 ? PS_YELLOW : PS_GREEN;
+			rframe(bx, by, bw, bh, 6, 3, frame, 255);
+			rrect(bx + bw, by + 8, 5, bh - 16, 2, frame, 255);
+			if (bat == 0) {                       /* charging: a bolt */
+				float q[12] = { bx + 30, by + 4, bx + 18, by + 16, bx + 27, by + 16,
+				                bx + 22, by + 25, bx + 37, by + 11, bx + 28, by + 11 };
+				poly(q, 6, PS_YELLOW, 255);
+			} else {
+				int bars = bat > 6 ? 5 : bat - 1;     /* 1..6 -> 0..5 bars */
+				if (bars < 1) bars = 1;
+				for (int i = 0; i < bars; i++)
+					rrect(bx + 6 + i * 9, by + 6, 7, bh - 12, 2, lvl, 255);
+			}
 		}
 	}
 	return showBack && tap_in(BACK_X, BACK_Y, BACK_W, BACK_H);
@@ -1733,11 +1756,11 @@ static void hotkeys(void);
 
 static void settings(void)
 {
-	enum { S_SCOPE, S_LANG, S_GAMES, S_VIEW, S_COVERS, S_RESUME, S_CORE, S_SKIP, S_FFWD, S_FFSPEED, S_FPS, S_AUDIO,
+	enum { S_SCOPE, S_LANG, S_SFX, S_GAMES, S_VIEW, S_COVERS, S_RESUME, S_CORE, S_SKIP, S_FFWD, S_FFSPEED, S_FPS, S_AUDIO,
 	       S_ASPECT, S_FILTER, S_BEZEL, S_WIDE, S_SCAN, S_CRT, S_FX, S_DRC, S_DITHER, S_PAD, S_GYRO, S_PAD2, S_DEADZONE, S_MTAP,
 	       S_CONTROLS, S_HOTKEYS, S_RUMBLE, S_REGION, S_BIOS, S_LOGO, S_ADV, S_COUNT };
 	static const char *allLabels[S_COUNT] = {
-		"Settings for", "Language", "Games folder", "Game list", "Covers", "Continue where you left off", "CPU core",
+		"Settings for", "Language", "Menu sounds", "Games folder", "Game list", "Covers", "Continue where you left off", "CPU core",
 		"Frame skip", "Fast forward", "Fast forward speed", "Show FPS", "Sound", "Screen",
 		"Picture", "Border", "Widescreen (16:9)", "Scanlines", "CRT mask", "Screen effect", "GamePad screen", "Dithering", "Player 1 controller", "Aim with GamePad motion",
 		"Player 2+ controller", "Analog dead zone", "Multitap (up to 5 players)", "Button mapping...", "Hotkeys...", "Vibration",
@@ -1755,7 +1778,7 @@ static void settings(void)
 			if (i == S_SCOPE && !loaded) continue;
 			/* app-wide options are hidden while editing one game's settings */
 			if (game && (i == S_GAMES || i == S_VIEW || i == S_COVERS || i == S_RESUME ||
-			             i == S_FFWD || i == S_LANG || i == S_HOTKEYS)) continue;
+			             i == S_FFWD || i == S_LANG || i == S_HOTKEYS || i == S_SFX)) continue;
 			map[n] = i;
 			labels[n] = allLabels[i];
 			values[n] = NULL;
@@ -1782,6 +1805,7 @@ static void settings(void)
 			case S_VIEW:   values[k] = view_name(cfg.view); break;
 			case S_COVERS: values[k] = cfg.cover3d ? "3D box" : "2D"; break;
 			case S_LANG:   values[k] = lang_name(cfg.lang); break;
+			case S_SFX:    values[k] = cfg.menusfx ? "On" : "Off"; break;
 			case S_RESUME: values[k] = cfg.resume ? "Ask" : "Off"; break;
 			case S_CORE:   values[k] = cfg.dynarec ? "Lightrec" : "Interpreter"; break;
 			case S_SKIP:   values[k] = cfg.frameskip ? "Auto" : "Off"; break;
@@ -1940,6 +1964,7 @@ static void settings(void)
 		               break;
 		case S_CONTROLS: controls(); transition(); break;
 		case S_HOTKEYS:  hotkeys(); transition(); break;
+		case S_SFX:      cfg.menusfx = !cfg.menusfx; sfx_play(SFX_OK); break;
 		case S_LANG:     cfg.lang = (cfg.lang + LANG_COUNT + dir) % LANG_COUNT; video_lang_changed(); break;
 		case S_RUMBLE: cfg.rumble = !cfg.rumble; break;
 		case S_REGION: cfg.region = (cfg.region + 3 + dir) % 3; status("Applies the next time a game is loaded."); break;
@@ -3129,6 +3154,82 @@ static void action_icon(int kind, float cx, float cy, float s, SDL_Color c)
 	}
 }
 
+static int introShown;   /* the opening plays once */
+
+/* opening: the four shapes fly in and turn into a ring around the logo,
+ * with a short chime. Any button or a touch skips it. */
+static void intro(void)
+{
+	static const SDL_Color tint[4] = {
+		{ 120, 235, 190, 255 }, { 255, 140, 140, 255 }, { 150, 190, 255, 255 }, { 255, 150, 235, 255 }
+	};
+	const uint32_t T0 = SDL_GetTicks(), LEN = 2600;
+	int chimed = 0;
+	menu_fonts();
+	draw_header(NULL, 0);              /* loads the logo */
+	poll_buttons();
+	for (;;) {
+		uint32_t now = SDL_GetTicks() - T0;
+		float t = now / 1000.0f;
+		if (now >= LEN || wiiu_quit) break;
+		wiiu_input_update();
+		if (wiiu_input_menu_pressed()) break;
+		if (!chimed && now > 350) { sfx_play(SFX_INTRO); chimed = 1; }
+
+		SDL_SetRenderDrawColor(R, 4, 6, 18, 255);
+		SDL_RenderClear(R);
+		/* soft light growing behind the logo */
+		float glow = t < 1.0f ? t : 1.0f;
+		for (int i = 6; i >= 1; i--) {
+			SDL_Color c = { 20, 60, 140, 255 };
+			bgNV = bgNI = 0;
+			bg_ngon(640, 330, 60 + i * 50 * glow, 40, 60 + i * 50 * glow, 0, (SDL_Color){ c.r, c.g, c.b, (Uint8)(26 * glow) });
+			SDL_SetRenderDrawBlendMode(R, SDL_BLENDMODE_BLEND);
+			SDL_RenderGeometry(R, NULL, bgV, bgNV, bgIdx, bgNI);
+		}
+		/* the shapes: from the corners to their place on a circle, turning */
+		bgNV = bgNI = 0;
+		float k = t < 1.1f ? t / 1.1f : 1.0f;
+		k = 1 - (1 - k) * (1 - k) * (1 - k);            /* ease out */
+		for (int i = 0; i < 4; i++) {
+			float sx = i == 0 || i == 3 ? -120 : 1400, sy = i < 2 ? -120 : 840;
+			float a = -1.5707963f + i * 1.5707963f + t * 0.6f;
+			float ex = 640 + cosf(a) * 230, ey = 330 + sinf(a) * 150;
+			float x = sx + (ex - sx) * k, y = sy + (ey - sy) * k, rot = (1 - k) * 6 + t;
+			SDL_Color c = tint[i];
+			c.a = (Uint8)(200 * (k < 1 ? k : 1));
+			float sz = 54, w = 7;
+			switch (i) {
+			case 0: bg_ngon(x, y, sz * 0.62f, 3, w, rot - 1.5707963f, c); break;
+			case 1: bg_ngon(x, y, sz * 0.5f, 28, w, rot, c); break;
+			case 2: bg_bar(x, y, sz, w, rot + 0.785398f, c); bg_bar(x, y, sz, w, rot - 0.785398f, c); break;
+			default: bg_ngon(x, y, sz * 0.6f, 4, w, rot + 0.785398f, c); break;
+			}
+		}
+		SDL_SetRenderDrawBlendMode(R, SDL_BLENDMODE_BLEND);
+		SDL_RenderGeometry(R, NULL, bgV, bgNV, bgIdx, bgNI);
+		/* the logo grows in */
+		if (logoTex && t > 0.4f) {
+			float p = (t - 0.4f) / 0.6f;
+			if (p > 1) p = 1;
+			float sc = 0.7f + 0.3f * (1 - (1 - p) * (1 - p));
+			int h = (int)(150 * sc), w = logoW * h / logoH;
+			SDL_Rect d = { 640 - w / 2, 330 - h / 2, w, h };
+			SDL_SetTextureAlphaMod(logoTex, (Uint8)(255 * p));
+			SDL_RenderCopy(R, logoTex, NULL, &d);
+			SDL_SetTextureAlphaMod(logoTex, 255);
+		}
+		if (t > 1.1f)
+			text(fontSmall, 640, 560, "PlayStation (PS1) emulator for the Wii U, based on PCSX-ReARMed", GREY, 1);
+		/* fade out at the end */
+		if (now > LEN - 400) fill(0, 0, 1280, 720, (SDL_Color){ 0, 0, 0 }, (uint8_t)((now - (LEN - 400)) * 255 / 400));
+		SDL_RenderPresent(R);
+		pump_events();
+		SDL_Delay(1);
+	}
+	poll_buttons();
+}
+
 int menu_run(void)
 {
 	hitem_t it[40];
@@ -3137,6 +3238,9 @@ int menu_run(void)
 	char path[512], m[128];
 
 	menu_fonts();
+	{
+		if (!introShown) { introShown = 1; intro(); }
+	}
 	poll_buttons();
 	T.down = T.tapped = 0;
 	touchBlock = 1;

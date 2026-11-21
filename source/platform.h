@@ -99,6 +99,7 @@ typedef struct {
 	int lang;           /* LANG_* */
 	int sort;           /* game list: 0 name, 1 last played, 2 most played */
 	int regionf;        /* game list: 0 all, 1 USA, 2 Europe, 3 Japan */
+	int menusfx;        /* menu sounds and the opening */
 	int cover3d;        /* covers: 0 = 2D front, 1 = 3D box */
 	int view;           /* game browser: 0 grid, 1 list, 2 compact, 3 shelf, 4 carousel */
 	int core[32];       /* extra PCSX-ReARMed options, see core_opt_* */
@@ -165,6 +166,9 @@ void audio_pause(int pause);
 void audio_push(const int16_t *frames, size_t count);
 size_t audio_queued_frames(void);
 size_t audio_target_frames(void);
+/* menu sounds */
+enum { SFX_MOVE, SFX_OK, SFX_BACK, SFX_ERROR, SFX_INTRO, SFX_COUNT };
+void sfx_play(int id);
 
 /* ---- input (input.c) ---- */
 enum {

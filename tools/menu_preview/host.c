@@ -24,6 +24,7 @@ SDL_Surface *host_IMG_Load(const char *p)
 static void host_present(SDL_Renderer *r)
 {
 	frame++;
+	if (getenv("SLOW")) SDL_Delay(16);
 	if (frame == shotAt) {
 		SDL_Surface *s = SDL_CreateRGBSurfaceWithFormat(0, 1280, 720, 32, SDL_PIXELFORMAT_ARGB8888);
 		SDL_RenderReadPixels(r, NULL, SDL_PIXELFORMAT_ARGB8888, s->pixels, s->pitch);
@@ -97,6 +98,7 @@ void covers_remember_id(const char *p, const char *i) { (void)p; (void)i; }
 long emu_playtime(const char *k, long long *l) { if (l) *l = 0; return strlen(k) * 977; }
 void emu_playtime_reset(const char *k) { (void)k; }
 int wiiu_battery(void) { return 4; }
+void sfx_play(int id) { (void)id; }
 int emu_memcard_path(char *o, size_t n) { (void)o; (void)n; return 0; }
 int wiiu_mkdirs(const char *p) { (void)p; return 0; }
 void covers_request(const char *i) { (void)i; }
@@ -148,7 +150,10 @@ int main(int argc, char **argv)
 	ren = SDL_CreateRenderer(w, -1, SDL_RENDERER_SOFTWARE);
 	if (getenv("PT")) cfg.lang = atoi(getenv("PT"));
 	strcpy(cfg.games_dir, WIIU_ISO_DIR); cfg.dynarec = 1; cfg.gpu_thread = 1; cfg.bezel = 1; memcpy(cfg.map, default_map, sizeof(cfg.map));
-	if (!strcmp(mode, "main")) { menu_run(); }
+	if (strcmp(mode, "intro")) introShown = 1;
+	if (getenv("SHOT")) shotAt = atoi(getenv("SHOT")), quitAt = shotAt + 2;
+	if (!strcmp(mode, "intro")) { R = ren; menu_fonts(); intro(); }
+	else if (!strcmp(mode, "main")) { menu_run(); }
 	else if (!strcmp(mode, "ingame")) { loaded = 1; menu_run(); }
 	else if (!strcmp(mode, "grid")) { char o[512]; cfg.view = 0; R = ren; menu_fonts(); scriptBtn[10] = WIIU_BTN_RIGHT; scriptBtn[14] = WIIU_BTN_DOWN; browse("Load game", o, sizeof(o), 0); }
 	else if (!strcmp(mode, "compact")) { char o[512]; cfg.view = 2; R = ren; menu_fonts(); scriptBtn[10] = WIIU_BTN_RIGHT; browse("Load game", o, sizeof(o), 0); }

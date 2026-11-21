@@ -6,6 +6,8 @@
  */
 #include <SDL2/SDL.h>
 #include <string.h>
+#include <stdlib.h>
+#include <math.h>
 #include "platform.h"
 
 #define RING_FRAMES 16384            /* stereo frames, power of two */
@@ -15,6 +17,13 @@ static int opened;
 static double outRate = 48000.0, inRate = 44100.0;
 static double resamplePos;
 static int16_t lastL, lastR;
+
+/* ---- menu sound effects: synthesised once, mixed into the output ---- */
+#define SFX_RATE 48000
+static int16_t *sfxData[SFX_COUNT];
+static int sfxLen[SFX_COUNT];
+static const int16_t *volatile sfxPlay;
+static volatile int sfxPos, sfxEnd;
 
 static void callback(void *ud, Uint8 *stream, int len)
 {
@@ -28,9 +37,69 @@ static void callback(void *ud, Uint8 *stream, int len)
 			lastR = ring[r * 2 + 1];
 			rpos++;
 		}
-		out[i * 2] = lastL;
-		out[i * 2 + 1] = lastR;
+		int l = lastL, r = lastR;
+		if (sfxPlay && sfxPos < sfxEnd) {
+			l += sfxPlay[sfxPos];
+			r += sfxPlay[sfxPos];
+			sfxPos++;
+		}
+		out[i * 2] = (int16_t)(l > 32767 ? 32767 : l < -32768 ? -32768 : l);
+		out[i * 2 + 1] = (int16_t)(r > 32767 ? 32767 : r < -32768 ? -32768 : r);
 	}
+}
+
+/* a few sine partials with an exponential fade; notes in Hz, one after another */
+static void synth(int id, const float *notes, int nnotes, float noteSec, float decay, float vol)
+{
+	int per = (int)(noteSec * SFX_RATE), tail = (int)(decay * SFX_RATE);
+	int len = per * (nnotes - 1) + tail;
+	int16_t *d = calloc(len, sizeof(int16_t));
+	if (!d) return;
+	for (int n = 0; n < nnotes; n++) {
+		int start = n * per;
+		for (int i = 0; start + i < len && i < tail; i++) {
+			float t = (float)i / SFX_RATE;
+			float env = expf(-t * 5.0f / decay) * (i < 96 ? i / 96.0f : 1.0f);
+			float v = sinf(6.2831853f * notes[n] * t) + 0.3f * sinf(6.2831853f * notes[n] * 2 * t)
+			          + 0.12f * sinf(6.2831853f * notes[n] * 3 * t);
+			int x = d[start + i] + (int)(v * env * vol * 9000.0f);
+			d[start + i] = (int16_t)(x > 32767 ? 32767 : x < -32768 ? -32768 : x);
+		}
+	}
+	sfxData[id] = d;
+	sfxLen[id] = len;
+}
+
+static void sfx_build(void)
+{
+	static int built;
+	if (built) return;
+	built = 1;
+	const float move[1] = { 1318.5f };                         /* E6, a soft tick */
+	const float ok[2] = { 987.8f, 1318.5f };                   /* B5 -> E6 */
+	const float back[2] = { 1174.7f, 880.0f };                 /* D6 -> A5 */
+	const float err[2] = { 311.1f, 293.7f };
+	const float intro[5] = { 523.3f, 659.3f, 784.0f, 1046.5f, 1568.0f };   /* C major, up */
+	synth(SFX_MOVE, move, 1, 0, 0.05f, 0.35f);
+	synth(SFX_OK, ok, 2, 0.05f, 0.12f, 0.45f);
+	synth(SFX_BACK, back, 2, 0.05f, 0.10f, 0.4f);
+	synth(SFX_ERROR, err, 2, 0.08f, 0.15f, 0.45f);
+	synth(SFX_INTRO, intro, 5, 0.11f, 1.6f, 0.5f);
+}
+
+void sfx_play(int id)
+{
+	if (!cfg.menusfx || id < 0 || id >= SFX_COUNT) return;
+	sfx_build();
+	if (!sfxData[id]) return;
+	if (!opened && audio_init(44100.0) < 0) return;
+	SDL_LockAudio();
+	rpos = wpos;                 /* drop what the game left in the buffer */
+	sfxPlay = sfxData[id];
+	sfxPos = 0;
+	sfxEnd = sfxLen[id];
+	SDL_UnlockAudio();
+	SDL_PauseAudio(0);
 }
 
 int audio_init(double rate)

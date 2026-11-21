@@ -131,6 +131,7 @@ static struct { const char *key; int *val; int min, max; } OPTS[] = {
 	{ "cover3d",    &cfg.cover3d,    0, 1 },
 	{ "sort",       &cfg.sort,       0, 2 },
 	{ "regionf",    &cfg.regionf,    0, 3 },
+	{ "menusfx",    &cfg.menusfx,    0, 1 },
 	{ "lang",       &cfg.lang,       0, LANG_COUNT - 1 },
 	{ "hk0", &cfg.hk[0], -1, 15 }, { "hk1", &cfg.hk[1], -1, 15 }, { "hk2", &cfg.hk[2], -1, 15 },
 	{ "hk3", &cfg.hk[3], -1, 15 }, { "hk4", &cfg.hk[4], -1, 15 }, { "hk5", &cfg.hk[5], -1, 15 },
@@ -231,7 +232,7 @@ void core_opt_cycle(int i, int dir)
 /* keys that only make sense globally (never in a per-game file) */
 static int global_only(const char *k)
 {
-	return !strcmp(k, "view") || !strcmp(k, "cover3d") || !strcmp(k, "sort") || !strcmp(k, "regionf") || !strcmp(k, "lang") || !strncmp(k, "hk", 2) || !strcmp(k, "games_dir") || !strcmp(k, "gpu_thread") ||
+	return !strcmp(k, "view") || !strcmp(k, "cover3d") || !strcmp(k, "menusfx") || !strcmp(k, "sort") || !strcmp(k, "regionf") || !strcmp(k, "lang") || !strncmp(k, "hk", 2) || !strcmp(k, "games_dir") || !strcmp(k, "gpu_thread") ||
 	       !strcmp(k, "spu_thread") || !strcmp(k, "resume") || !strcmp(k, "ffwd");
 }
 
@@ -266,6 +267,7 @@ static void settings_defaults(void)
 	cfg.audio = 1;
 	cfg.bezel = BEZEL_AMBIENT;
 	cfg.view = 4;         /* carousel */
+	cfg.menusfx = 1;
 	for (int i = 0; i < NCOREOPT; i++) cfg.core[i] = COREOPT[i].def;
 	memcpy(cfg.hk, default_hotkeys, sizeof(cfg.hk));
 	strcpy(cfg.games_dir, WIIU_ISO_DIR);
