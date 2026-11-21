@@ -49,9 +49,6 @@ void *video_open_font(int size)
  * a black screen), and it forces alpha to 0xFF (XRGB8888 frames may carry
  * 0 in the unused byte). */
 static uint32_t *conv;
-static uint32_t *s2buf;           /* Scale2x output, 2w x 2h */
-static SDL_Texture *s2Tex;
-static int s2Valid;
 static uint32_t lut565[0x10000];
 
 static void build_lut(void)
@@ -184,29 +181,6 @@ static void crop_rect(SDL_Rect *src)
 	if (src->h < frameH * 3 / 4) { src->y = 0; src->h = frameH; }
 }
 
-/* Scale2x (AdvMAME2x): doubles the picture, rounding the stair steps of
- * diagonal edges without blurring. src is w x h, dst 2w x 2h. */
-static void scale2x(const uint32_t *src, unsigned w, unsigned h, uint32_t *dst)
-{
-	for (unsigned y = 0; y < h; y++) {
-		const uint32_t *row = src + y * w;
-		const uint32_t *up = y ? row - w : row, *dn = y + 1 < h ? row + w : row;
-		uint32_t *o0 = dst + (y * 2) * (w * 2), *o1 = o0 + w * 2;
-		for (unsigned x = 0; x < w; x++) {
-			uint32_t E = row[x], B = up[x], H = dn[x];
-			uint32_t D = x ? row[x - 1] : E, F = x + 1 < w ? row[x + 1] : E;
-			if (B != H && D != F) {
-				o0[x * 2]     = D == B ? D : E;
-				o0[x * 2 + 1] = B == F ? F : E;
-				o1[x * 2]     = D == H ? D : E;
-				o1[x * 2 + 1] = H == F ? F : E;
-			} else {
-				o0[x * 2] = o0[x * 2 + 1] = o1[x * 2] = o1[x * 2 + 1] = E;
-			}
-		}
-	}
-}
-
 void video_upload(const void *data, unsigned w, unsigned h, size_t pitch)
 {
 	static unsigned n;
@@ -229,23 +203,7 @@ void video_upload(const void *data, unsigned w, unsigned h, size_t pitch)
 		}
 	}
 	SDL_UpdateTexture(frameTex, &r, conv, (int)(w * 4));
-	s2Valid = 0;
-	if (cfg.filter == WIIU_FILTER_SCALE2X && w <= 512 && h <= 512) {
-		if (!s2buf) s2buf = SDL_malloc(1024 * 1024 * 4);
-		if (!s2Tex) {
-			s2Tex = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, 1024, 1024);
-			if (s2Tex) {
-				SDL_SetTextureBlendMode(s2Tex, SDL_BLENDMODE_NONE);
-				SDL_SetTextureScaleMode(s2Tex, SDL_ScaleModeLinear);
-			}
-		}
-		if (s2buf && s2Tex) {
-			scale2x(conv, w, h, s2buf);
-			SDL_Rect r2 = { 0, 0, (int)w * 2, (int)h * 2 };
-			SDL_UpdateTexture(s2Tex, &r2, s2buf, (int)(w * 8));
-			s2Valid = 1;
-		}
-	}
+
 	if (cfg.aspect == WIIU_ASPECT_ZOOM && (n++ % 15) == 0)
 		measure_borders(data, w, h, pitch);
 	frameW = w;
@@ -774,10 +732,7 @@ void video_draw_game(int dim)
 		SDL_RenderClear(renderer);
 	}
 
-	if (cfg.filter == WIIU_FILTER_SCALE2X && s2Valid && s2Tex) {
-		SDL_Rect s2 = { src.x * 2, src.y * 2, src.w * 2, src.h * 2 };
-		SDL_RenderCopy(renderer, s2Tex, &s2, &dst);
-	} else if (cfg.filter == WIIU_FILTER_SHARP_BILINEAR) {
+	if (cfg.filter == WIIU_FILTER_SHARP_BILINEAR) {
 		draw_sharp_bilinear(&src, &dst);
 	} else {
 		if (lastFilter != cfg.filter) {
@@ -947,8 +902,12 @@ int video_panel_hit(int x, int y)
 static SDL_Texture *panelText[12];
 static int panelTextW[12], panelTextH[12];
 
+static SDL_Texture *panelTex;   /* the finished panel, redrawn only when it changes */
+static char panelKey[300];
+
 void video_lang_changed(void)
 {
+	panelKey[0] = 0;
 	for (int i = 0; i < 12; i++)
 		if (panelText[i]) { SDL_DestroyTexture(panelText[i]); panelText[i] = NULL; }
 }
@@ -995,33 +954,45 @@ static void panel_line(int k, int x, int y, const char *str)
 	}
 }
 
+
 static void draw_panel(void)
 {
-	SDL_SetRenderDrawColor(renderer, 8, 12, 30, 255);
-	SDL_RenderClear(renderer);
-	SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-	/* live picture of the game, top left */
-	if (haveFrame) {
-		SDL_Rect src = { 0, 0, frameW, frameH }, d = { 40, 30, 448, 336 };
-		SDL_SetTextureScaleMode(frameTex, SDL_ScaleModeLinear);
-		SDL_RenderCopy(renderer, frameTex, &src, &d);
-		lastFilter = -1;
+	char key[300];
+	int osd = osdMsg[0] && SDL_GetTicks() < osdUntil;
+	snprintf(key, sizeof(key), "%s|%d|%d|%d|%s|%d", panelGame, panelSlot, panelFF, panelPaused,
+	         osd ? osdMsg : "", lang_current());
+	if (!panelTex) {
+		panelTex = SDL_CreateTexture(renderer, native_format(), SDL_TEXTUREACCESS_TARGET, 1280, 720);
+		panelKey[0] = 0;
 	}
-	/* info, top right */
-	char t[96];
-	panel_line(0, 530, 50, panelGame);
-	snprintf(t, sizeof(t), tr("Quick slot: %d"), panelSlot);
-	panel_line(1, 530, 120, t);
-	panel_line(2, 530, 190, panelPaused ? tr("Paused") : panelFF ? tr(">> Fast forward") : " ");
-	panel_line(3, 530, 260, osdMsg[0] && SDL_GetTicks() < osdUntil ? osdMsg : " ");
-	/* buttons */
-	for (int i = 0; i < 8; i++) {
-		PANEL_BTN(i, r);
-		int on = (PANEL[i].action == HK_FFWD && panelFF) || (PANEL[i].action == HK_PAUSE && panelPaused);
-		SDL_Color c = on ? (SDL_Color){ 0, 140, 220, 255 } :
-		              PANEL[i].action == PANEL_MENU ? (SDL_Color){ 60, 40, 90, 255 } : (SDL_Color){ 30, 40, 72, 255 };
-		fill_rrect(r.x, r.y, r.w, r.h, 22, c);
-		panel_label(i, PANEL[i].label, r.x + r.w / 2, r.y + r.h / 2);
+	if (panelTex && strcmp(key, panelKey)) {
+		SDL_Texture *prev = SDL_GetRenderTarget(renderer);
+		SDL_SetRenderTarget(renderer, panelTex);
+		SDL_RenderSetLogicalSize(renderer, 1280, 720);
+		SDL_SetRenderDrawColor(renderer, 8, 12, 30, 255);
+		SDL_RenderClear(renderer);
+		SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+		char t[96];
+		panel_line(0, 60, 60, panelGame);
+		snprintf(t, sizeof(t), tr("Quick slot: %d"), panelSlot);
+		panel_line(1, 60, 140, t);
+		panel_line(2, 60, 220, panelPaused ? tr("Paused") : panelFF ? tr(">> Fast forward") : " ");
+		panel_line(3, 60, 300, osd ? osdMsg : " ");
+		for (int i = 0; i < 8; i++) {
+			PANEL_BTN(i, r);
+			int on = (PANEL[i].action == HK_FFWD && panelFF) || (PANEL[i].action == HK_PAUSE && panelPaused);
+			SDL_Color c = on ? (SDL_Color){ 0, 140, 220, 255 } :
+			              PANEL[i].action == PANEL_MENU ? (SDL_Color){ 60, 40, 90, 255 } : (SDL_Color){ 30, 40, 72, 255 };
+			fill_rrect(r.x, r.y, r.w, r.h, 22, c);
+			panel_label(i, PANEL[i].label, r.x + r.w / 2, r.y + r.h / 2);
+		}
+		SDL_SetRenderTarget(renderer, prev);
+		SDL_RenderSetLogicalSize(renderer, 1280, 720);
+		snprintf(panelKey, sizeof(panelKey), "%s", key);
+	}
+	if (panelTex) {
+		SDL_SetTextureBlendMode(panelTex, SDL_BLENDMODE_NONE);
+		SDL_RenderCopy(renderer, panelTex, NULL, NULL);
 	}
 }
 

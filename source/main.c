@@ -106,7 +106,7 @@ static struct { const char *key; int *val; int min, max; } OPTS[] = {
 	{ "frameskip",  &cfg.frameskip,  0, 1 },
 	{ "show_fps",   &cfg.show_fps,   0, 1 },
 	{ "aspect",     &cfg.aspect,     0, 3 },
-	{ "filter",     &cfg.filter,     0, 3 },
+	{ "filter",     &cfg.filter,     0, 2 },
 	{ "fx",         &cfg.fx,         0, FX_COUNT - 1 },
 	{ "drc",        &cfg.drc,        0, DRC_COUNT - 1 },
 	{ "widescreen", &cfg.widescreen, 0, 1 },

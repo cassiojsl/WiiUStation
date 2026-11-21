@@ -43,7 +43,7 @@ enum { BEZEL_OFF = 0, BEZEL_AMBIENT, BEZEL_CUSTOM,
        BEZEL_COUNT };
 const char *bezel_name(int b);   /* "Retro TV", ... */
 int bezel_next(int b, int dir);  /* menu order */
-enum { WIIU_FILTER_LINEAR = 0, WIIU_FILTER_NEAREST, WIIU_FILTER_SHARP_BILINEAR, WIIU_FILTER_SCALE2X };
+enum { WIIU_FILTER_LINEAR = 0, WIIU_FILTER_NEAREST, WIIU_FILTER_SHARP_BILINEAR };
 /* screen effects drawn on top of the filter */
 enum { FX_OFF = 0, FX_CURVE, FX_LCD, FX_GLOW, FX_COUNT };
 

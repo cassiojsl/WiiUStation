@@ -1866,6 +1866,9 @@ static void settings(void)
 		int loaded = emu_game_loaded(), game = settings_game_scope(), n = 0;
 		for (int i = 0; i < S_COUNT; i++) {
 			if (i == S_SCOPE && !loaded) continue;
+			/* in a game: only what is about the game ("Settings for", then
+			 * everything from the CPU core down) */
+			if (loaded && i > S_SCOPE && i < S_CORE) continue;
 			/* app-wide options are hidden while editing one game's settings */
 			if (game && (i == S_GAMES || i == S_VIEW || i == S_COVERS || i == S_RESUME ||
 			             i == S_FFWD || i == S_LANG || i == S_HOTKEYS || i == S_SFX || i == S_UPDATE ||
@@ -1916,8 +1919,7 @@ static void settings(void)
 			                           cfg.aspect == WIIU_ASPECT_ZOOM ? "4:3 Auto zoom" :
 			                           cfg.aspect == WIIU_ASPECT_STRETCH ? "Stretch" : "Integer"; break;
 			case S_FILTER: values[k] = cfg.filter == WIIU_FILTER_LINEAR ? "Smooth" :
-			                           cfg.filter == WIIU_FILTER_NEAREST ? "Pixel" :
-			                           cfg.filter == WIIU_FILTER_SCALE2X ? "Scale2x" : "Sharp smooth"; break;
+			                           cfg.filter == WIIU_FILTER_NEAREST ? "Pixel" : "Sharp smooth"; break;
 			case S_DRC: {
 				static const char *dn[DRC_COUNT] = { "Same as TV", "GamePad only", "TV only", "Control panel" };
 				values[k] = dn[cfg.drc >= 0 && cfg.drc < DRC_COUNT ? cfg.drc : 0];
@@ -2022,7 +2024,7 @@ static void settings(void)
 			if (cfg.aspect == WIIU_ASPECT_ZOOM) status("Crops the black borders the game draws, then fills the height.");
 			break;
 		}
-		case S_FILTER: cfg.filter = (cfg.filter + 4 + dir) % 4; break;
+		case S_FILTER: cfg.filter = (cfg.filter + 3 + dir) % 3; break;
 		case S_FX:     cfg.fx = (cfg.fx + FX_COUNT + dir) % FX_COUNT; break;
 		case S_DRC:
 			if (!video_screen_modes_ok()) { cfg.drc = DRC_MIRROR; status("Not available with this SDL version."); break; }
