@@ -470,3 +470,8 @@
 483|Verde
 484|Turchese
 485|Grafite
+486|1 gioco in questa cartella
+487|%d giochi in questa cartella
+488|Questo è un gioco. Scegli [ Usa questa cartella ] per usare la cartella in cui si trova.
+489|Scegli la cartella con i tuoi giochi per iniziare.
+490|Scegli cartella giochi

@@ -470,3 +470,8 @@
 483|Verde
 484|Turquesa
 485|Grafito
+486|1 juego en esta carpeta
+487|%d juegos en esta carpeta
+488|Esto es un juego. Elige [ Usar esta carpeta ] para usar la carpeta en la que está.
+489|Elige la carpeta con tus juegos para empezar.
+490|Elegir carpeta de juegos

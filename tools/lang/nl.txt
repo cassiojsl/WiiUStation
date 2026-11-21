@@ -470,3 +470,8 @@
 483|Groen
 484|Turquoise
 485|Grafiet
+486|1 game in deze map
+487|%d games in deze map
+488|Dit is een game. Kies [ Deze map gebruiken ] om de map te gebruiken waarin hij staat.
+489|Kies de map met je games om te beginnen.
+490|Gamemap kiezen

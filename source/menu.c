@@ -1724,10 +1724,15 @@ rescan:
 				if (list[i].fav) { entry_t t = list[i]; memmove(list + f + 1, list + f, (i - f) * sizeof(entry_t)); list[f++] = t; }
 		}
 	}
+	int pickGames = 0;                 /* games in the folder being looked at */
 	if (pickDir) {
-		/* folders only, plus "use this folder" on top */
+		/* folders first, then the games of this folder (shown so you can
+		 * see it is the right one; they can't be chosen), and "use this
+		 * folder" on top */
+		collapse_entries(browsePath, list, &count);
 		int m = 0;
 		for (int i = 0; i < count; i++) if (list[i].dir) list[m++] = list[i];
+		for (int i = 0; i < count; i++) if (!list[i].dir) { list[m] = list[i]; list[m].fav = 0; m++; pickGames++; }
 		count = m;
 		list = realloc(list, (count + 1) * sizeof(entry_t));
 		memmove(list + 1, list, count * sizeof(entry_t));
@@ -1875,7 +1880,11 @@ rescan:
 			text(fontSmall, 640, 410, favOnly || searchText[0] || cfg.regionf ? "Press + or ZR to change the filter."
 			                                                    : "Choose your games folder in Settings.", DIM, 1);
 		} else if (pickDir) {
-			t = list_run(&L, labels, NULL, count, 0, NULL, NULL);
+			static SDL_Color marks[1024];
+			int nm = count < 1024 ? count : 1024;
+			for (int i = 0; i < nm; i++)
+				marks[i] = list[i].dir == 2 ? PS_GREEN : list[i].dir ? PS_YELLOW : PS_BLUE;
+			t = list_run(&L, labels, NULL, count, 0, NULL, count <= 1024 ? marks : NULL);
 		} else if (useCar) {
 			t = carousel_run(&G, list, labels, count, browsePath);
 		} else if (useGrid) {
@@ -1896,7 +1905,12 @@ rescan:
 			}
 		}
 		if (t >= 0) activate = t;
-		draw_footer(pickDir ? "Pick the folder with your games" :
+		char pickHint[160];
+		if (pickDir) {
+			if (pickGames) snprintf(pickHint, sizeof(pickHint), tr(pickGames == 1 ? "1 game in this folder" : "%d games in this folder"), pickGames);
+			else snprintf(pickHint, sizeof(pickHint), "%s", tr("Pick the folder with your games"));
+		}
+		draw_footer(pickDir ? pickHint :
 		            "X  View   Y Favourite   - Options   + Search   ZL Sort   ZR Filter");
 		present();
 
@@ -1912,6 +1926,9 @@ rescan:
 				snprintf(out, outsz, "%s", browsePath);
 				ret = 1;
 				break;
+			} else if (pickDir && !e->dir) {
+				status("This is a game. Choose [ Use this folder ] to use the folder it is in.");
+				continue;
 			} else if (!strcmp(e->name, "..")) {
 				go_up();
 			} else if (e->dir) {
@@ -1945,6 +1962,7 @@ static void hotkeys(void);
 static void update_screen(void);
 static void all_covers(void);
 static void bios_screen(void);
+static int pick_games_folder(void);
 
 static void settings(void)
 {
@@ -2185,18 +2203,7 @@ static void settings(void)
 			settings_set_game_scope(!game);
 			status(!game ? "Now editing this game's own settings." : "This game uses the global settings again.");
 			break;
-		case S_GAMES: {
-			char dirp[512];
-			if (browse("Games folder", dirp, sizeof(dirp), 1)) {
-				strncpy(cfg.games_dir, dirp, sizeof(cfg.games_dir) - 1);
-				cfg.games_dir[sizeof(cfg.games_dir) - 1] = 0;
-				browsePath[0] = 0;
-				settings_save();
-				status("Games folder saved.");
-			}
-			transition();
-			break;
-		}
+		case S_GAMES: pick_games_folder(); transition(); break;
 		case S_VIEW:   cfg.view = view_next(cfg.view, dir); break;
 		case S_VSYNC:  cfg.vsync = !cfg.vsync; break;
 		case S_COVERS:
@@ -3446,7 +3453,7 @@ static void gallery(void)
 /* home screen                                                              */
 /* ------------------------------------------------------------------------ */
 enum { H_RESUME, H_SAVE, H_LOAD, H_CHEATS, H_SHOT, H_RESET, H_DISC, H_RECENT,
-       H_GAMES, H_SETTINGS, H_CREDITS, H_EXIT, H_GALLERY, H_CARDS };
+       H_GAMES, H_SETTINGS, H_CREDITS, H_EXIT, H_GALLERY, H_CARDS, H_PICKDIR };
 typedef struct { SDL_Rect r; int kind, arg; } hitem_t;
 
 static void icon(int kind, float cx, float cy, float s, SDL_Color c)
@@ -3958,6 +3965,47 @@ static void intro(void)
 	poll_buttons();
 }
 
+/* is there any game in the games folder (or one folder below)? Checked
+ * again whenever gamesChecked is cleared. */
+static int gamesChecked = 0, gamesFound;
+static int games_folder_ok(void)
+{
+	if (gamesChecked) return gamesFound;
+	gamesChecked = 1;
+	gamesFound = 0;
+	DIR *d = opendir(cfg.games_dir);
+	if (!d) return 0;
+	struct dirent *ent;
+	while (!gamesFound && (ent = readdir(d)) != NULL) {
+		if (ent->d_name[0] == '.') continue;
+		if (!(ent->d_type & DT_DIR)) { if (is_game_file(ent->d_name)) gamesFound = 1; continue; }
+		char sub[768];
+		snprintf(sub, sizeof(sub), "%s/%s", cfg.games_dir, ent->d_name);
+		DIR *d2 = opendir(sub);
+		if (!d2) continue;
+		struct dirent *e2;
+		while ((e2 = readdir(d2)) != NULL)
+			if (e2->d_name[0] != '.' && !(e2->d_type & DT_DIR) && is_game_file(e2->d_name)) { gamesFound = 1; break; }
+		closedir(d2);
+	}
+	closedir(d);
+	return gamesFound;
+}
+
+/* the folder picker for the games folder; 1 if a folder was chosen */
+static int pick_games_folder(void)
+{
+	char dirp[512];
+	if (!browse("Games folder", dirp, sizeof(dirp), 1)) return 0;
+	strncpy(cfg.games_dir, dirp, sizeof(cfg.games_dir) - 1);
+	cfg.games_dir[sizeof(cfg.games_dir) - 1] = 0;
+	browsePath[0] = 0;
+	gamesChecked = 0;
+	settings_save();
+	status("Games folder saved.");
+	return 1;
+}
+
 int menu_run(void)
 {
 	hitem_t it[40];
@@ -4010,6 +4058,10 @@ int menu_run(void)
 				rx += 196;
 			}
 			tileY = 436; tileH = 190; ntiles = 6;
+			/* no game played yet and none in the games folder: a button to
+			 * choose the folder */
+			if (!nrec && !games_folder_ok())
+				it[n++] = (hitem_t){ { 420, 262, 440, 60 }, H_PICKDIR, 0 };
 		}
 		{
 			/* in game: Games, Settings, Close game (no Credits) */
@@ -4021,7 +4073,8 @@ int menu_run(void)
 		}
 		if (sel < 0 || sel >= n) {
 			sel = 0;
-			for (int i = 0; i < n; i++) if (it[i].kind == (loaded ? H_RESUME : nrec ? H_RECENT : H_GAMES)) { sel = i; break; }
+			int want = loaded ? H_RESUME : nrec ? H_RECENT : games_folder_ok() ? H_GAMES : H_PICKDIR;
+			for (int i = 0; i < n; i++) if (it[i].kind == want) { sel = i; break; }
 			fx = it[sel].r.x; fy = it[sel].r.y; fw = it[sel].r.w; fh = it[sel].r.h;
 		}
 		if (wiiu_quit) return 0;
@@ -4083,8 +4136,12 @@ int menu_run(void)
 			text(fontItem, 60, 140, nrec ? "Recently played" : "Welcome", WHITE, 0);
 			if (!nrec) {
 				rrect(50, 168, 1180, 170, 22, card, 200);
-				text(fontItem, 640, 230, "Tap Games to choose a game.", WHITE, 1);
-				text_wrap(fontSmall, 640, 280, 1000, "Put your games in sd:/wiiu/apps/WiiUStation/games", GREY);
+				if (games_folder_ok()) {
+					text(fontItem, 640, 230, "Tap Games to choose a game.", WHITE, 1);
+					text_wrap(fontSmall, 640, 280, 1000, "Put your games in sd:/wiiu/apps/WiiUStation/games", GREY);
+				} else {
+					text(fontItem, 640, 214, "Choose the folder with your games to start.", WHITE, 1);
+				}
 			}
 		}
 
@@ -4128,6 +4185,16 @@ int menu_run(void)
 				}
 				break;
 			}
+			case H_PICKDIR:
+				rrect(r.x, r.y, r.w, r.h, r.h / 2, th(0, 140, 220), 255);
+				{
+					int tw = 0;
+					TTF_SizeUTF8(fontItem, tr("Choose games folder"), &tw, NULL);
+					int x0 = r.x + (r.w - tw - 52) / 2;
+					folder_icon(x0, r.y + 12, 36);
+					text(fontItem, x0 + 52, r.y + r.h / 2, "Choose games folder", WHITE, 0);
+				}
+				break;
 			case H_RECENT: {
 				const char *p = emu_recent(it[i].arg);
 				char id[16] = "", nm[96], sh[96], key[256];
@@ -4195,6 +4262,11 @@ int menu_run(void)
 			snprintf(path, sizeof(path), "%s", emu_recent(it[sel].arg));
 			if (loaded && !strcmp(path, emu_game_path())) return 1;
 			if (start_game(path)) return 1;
+			transition();
+			break;
+		case H_PICKDIR:
+			pick_games_folder();
+			sel = -1;
 			transition();
 			break;
 		case H_GAMES:

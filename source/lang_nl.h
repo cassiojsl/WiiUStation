@@ -450,3 +450,8 @@
 { "Green", "Groen" },
 { "Teal", "Turquoise" },
 { "Graphite", "Grafiet" },
+{ "1 game in this folder", "1 game in deze map" },
+{ "%d games in this folder", "%d games in deze map" },
+{ "This is a game. Choose [ Use this folder ] to use the folder it is in.", "Dit is een game. Kies [ Deze map gebruiken ] om de map te gebruiken waarin hij staat." },
+{ "Choose the folder with your games to start.", "Kies de map met je games om te beginnen." },
+{ "Choose games folder", "Gamemap kiezen" },

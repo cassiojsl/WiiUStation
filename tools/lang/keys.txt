@@ -484,3 +484,8 @@ Gold
 Green
 Teal
 Graphite
+1 game in this folder
+%d games in this folder
+This is a game. Choose [ Use this folder ] to use the folder it is in.
+Choose the folder with your games to start.
+Choose games folder

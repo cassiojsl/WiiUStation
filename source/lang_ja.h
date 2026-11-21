@@ -471,3 +471,8 @@
 { "Green", "グリーン" },
 { "Teal", "ターコイズ" },
 { "Graphite", "グラファイト" },
+{ "1 game in this folder", "このフォルダーにゲームが1本" },
+{ "%d games in this folder", "このフォルダーにゲームが%d本" },
+{ "This is a game. Choose [ Use this folder ] to use the folder it is in.", "これはゲームです。[ このフォルダーを使う ] を選ぶと、このフォルダーを使います。" },
+{ "Choose the folder with your games to start.", "はじめにゲームのフォルダーを選んでください。" },
+{ "Choose games folder", "ゲームフォルダーを選ぶ" },

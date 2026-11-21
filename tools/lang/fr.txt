@@ -470,3 +470,8 @@
 483|Vert
 484|Turquoise
 485|Graphite
+486|1 jeu dans ce dossier
+487|%d jeux dans ce dossier
+488|C'est un jeu. Choisissez [ Utiliser ce dossier ] pour utiliser son dossier.
+489|Choisissez le dossier de vos jeux pour commencer.
+490|Choisir le dossier des jeux

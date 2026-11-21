@@ -471,3 +471,8 @@
 { "Green", "Зелёный" },
 { "Teal", "Бирюзовый" },
 { "Graphite", "Графит" },
+{ "1 game in this folder", "1 игра в этой папке" },
+{ "%d games in this folder", "Игр в этой папке: %d" },
+{ "This is a game. Choose [ Use this folder ] to use the folder it is in.", "Это игра. Выберите [ Выбрать эту папку ], чтобы использовать её папку." },
+{ "Choose the folder with your games to start.", "Выберите папку с играми, чтобы начать." },
+{ "Choose games folder", "Выбрать папку игр" },

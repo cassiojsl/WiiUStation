@@ -63,7 +63,7 @@ const char *emu_game_name(void) { return "Crash Bandicoot 3 (SCUS-94244).chd"; }
 const char *emu_game_id(void) { return "SCUS-94244"; }
 const char *emu_game_path(void) { return "x"; }
 static const char *rec[] = { SDROOT "/wiiu/apps/WiiUStation/games/Crash Bandicoot 3 (SCUS-94244).chd", SDROOT "/wiiu/apps/WiiUStation/games/Spyro the Dragon (SCUS-94228).chd", SDROOT "/wiiu/apps/WiiUStation/games/Final Fantasy VII (SCUS-94163).chd", SDROOT "/wiiu/apps/WiiUStation/games/Metal Gear Solid (SLUS-00594).chd", SDROOT "/wiiu/apps/WiiUStation/games/Tekken 3 (SCUS-94327).chd", SDROOT "/wiiu/apps/WiiUStation/games/Silent Hill (SLUS-00707).chd" };
-int emu_recent_count(void) { return 6; }
+int emu_recent_count(void) { return getenv("NOREC") ? 0 : 6; }
 const char *emu_recent(int i) { return rec[i]; }
 int emu_load_game(const char *p) { (void)p; return -1; }
 int emu_load_game_disc(const char *m, int i, const char *d) { (void)m; (void)i; (void)d; return -1; }
@@ -170,6 +170,7 @@ int main(int argc, char **argv)
 	if (getenv("PT")) cfg.lang = atoi(getenv("PT"));
 	if (getenv("THEME")) cfg.theme = atoi(getenv("THEME"));
 	strcpy(cfg.games_dir, WIIU_ISO_DIR); cfg.dynarec = 1; cfg.gpu_thread = 1; cfg.bezel = 1; memcpy(cfg.map, default_map, sizeof(cfg.map));
+	if (getenv("GDIR")) strcpy(cfg.games_dir, getenv("GDIR"));
 	if (strcmp(mode, "intro")) introShown = 1;
 	if (getenv("SHOT")) shotAt = atoi(getenv("SHOT")), quitAt = shotAt + 2;
 	if (!strcmp(mode, "intro")) { R = ren; menu_fonts(); intro(); }
@@ -179,6 +180,7 @@ int main(int argc, char **argv)
 	else if (!strcmp(mode, "compact")) { char o[512]; cfg.view = 2; R = ren; menu_fonts(); scriptBtn[10] = WIIU_BTN_RIGHT; browse("Load game", o, sizeof(o), 0); }
 	else if (!strcmp(mode, "shelf")) { char o[512]; cfg.view = 0; cfg.cover3d = 0; R = ren; menu_fonts(); scriptBtn[10] = WIIU_BTN_RIGHT; browse("Load game", o, sizeof(o), 0); }
 	else if (!strcmp(mode, "carousel")) { char o[512]; cfg.view = 4; cfg.cover3d = 1; R = ren; menu_fonts(); scriptBtn[10] = WIIU_BTN_RIGHT; scriptBtn[20] = WIIU_BTN_RIGHT; shotAt = 90; quitAt = 92; browse("Load game", o, sizeof(o), 0); }
+	else if (!strcmp(mode, "pickdir")) { char o[512]; R = ren; menu_fonts(); browse("Games folder", o, sizeof(o), 1); }
 	else if (!strcmp(mode, "list")) { char o[512]; cfg.view = 1; R = ren; menu_fonts(); browse("Load game", o, sizeof(o), 0); }
 	else if (!strcmp(mode, "list2")) { char o[512]; cfg.view = 1; R = ren; menu_fonts(); browse("Load game", o, sizeof(o), 0); }
 	else if (!strcmp(mode, "disc")) { R = ren; menu_fonts(); choose_disc("Final Fantasy VII", 3, 0); }

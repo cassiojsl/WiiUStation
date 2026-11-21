@@ -453,3 +453,8 @@
 { "Gold", "Doré" },
 { "Green", "Vert" },
 { "Teal", "Turquoise" },
+{ "1 game in this folder", "1 jeu dans ce dossier" },
+{ "%d games in this folder", "%d jeux dans ce dossier" },
+{ "This is a game. Choose [ Use this folder ] to use the folder it is in.", "C'est un jeu. Choisissez [ Utiliser ce dossier ] pour utiliser son dossier." },
+{ "Choose the folder with your games to start.", "Choisissez le dossier de vos jeux pour commencer." },
+{ "Choose games folder", "Choisir le dossier des jeux" },

@@ -470,3 +470,8 @@
 483|Grün
 484|Türkis
 485|Graphit
+486|1 Spiel in diesem Ordner
+487|%d Spiele in diesem Ordner
+488|Das ist ein Spiel. Wähle [ Diesen Ordner verwenden ], um seinen Ordner zu nutzen.
+489|Wähle zum Start den Ordner mit deinen Spielen.
+490|Spieleordner wählen

@@ -462,3 +462,8 @@
 { "Green", "Verde" },
 { "Teal", "Turquesa" },
 { "Graphite", "Grafito" },
+{ "1 game in this folder", "1 juego en esta carpeta" },
+{ "%d games in this folder", "%d juegos en esta carpeta" },
+{ "This is a game. Choose [ Use this folder ] to use the folder it is in.", "Esto es un juego. Elige [ Usar esta carpeta ] para usar la carpeta en la que está." },
+{ "Choose the folder with your games to start.", "Elige la carpeta con tus juegos para empezar." },
+{ "Choose games folder", "Elegir carpeta de juegos" },
