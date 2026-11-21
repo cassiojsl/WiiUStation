@@ -127,6 +127,22 @@ Tools:
 - `tools/menu_preview/run.sh` renders the menu screens on a PC and saves
   screenshots.
 
+## AI assistance
+
+WiiUStation was developed with the help of AI (Claude, by Anthropic). The
+app's code was written by the AI under the direction of the project's author,
+who tested it on a real Wii U. That code covers the menu, covers, saves,
+hotkeys, settings, translations, bezels and screen effects. The patches to the
+core for the Wii U were written the same way: Lightrec in the codegen area,
+the big-endian GTE fix and the thread setup. Commits made with the AI carry a
+`Co-Authored-By: Claude` line.
+
+The emulation itself is not AI work. PCSX-ReARMed, Lightrec, GNU lightning
+and the libraries listed below were written by their authors over many years.
+
+The code has not been reviewed by other people yet, and some features have
+not been tested on the console. Reports and fixes are welcome.
+
 ## Credits
 
 The **PCSX-ReARMed** team (notaz, Exophase, senquack, pcercuei and the
