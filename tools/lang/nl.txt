@@ -200,7 +200,7 @@
 205|R3 indrukken (schakelen)
 206|Vorig slot
 207|Zet 1280x720-PNG's in WiiUStation/bezels: default.png of <GAME-ID>.png
-208|Zet je games in sd:/wiiu/apps/WiiUStation/games
+208|Zet je games in sd:/WiiUStation/games
 209|Kwadratisch
 210|Kwadratisch en Kubisch geven fijnere controle rond het midden.
 211|Snel slot: %d

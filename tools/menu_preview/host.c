@@ -62,7 +62,7 @@ int emu_game_loaded(void) { return loaded; }
 const char *emu_game_name(void) { return "Crash Bandicoot 3 (SCUS-94244).chd"; }
 const char *emu_game_id(void) { return "SCUS-94244"; }
 const char *emu_game_path(void) { return "x"; }
-static const char *rec[] = { SDROOT "/wiiu/apps/WiiUStation/games/Crash Bandicoot 3 (SCUS-94244).chd", SDROOT "/wiiu/apps/WiiUStation/games/Spyro the Dragon (SCUS-94228).chd", SDROOT "/wiiu/apps/WiiUStation/games/Final Fantasy VII (SCUS-94163).chd", SDROOT "/wiiu/apps/WiiUStation/games/Metal Gear Solid (SLUS-00594).chd", SDROOT "/wiiu/apps/WiiUStation/games/Tekken 3 (SCUS-94327).chd", SDROOT "/wiiu/apps/WiiUStation/games/Silent Hill (SLUS-00707).chd" };
+static const char *rec[] = { SDROOT "/WiiUStation/games/Crash Bandicoot 3 (SCUS-94244).chd", SDROOT "/WiiUStation/games/Spyro the Dragon (SCUS-94228).chd", SDROOT "/WiiUStation/games/Final Fantasy VII (SCUS-94163).chd", SDROOT "/WiiUStation/games/Metal Gear Solid (SLUS-00594).chd", SDROOT "/WiiUStation/games/Tekken 3 (SCUS-94327).chd", SDROOT "/WiiUStation/games/Silent Hill (SLUS-00707).chd" };
 int emu_recent_count(void) { return getenv("NOREC") ? 0 : 6; }
 const char *emu_recent(int i) { return rec[i]; }
 int emu_load_game(const char *p) { (void)p; return -1; }
@@ -99,7 +99,7 @@ long emu_playtime(const char *k, long long *l) { if (l) *l = 0; return strlen(k)
 void emu_playtime_reset(const char *k) { (void)k; }
 int wiiu_battery(void) { return 4; }
 void video_set_vsync(int on) { (void)on; }
-void *video_preview(void) { static SDL_Texture *t; if (!t) { SDL_Surface *s = IMG_Load(SDROOT "/wiiu/apps/WiiUStation/screenshots/Game 3-20261123-120000.png"); if (s) { t = SDL_CreateTextureFromSurface(ren, s); SDL_FreeSurface(s); } } return t; }
+void *video_preview(void) { static SDL_Texture *t; if (!t) { SDL_Surface *s = IMG_Load(SDROOT "/WiiUStation/screenshots/Game 3-20261123-120000.png"); if (s) { t = SDL_CreateTextureFromSurface(ren, s); SDL_FreeSurface(s); } } return t; }
 void emu_cheats_poll(void) {}
 int emu_cheats_downloading(void) { return 0; }
 int covers_have(const char *i) { return i[3] == 'S'; }
@@ -180,7 +180,7 @@ int main(int argc, char **argv)
 	else if (!strcmp(mode, "compact")) { char o[512]; cfg.view = 2; R = ren; menu_fonts(); scriptBtn[10] = WIIU_BTN_RIGHT; browse("Load game", o, sizeof(o), 0); }
 	else if (!strcmp(mode, "shelf")) { char o[512]; cfg.view = 0; cfg.cover3d = 0; R = ren; menu_fonts(); scriptBtn[10] = WIIU_BTN_RIGHT; browse("Load game", o, sizeof(o), 0); }
 	else if (!strcmp(mode, "carousel")) { char o[512]; cfg.view = 4; cfg.cover3d = 1; R = ren; menu_fonts(); scriptBtn[10] = WIIU_BTN_RIGHT; scriptBtn[20] = WIIU_BTN_RIGHT; shotAt = 90; quitAt = 92; browse("Load game", o, sizeof(o), 0); }
-	else if (!strcmp(mode, "loading")) { R = ren; menu_fonts(); for (int k = 0; k < 3; k++) { wiiu_quit = 0; loading_screen(SDROOT "/wiiu/apps/WiiUStation/games/Crash Bandicoot 3.cue"); } }
+	else if (!strcmp(mode, "loading")) { R = ren; menu_fonts(); for (int k = 0; k < 3; k++) { wiiu_quit = 0; loading_screen(SDROOT "/WiiUStation/games/Crash Bandicoot 3.cue"); } }
 	else if (!strcmp(mode, "pickdir")) { char o[512]; R = ren; menu_fonts(); browse("Games folder", o, sizeof(o), 1); }
 	else if (!strcmp(mode, "list")) { char o[512]; cfg.view = 1; R = ren; menu_fonts(); browse("Load game", o, sizeof(o), 0); }
 	else if (!strcmp(mode, "list2")) { char o[512]; cfg.view = 1; R = ren; menu_fonts(); browse("Load game", o, sizeof(o), 0); }

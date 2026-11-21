@@ -20,6 +20,7 @@
 #include <errno.h>
 #include <time.h>
 #include <sys/stat.h>
+#include <dirent.h>
 
 #include "platform.h"
 #include "libretro.h"
@@ -1856,11 +1857,71 @@ static void run_game(void)
 	wiiu_input_reset_hotkey();
 }
 
+/* The data folder moved from sd:/wiiu/apps/WiiUStation to sd:/WiiUStation.
+ * On the first start of this version the folder is moved as a whole (same
+ * card, so it is only renamed) and the paths saved in its lists are
+ * rewritten. */
+static void replace_in_file(const char *path, const char *from, const char *to)
+{
+	FILE *f = fopen(path, "rb");
+	if (!f) return;
+	fseek(f, 0, SEEK_END);
+	long n = ftell(f);
+	fseek(f, 0, SEEK_SET);
+	if (n <= 0 || n > 4 * 1024 * 1024) { fclose(f); return; }
+	char *buf = malloc(n + 1);
+	if (!buf) { fclose(f); return; }
+	n = (long)fread(buf, 1, n, f);
+	buf[n] = 0;
+	fclose(f);
+	if (!strstr(buf, from)) { free(buf); return; }
+	size_t fl = strlen(from), tl = strlen(to);
+	FILE *o = fopen(path, "wb");
+	if (o) {
+		for (char *p = buf, *q; *p; p = q + fl) {
+			q = strstr(p, from);
+			if (!q) { fputs(p, o); break; }
+			fwrite(p, 1, q - p, o);
+			fwrite(to, 1, tl, o);
+		}
+		fclose(o);
+	}
+	free(buf);
+}
+
+static void app_folder_move(void)
+{
+	struct stat st;
+	if (stat(WIIU_APP_DIR, &st) == 0) return;                          /* already there */
+	if (stat(WIIU_PREV_APP_DIR, &st) != 0 || !S_ISDIR(st.st_mode)) return;   /* new install */
+	if (rename(WIIU_PREV_APP_DIR, WIIU_APP_DIR) != 0) return;            /* keep using nothing old */
+	static const char *files[] = { "settings.cfg", "recent.txt", "favorites.txt", "collections.txt",
+	                               "playtime.txt", "covers/ids.txt", NULL };
+	for (int i = 0; files[i]; i++) {
+		char p[256];
+		snprintf(p, sizeof(p), "%s/%s", WIIU_APP_DIR, files[i]);
+		replace_in_file(p, WIIU_PREV_APP_DIR "/", WIIU_APP_DIR "/");
+	}
+	/* per-game settings files */
+	DIR *d = opendir(WIIU_APP_DIR "/gamesettings");
+	if (d) {
+		struct dirent *e;
+		while ((e = readdir(d)) != NULL) {
+			if (e->d_name[0] == '.') continue;
+			char p[512];
+			snprintf(p, sizeof(p), "%s/gamesettings/%s", WIIU_APP_DIR, e->d_name);
+			replace_in_file(p, WIIU_PREV_APP_DIR "/", WIIU_APP_DIR "/");
+		}
+		closedir(d);
+	}
+}
+
 int main(int argc, char **argv)
 {
 	(void)argc; (void)argv;
 
 	if (video_init() < 0) return -1;
+	app_folder_move();
 	wiiu_input_init();
 	wiiu_mkdirs(WIIU_ISO_DIR);
 	wiiu_mkdirs(WIIU_BIOS_DIR);

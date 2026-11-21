@@ -201,7 +201,7 @@
 { "Press R3 (toggle)", "R3を押す(切り替え)" },
 { "Previous slot", "前のスロット" },
 { "Put 1280x720 PNGs in WiiUStation/bezels: default.png or <GAME-ID>.png", "1280x720のPNGをWiiUStation/bezelsに: default.pngか<ゲームID>.png" },
-{ "Put your games in sd:/wiiu/apps/WiiUStation/games", "ゲームをsd:/wiiu/apps/WiiUStation/gamesに入れてください" },
+{ "Put your games in sd:/WiiUStation/games", "ゲームをsd:/WiiUStation/gamesに入れてください" },
 { "Quadratic", "二次" },
 { "Quadratic and Cubic give finer control near the centre.", "二次と三次は中央付近を細かく操作できます。" },
 { "Quick slot: %d", "クイックスロット: %d" },

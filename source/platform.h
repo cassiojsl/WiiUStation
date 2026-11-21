@@ -12,14 +12,17 @@
 extern "C" {
 #endif
 
-/* ---- SD card layout: everything lives next to the app ----
- *   sd:/wiiu/apps/WiiUStation.wuhb
- *   sd:/wiiu/apps/WiiUStation/{games,bios,saves,states,covers,bezels}
+/* ---- SD card layout ----
+ *   sd:/wiiu/apps/WiiUStation.wuhb      the app
+ *   sd:/WiiUStation/{games,bios,saves,states,covers,bezels,...}
+ * (the data folder was sd:/wiiu/apps/WiiUStation before; it is moved on
+ * the first start, see app_folder_move in main.c)
  */
 #ifndef WIIU_SD_ROOT
 #define WIIU_SD_ROOT     "fs:/vol/external01"
 #endif
-#define WIIU_APP_DIR     WIIU_SD_ROOT "/wiiu/apps/WiiUStation"
+#define WIIU_APP_DIR     WIIU_SD_ROOT "/WiiUStation"
+#define WIIU_PREV_APP_DIR WIIU_SD_ROOT "/wiiu/apps/WiiUStation"
 #define WIIU_ISO_DIR     WIIU_APP_DIR "/games"
 #define WIIU_BIOS_DIR    WIIU_APP_DIR "/bios"
 #define WIIU_SAVE_DIR    WIIU_APP_DIR "/saves"
@@ -27,7 +30,6 @@ extern "C" {
 #define WIIU_COVER_DIR   WIIU_APP_DIR "/covers"
 #define WIIU_BEZEL_DIR   WIIU_APP_DIR "/bezels"
 #define WIIU_CONFIG_FILE WIIU_APP_DIR "/settings.cfg"
-/* used by test builds before the folder move */
 
 int wiiu_mkdirs(const char *path);
 

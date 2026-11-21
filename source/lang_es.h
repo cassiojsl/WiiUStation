@@ -200,7 +200,7 @@
 { "Press R3 (toggle)", "Pulsar R3 (alternar)" },
 { "Previous slot", "Ranura anterior" },
 { "Put 1280x720 PNGs in WiiUStation/bezels: default.png or <GAME-ID>.png", "Pon PNG de 1280x720 en WiiUStation/bezels: default.png o <ID-DEL-JUEGO>.png" },
-{ "Put your games in sd:/wiiu/apps/WiiUStation/games", "Pon tus juegos en sd:/wiiu/apps/WiiUStation/games" },
+{ "Put your games in sd:/WiiUStation/games", "Pon tus juegos en sd:/WiiUStation/games" },
 { "Quadratic", "Cuadrática" },
 { "Quadratic and Cubic give finer control near the centre.", "Cuadrática y Cúbica dan un control más fino cerca del centro." },
 { "Quick slot: %d", "Ranura rápida: %d" },

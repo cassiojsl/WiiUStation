@@ -4,8 +4,8 @@
  *  1. Game ID: read SYSTEM.CNF from the disc image (ISO9660 inside .bin /
  *     .iso / .img, following .cue and .m3u), the DISC_ID of a .pbp, an ID in
  *     the file name, or the ID PCSX-ReARMed reports after loading (.chd).
- *     Results are remembered in sd:/wiiu/apps/WiiUStation/covers/ids.txt.
- *  2. Cover: sd:/wiiu/apps/WiiUStation/covers/<ID>.jpg, downloaded in the background from
+ *     Results are remembered in sd:/WiiUStation/covers/ids.txt.
+ *  2. Cover: sd:/WiiUStation/covers/<ID>.jpg, downloaded in the background from
  *     github.com/xlenore/psx-covers (covers/default/<ID>.jpg) over HTTPS,
  *     verified against Mozilla's root store (content/cacert.pem).
  *     3D boxes (Settings -> Covers: 3D) come from covers/3d/<ID>.png and

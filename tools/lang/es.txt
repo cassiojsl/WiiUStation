@@ -200,7 +200,7 @@
 205|Pulsar R3 (alternar)
 206|Ranura anterior
 207|Pon PNG de 1280x720 en WiiUStation/bezels: default.png o <ID-DEL-JUEGO>.png
-208|Pon tus juegos en sd:/wiiu/apps/WiiUStation/games
+208|Pon tus juegos en sd:/WiiUStation/games
 209|Cuadrática
 210|Cuadrática y Cúbica dan un control más fino cerca del centro.
 211|Ranura rápida: %d

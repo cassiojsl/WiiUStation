@@ -201,7 +201,7 @@
 { "Press R3 (toggle)", "Нажать R3 (переключение)" },
 { "Previous slot", "Предыдущий слот" },
 { "Put 1280x720 PNGs in WiiUStation/bezels: default.png or <GAME-ID>.png", "Положите PNG 1280x720 в WiiUStation/bezels: default.png или <ID-ИГРЫ>.png" },
-{ "Put your games in sd:/wiiu/apps/WiiUStation/games", "Положите игры в sd:/wiiu/apps/WiiUStation/games" },
+{ "Put your games in sd:/WiiUStation/games", "Положите игры в sd:/WiiUStation/games" },
 { "Quadratic", "Квадратичная" },
 { "Quadratic and Cubic give finer control near the centre.", "Квадратичная и кубическая дают точное управление у центра." },
 { "Quick slot: %d", "Быстрый слот: %d" },
