@@ -406,3 +406,54 @@
 419|Automatische correctie voor deze game: %s
 420|Systeem (%s)
 421|Cheats voor deze game downloaden...
+422|VSync (geen tearing)
+423|Kies of wijzigingen voor alle games gelden of alleen voor deze.
+424|De taal van WiiUStation. Systeem volgt de taal van de Wii U.
+425|Geluiden bij het bewegen en kiezen in het menu, en hun stijl.
+426|Opent de laatste game meteen als WiiUStation start.
+427|De map waarin de gamelijst opent.
+428|Hoe de games worden getoond: carrousel, raster, compact raster of lijst.
+429|2D-hoesjes of 3D-doosjes.
+430|Downloadt nu het hoesje van elke game in de map.
+431|Bewaart waar je stopt bij het verlaten van een game en biedt aan daar verder te gaan.
+432|Lightrec is veel sneller. Interpreter alleen voor games met problemen.
+433|Slaat frames over als de game de volle snelheid niet haalt.
+434|Hoe vooruitspoelen aangaat: R3 vasthouden, R3 indrukken of ZL+ZR vasthouden.
+435|Hoeveel keer sneller de game draait bij vooruitspoelen.
+436|Toont de frames per seconde in een hoek.
+437|Wacht tot het scherm ververst voordat een frame wordt getoond, zodat het beeld nooit scheurt.
+438|Zet het geluid van de game aan of uit.
+439|Vorm en grootte van het beeld: 4:3, automatisch zoomen, uitgerekt of hele veelvouden.
+440|Zacht maakt pixels zachter, Pixel houdt ze vierkant, Scherp zacht is een mix.
+441|Wat de zijkanten vult: een vage kopie van de game, een rand of je eigen afbeelding.
+442|Toont de game in 16:9 met de breedbeeldcheat, als die er is.
+443|Donkere lijnen tussen de rijen, zoals een oude tv.
+444|Het kleurpatroon van een beeldbuis-tv.
+445|Gebogen beeldbuisglas, een lcd-raster of een zachte gloed.
+446|Wat de GamePad toont in een game: hetzelfde als de tv, alleen de game, niets of aanraakknoppen.
+447|Het ditherpatroon van de PlayStation. Uit oogt schoner, Forceren voegt het overal toe.
+448|Auto gebruikt een DualShock bij games die het ondersteunen. Lichtpistolen en muis gebruiken het GamePad-scherm.
+449|Met een lichtpistool: richt door de GamePad te draaien.
+450|De controller van de andere spelers.
+451|Hoe ver de sticks bewegen voordat de game het merkt.
+452|Tot 5 spelers, voor games met Multitap-ondersteuning.
+453|Wijzig wat elke Wii U-knop doet.
+454|Snelle acties tijdens het spelen: houd een knop vast en druk op een andere.
+455|Trillen van de GamePad en Pro Controller.
+456|Auto herkent de regio van de game. NTSC = 60 Hz, PAL = 50 Hz.
+457|Gebruikt een echte BIOS uit de bios-map als die er is, of altijd de ingebouwde.
+458|Toont welke BIOS-bestanden je hebt en voor welke regio's.
+459|Toont het PlayStation-logo bij het starten (echte BIOS nodig).
+460|Past de correcties toe die sommige bekende games nodig hebben.
+461|Meer opties: kernen, snelheid, geluid, compatibiliteit en GPU-correcties.
+462|Zoekt op GitHub naar een nieuwe versie van WiiUStation.
+463|Klassiek
+464|Zacht
+465|Retro 8-bit
+466|Kristal
+467|Marimba
+468|Klik
+469|Voorbeeld
+470|Auto
+471|Auto (DualShock)
+472|Auto (digitaal)

@@ -420,3 +420,54 @@ Collections...
 Automatic fix for this game: %s
 System (%s)
 Downloading the cheats for this game...
+VSync (no tearing)
+Choose whether changes apply to all games or only to this one.
+The language of WiiUStation. System follows the Wii U's language.
+Sounds when you move and choose in the menu, and their style.
+Opens the last game right away when WiiUStation starts.
+The folder the game list opens in.
+How the games are shown: carousel, grid, compact grid or list.
+2D front covers or 3D boxes.
+Downloads the cover of every game in the games folder now.
+Saves where you stop when leaving a game and offers to continue there.
+Lightrec is much faster. Interpreter only for games that misbehave.
+Skips drawing some frames when the game can't keep full speed.
+How fast forward is turned on: holding R3, pressing R3, or holding ZL+ZR.
+How many times faster the game runs while fast forwarding.
+Shows the frames per second in a corner.
+Waits for the screen to refresh before showing a frame, so the picture never tears.
+Turns the game's sound on or off.
+The shape and size of the picture: 4:3, Auto zoom, stretch or whole multiples.
+Smooth softens the pixels, Pixel keeps them square, Sharp smooth is a mix.
+What fills the sides of the screen: a blurred copy of the game, a frame or your own image.
+Shows the game in 16:9 using its widescreen cheat, when it has one.
+Dark lines between the rows, like an old TV.
+The colour pattern of a CRT TV's screen.
+Curved CRT glass, an LCD grid or a soft glow over the picture.
+What the GamePad shows during a game: the same as the TV, only the game, nothing or touch buttons.
+The PlayStation's dithering pattern. Off looks cleaner, Force adds it everywhere.
+Auto uses a DualShock for games that support it. Light guns and the mouse use the GamePad screen.
+With a light gun: aim by turning the GamePad.
+The controller of the other players.
+How far the sticks move before the game notices.
+Up to 5 players, for games that support the Multitap.
+Change which Wii U button does what.
+Quick actions while playing: hold a button and press another.
+Vibration of the GamePad and Pro Controller.
+Auto detects the region of the game. NTSC is 60 Hz, PAL is 50 Hz.
+Uses a real BIOS from the bios folder when there is one, or always the built-in one.
+Shows which BIOS files you have and for which regions.
+Shows the PlayStation logo when a game starts (needs a real BIOS).
+Applies the fixes that some known games need.
+More options: threads, speed, sound, compatibility and GPU fixes.
+Looks for a new version of WiiUStation on GitHub.
+Classic
+Soft
+Retro 8-bit
+Crystal
+Marimba
+Click
+Preview
+Auto
+Auto (DualShock)
+Auto (Digital)

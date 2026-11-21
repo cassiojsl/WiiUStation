@@ -406,3 +406,54 @@
 419|Corrección automática para este juego: %s
 420|Sistema (%s)
 421|Descargando los trucos de este juego...
+422|VSync (sin tearing)
+423|Elige si los cambios valen para todos los juegos o solo para este.
+424|El idioma de WiiUStation. Sistema sigue el idioma de la Wii U.
+425|Sonidos al moverte y elegir en el menú, y su estilo.
+426|Abre el último juego directamente al iniciar WiiUStation.
+427|La carpeta en la que se abre la lista de juegos.
+428|Cómo se muestran los juegos: carrusel, cuadrícula, cuadrícula compacta o lista.
+429|Portadas 2D o cajas 3D.
+430|Descarga ahora la portada de todos los juegos de la carpeta.
+431|Guarda donde lo dejas al salir de un juego y ofrece continuar desde ahí.
+432|Lightrec es mucho más rápido. Intérprete solo para juegos con problemas.
+433|Salta algunos fotogramas cuando el juego no mantiene la velocidad completa.
+434|Cómo se activa el avance rápido: manteniendo R3, pulsando R3 o manteniendo ZL+ZR.
+435|Cuántas veces más rápido va el juego al acelerar.
+436|Muestra los fotogramas por segundo en una esquina.
+437|Espera a que la pantalla se actualice antes de mostrar un fotograma, para que la imagen no se rompa.
+438|Activa o desactiva el sonido del juego.
+439|Forma y tamaño de la imagen: 4:3, zoom automático, estirar o múltiplos enteros.
+440|Suave difumina los píxeles, Pixel los mantiene cuadrados, Suave nítido es una mezcla.
+441|Lo que llena los lados: una copia difuminada del juego, un marco o una imagen tuya.
+442|Muestra el juego en 16:9 con su truco de pantalla ancha, si lo tiene.
+443|Líneas oscuras entre las filas, como en una TV antigua.
+444|El patrón de colores de la pantalla de una TV de tubo.
+445|Cristal curvo de TV de tubo, rejilla LCD o un resplandor suave.
+446|Lo que muestra el GamePad en el juego: lo mismo que la TV, solo el juego, nada o botones táctiles.
+447|El tramado de PlayStation. Desactivado se ve más limpio, Forzar lo añade en todo.
+448|Auto usa DualShock en los juegos compatibles. Pistolas y ratón usan la pantalla del GamePad.
+449|Con pistola: apunta girando el GamePad.
+450|El mando de los demás jugadores.
+451|Cuánto se mueven los sticks antes de que el juego lo note.
+452|Hasta 5 jugadores, en juegos compatibles con el Multitap.
+453|Cambia qué hace cada botón de la Wii U.
+454|Acciones rápidas al jugar: mantén un botón y pulsa otro.
+455|Vibración del GamePad y del Pro Controller.
+456|Auto detecta la región del juego. NTSC es 60 Hz, PAL 50 Hz.
+457|Usa una BIOS real de la carpeta bios si hay, o siempre la integrada.
+458|Muestra qué archivos de BIOS tienes y para qué regiones.
+459|Muestra el logo de PlayStation al iniciar el juego (necesita BIOS real).
+460|Aplica las correcciones que necesitan algunos juegos conocidos.
+461|Más opciones: núcleos, velocidad, sonido, compatibilidad y correcciones de GPU.
+462|Busca una nueva versión de WiiUStation en GitHub.
+463|Clásico
+464|Suave
+465|Retro 8 bits
+466|Cristal
+467|Marimba
+468|Clic
+469|Vista previa
+470|Auto
+471|Auto (DualShock)
+472|Auto (Digital)

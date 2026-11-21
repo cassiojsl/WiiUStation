@@ -77,7 +77,9 @@ controllers.
 - **Per-game settings**: open Settings while a game is running and set
   "Settings for" to "This game only".
 - **Players**: up to 5 with a multitap. Player 1 and the other players can
-  each use a Digital pad or a DualShock. Every button can be remapped.
+  each use a Digital pad or a DualShock. Auto (the default) picks a DualShock
+  for games that support one (`content/analog_ids.txt`) and a Digital pad for
+  the others. Every button can be remapped.
 - **Cheats**: GameShark codes from libretro `.cht` files. When a game has
   none, they are downloaded from the libretro cheat database
   (`content/cheats_index.txt`, made by `tools/cheats/make_index.py`, maps
@@ -92,9 +94,13 @@ controllers.
 - **Controllers**: Digital, DualShock, neGcon, PlayStation Mouse, GunCon and
   Justifier. The light guns and the mouse use the GamePad touch screen.
   Analog dead zone and the core's analog options.
-- **Screen effects**: CRT curve, LCD grid, glow, and the Scale2x filter.
+- **Screen effects**: CRT curve, LCD grid and glow. While a game is running,
+  the picture options in Settings show a live preview.
+- **VSync**: on by default, so the picture doesn't tear; the audio rate
+  adapts a little to stay in step with the screen.
 - **GamePad screen**: same as the TV, GamePad only, TV only, or a control
-  panel (game on the TV, touch buttons on the GamePad).
+  panel (game on the TV, touch buttons on the GamePad). With GamePad only or
+  TV only, the sound comes out only on that screen.
 - **Language**: English, Português, Español, Français, Deutsch, Italiano,
   Nederlands, Русский or 日本語. It follows the Wii U's language unless you
   choose one in Settings → Language.
