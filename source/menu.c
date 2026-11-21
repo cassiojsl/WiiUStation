@@ -2411,9 +2411,214 @@ static void game_options(entry_t *e, const char *dir)
 }
 
 /* ------------------------------------------------------------------------ */
+/* memory card manager                                                      */
+/* ------------------------------------------------------------------------ */
+#define MAXCARDS 300
+static char cardNames[MAXCARDS][256];
+
+static int is_card_file(const char *n)
+{
+	const char *d = strrchr(n, '.');
+	return d && (!strcasecmp(d, ".srm") || !strcasecmp(d, ".mcr") || !strcasecmp(d, ".mcd") || !strcasecmp(d, ".mc"));
+}
+
+/* card files in saves/ that are real 128 KB cards; returns the count */
+static int scan_cards(void)
+{
+	int n = 0;
+	struct stat st;
+	DIR *d = opendir(WIIU_SAVE_DIR);
+	if (!d) return 0;
+	struct dirent *e;
+	while ((e = readdir(d)) && n < MAXCARDS) {
+		char p[600];
+		if (e->d_name[0] == '.' || !is_card_file(e->d_name)) continue;
+		snprintf(p, sizeof(p), "%s/%s", WIIU_SAVE_DIR, e->d_name);
+		if (stat(p, &st) == 0 && st.st_size == MC_SIZE) snprintf(cardNames[n++], 256, "%s", e->d_name);
+	}
+	closedir(d);
+	qsort(cardNames, n, sizeof(cardNames[0]), (int (*)(const void *, const void *))strcasecmp);
+	return n;
+}
+
+/* pick a card; skip = a file name not to offer (the source of a copy) */
+static int pick_card(const char *title, const char *skip, char *out, size_t on)
+{
+	int n = scan_cards(), m = 0;
+	const char *labels[MAXCARDS];
+	static char shown[MAXCARDS][256];
+	for (int i = 0; i < n; i++) {
+		if (skip && !strcmp(cardNames[i], skip)) continue;
+		snprintf(shown[m], 256, "%s", cardNames[i]);
+		labels[m] = shown[m];
+		m++;
+	}
+	list_t L = { 0, 0 };
+	transition();
+	for (;;) {
+		poll_touch();
+		uint32_t b = poll_buttons();
+		int pick = -1;
+		if (m) {
+			if (b & WIIU_BTN_UP)   L.sel = L.sel > 0 ? L.sel - 1 : m - 1;
+			if (b & WIIU_BTN_DOWN) L.sel = L.sel < m - 1 ? L.sel + 1 : 0;
+			if (b & WIIU_BTN_A) pick = L.sel;
+		}
+		draw_background();
+		int back = draw_header(title, 1);
+		if (m) { int t = list_run(&L, labels, NULL, m, 0, NULL, NULL); if (t >= 0) pick = t; }
+		else text(fontItem, 640, 360, "No other memory cards.", GREY, 1);
+		draw_footer(NULL);
+		present();
+		if (back || (b & WIIU_BTN_B) || wiiu_quit) return 0;
+		if (pick >= 0) { snprintf(out, on, "%s", shown[pick]); return 1; }
+	}
+}
+
+static void card_view(const char *file)
+{
+	static uint8_t card[MC_SIZE], other[MC_SIZE];
+	static mc_save_t saves[15];
+	SDL_Texture *icons[15] = { 0 };
+	char path[600], title[96], inuse[600];
+	snprintf(path, sizeof(path), "%s/%s", WIIU_SAVE_DIR, file);
+	pretty_name(file, title, sizeof(title));
+	int locked = emu_memcard_path(inuse, sizeof(inuse)) && !strcmp(inuse, path);
+	int n = 0, sel = 0, reload = 1;
+	uint32_t delArm = 0;
+	list_t L = { 0, 0 };
+	transition();
+	for (;;) {
+		if (reload) {
+			for (int i = 0; i < 15; i++) if (icons[i]) { SDL_DestroyTexture(icons[i]); icons[i] = NULL; }
+			n = mc_load(path, card) ? mc_list(card, saves, 15) : 0;
+			for (int i = 0; i < n; i++) {
+				SDL_Surface *sf = SDL_CreateRGBSurfaceWithFormatFrom(saves[i].icon, 16, 16, 32, 64, SDL_PIXELFORMAT_ARGB8888);
+				if (sf) { icons[i] = SDL_CreateTextureFromSurface(R, sf); SDL_FreeSurface(sf); }
+				if (icons[i]) SDL_SetTextureScaleMode(icons[i], SDL_ScaleModeNearest);
+			}
+			if (sel >= n) sel = n ? n - 1 : 0;
+			L.sel = sel;
+			reload = 0;
+		}
+		const char *labels[15], *values[15];
+		char blk[15][16];
+		for (int i = 0; i < n; i++) {
+			labels[i] = saves[i].title;
+			snprintf(blk[i], sizeof(blk[i]), tr(saves[i].blocks > 1 ? "%d blocks" : "%d block"), saves[i].blocks);
+			values[i] = blk[i];
+		}
+		poll_touch();
+		uint32_t b = poll_buttons();
+		if (n) {
+			if (b & WIIU_BTN_UP)   L.sel = L.sel > 0 ? L.sel - 1 : n - 1;
+			if (b & WIIU_BTN_DOWN) L.sel = L.sel < n - 1 ? L.sel + 1 : 0;
+		}
+		sel = L.sel;
+		draw_background();
+		int back = draw_header(title, 1);
+		{
+			char info[96];
+			snprintf(info, sizeof(info), tr("%d of 15 blocks free"), mc_free_blocks(card));
+			text(fontSmall, LIST_X, 116, info, DIM, 0);
+		}
+		if (n) {
+			list_run(&L, labels, values, n, 0, NULL, NULL);
+			/* icons in front of the rows */
+			int first = (int)L.scroll;
+			for (int i = first; i < n && i < first + ROWS; i++)
+				if (icons[i]) {
+					SDL_Rect r = { LIST_X - 70, LIST_Y + (int)((i - L.scroll) * ROW_H) + 8, 48, 48 };
+					if (r.y >= LIST_Y - 8) SDL_RenderCopy(R, icons[i], NULL, &r);
+				}
+		} else {
+			text(fontItem, 640, 360, "This memory card is empty.", GREY, 1);
+		}
+		draw_footer(locked ? "This card belongs to the game that is running: close the game to change it" :
+		            n ? "Y: delete   X: copy to another card" : NULL);
+		present();
+		if (back || (b & WIIU_BTN_B) || wiiu_quit) break;
+		if (!n || locked) continue;
+		if (b & WIIU_BTN_Y) {
+			if (delArm && SDL_GetTicks() - delArm < 3000) {
+				mc_delete(card, saves[sel].first);
+				status(mc_save(path, card) ? "Save deleted." : "Could not write the memory card.");
+				delArm = 0;
+				reload = 1;
+			} else {
+				delArm = SDL_GetTicks();
+				status("Press Y again to delete this save.");
+			}
+		}
+		if (b & WIIU_BTN_X) {
+			char target[256], tpath[600];
+			if (pick_card("Copy to which card?", file, target, sizeof(target))) {
+				snprintf(tpath, sizeof(tpath), "%s/%s", WIIU_SAVE_DIR, target);
+				int busy = emu_memcard_path(inuse, sizeof(inuse)) && !strcmp(inuse, tpath);
+				if (busy) status("That card belongs to the game that is running.");
+				else if (!mc_load(tpath, other)) status("Could not read that memory card.");
+				else {
+					int r = mc_copy(card, saves[sel].first, other);
+					status(r == -1 ? "Not enough free blocks on that card." :
+					       r == -2 ? "That card already has this save." :
+					       mc_save(tpath, other) ? "Save copied." : "Could not write the memory card.");
+				}
+			}
+			transition();
+		}
+	}
+	for (int i = 0; i < 15; i++) if (icons[i]) SDL_DestroyTexture(icons[i]);
+}
+
+static void memcards(void)
+{
+	static uint8_t card[MC_SIZE];
+	int n = scan_cards();
+	static char shown[MAXCARDS][128], usage[MAXCARDS][24];
+	const char *labels[MAXCARDS], *values[MAXCARDS];
+	for (int i = 0; i < n; i++) {
+		pretty_name(cardNames[i], shown[i], sizeof(shown[i]));
+		labels[i] = shown[i];
+		char p[600];
+		snprintf(p, sizeof(p), "%s/%s", WIIU_SAVE_DIR, cardNames[i]);
+		if (mc_load(p, card)) snprintf(usage[i], sizeof(usage[i]), tr("%d / 15 used"), 15 - mc_free_blocks(card));
+		else snprintf(usage[i], sizeof(usage[i]), "?");
+		values[i] = usage[i];
+	}
+	list_t L = { 0, 0 };
+	transition();
+	for (;;) {
+		poll_touch();
+		uint32_t b = poll_buttons();
+		int open = -1;
+		if (n) {
+			if (b & WIIU_BTN_UP)   L.sel = L.sel > 0 ? L.sel - 1 : n - 1;
+			if (b & WIIU_BTN_DOWN) L.sel = L.sel < n - 1 ? L.sel + 1 : 0;
+			if (b & WIIU_BTN_A) open = L.sel;
+		}
+		draw_background();
+		int back = draw_header("Memory cards", 1);
+		if (n) { int t = list_run(&L, labels, values, n, 0, NULL, NULL); if (t >= 0) open = t; }
+		else {
+			text(fontItem, 640, 330, "No memory cards yet.", GREY, 1);
+			text(fontSmall, 640, 380, "Each game gets one in WiiUStation/saves. Cards from other emulators (.mcr, .mcd) can be copied there too.", DIM, 1);
+		}
+		draw_footer(n ? "Cards from other emulators (.mcr, .mcd) can be copied to WiiUStation/saves" : NULL);
+		present();
+		if (back || (b & WIIU_BTN_B) || wiiu_quit) return;
+		if (open >= 0) {
+			card_view(cardNames[open]);
+			transition();
+			char p[600];
+			snprintf(p, sizeof(p), "%s/%s", WIIU_SAVE_DIR, cardNames[open]);
+			if (mc_load(p, card)) snprintf(usage[open], sizeof(usage[open]), tr("%d / 15 used"), 15 - mc_free_blocks(card));
+		}
+	}
+}
+
+/* ------------------------------------------------------------------------ */
 /* screenshot gallery                                                       */
 /* ------------------------------------------------------------------------ */
-static void memcards(void) { status("Memory cards: coming in the next step."); }
 /* ------------------------------------------------------------------------ */
 /* ------------------------------------------------------------------------ */
 static void gallery(void)

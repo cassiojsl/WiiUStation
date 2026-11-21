@@ -249,6 +249,23 @@ int  emu_disk_append(const char *path);
 void emu_apply_settings(void);
 void emu_save_memcards(void);
 
+/* ---- memory cards (memcard.c) ---- */
+#define MC_SIZE 131072
+typedef struct {
+	int first, blocks;           /* first block (1..15), blocks used */
+	char fname[24];              /* name in the directory, e.g. BASLUS-00594... */
+	char title[96];              /* title from the save, as ASCII */
+	uint32_t icon[256];          /* 16x16 ARGB, 0 = transparent */
+} mc_save_t;
+int  mc_load(const char *path, uint8_t *card);
+int  mc_save(const char *path, const uint8_t *card);
+int  mc_list(const uint8_t *card, mc_save_t *out, int max);
+int  mc_free_blocks(const uint8_t *card);
+void mc_delete(uint8_t *card, int first);
+int  mc_copy(const uint8_t *src, int first, uint8_t *dst);   /* 0, -1 full, -2 exists */
+void mc_format(uint8_t *card);
+int  emu_memcard_path(char *out, size_t n);   /* 1 while a game is loaded */
+
 /* ---- covers (covers.c) ---- */
 int   covers_detect_id(const char *path, char *out);   /* out: "SCUS-94244" */
 void  covers_set_loaded_id(const char *path, const char *cdromId);

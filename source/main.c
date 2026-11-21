@@ -813,6 +813,13 @@ static void srm_path(char *out, size_t sz)
 
 static uint8_t *srmShadow;
 
+int emu_memcard_path(char *out, size_t n)
+{
+	if (!loaded) return 0;
+	srm_path(out, n);
+	return 1;
+}
+
 void emu_save_memcards(void)
 {
 	char path[512];
