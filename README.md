@@ -8,7 +8,8 @@ The menu, video, controllers and saves are WiiUStation's own.
 ## Install
 
 1. Copy `WiiUStation.wuhb` to `sd:/wiiu/apps/`.
-2. Put your games in `sd:/wiisxrx/isos/`. Supported formats: `.cue/.bin`,
+2. Put your games in `sd:/wiisxrx/isos/`, or in any folder you choose in
+   Settings → Games folder. Supported formats: `.cue/.bin`,
    `.chd`, `.pbp`, `.iso`, `.img`, `.m3u` (multi-disc) and more.
 3. Optional: put a BIOS (`scph1001.bin`, `scph5501.bin`, ...) in
    `sd:/wiisxrx/bios/`. Without one, the built-in HLE BIOS is used.
@@ -56,7 +57,8 @@ In the menu, HOME opens the Wii U HOME Menu.
   Lightrec is wrapped in RW→RX switches (see `patches/`).
 - **Core 2** can run the GPU renderer (gpulib + P.E.Op.S. soft GPU, threaded;
   experimental on big-endian, off by default).
-- **Core 0** runs SPU mixing and CD-ROM prefetch.
+- **Core 0** runs CD-ROM prefetch, and SPU mixing when that option is enabled
+  (Advanced; it is off by default and uses native Cafe OS semaphores).
 - **GX2** scales the picture to the TV (720p/1080p) and the GamePad at the
   same time, with bilinear or sharp filtering, 4:3, stretch or integer
   scaling, and optional scanlines.

@@ -236,8 +236,13 @@ static void draw_sharp_bilinear(const SDL_Rect *src, const SDL_Rect *dst)
 	while (src->w * kx > 2048) kx--;
 	while (src->h * ky > 2048) ky--;
 	if (!sharpTex) {
-		sharpTex = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888,
-		                             SDL_TEXTUREACCESS_TARGET, 2048, 2048);
+		/* Use the renderer's native format for the render target: an
+		 * ARGB8888 target came out blue on the Wii U renderer. */
+		SDL_RendererInfo info;
+		Uint32 fmt = SDL_PIXELFORMAT_RGBA8888;
+		if (SDL_GetRendererInfo(renderer, &info) == 0 && info.num_texture_formats > 0)
+			fmt = info.texture_formats[0];
+		sharpTex = SDL_CreateTexture(renderer, fmt, SDL_TEXTUREACCESS_TARGET, 2048, 2048);
 		if (!sharpTex) { SDL_RenderCopy(renderer, frameTex, src, dst); return; }
 		SDL_SetTextureScaleMode(sharpTex, SDL_ScaleModeLinear);
 		SDL_SetTextureBlendMode(sharpTex, SDL_BLENDMODE_NONE);

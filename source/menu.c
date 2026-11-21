@@ -12,6 +12,7 @@
  */
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
+#include <SDL2/SDL_image.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -110,9 +111,9 @@ static void outline(int x, int y, int w, int h, SDL_Color c, uint8_t a, int t)
 static void poly(const float *xy, int n, SDL_Color c, uint8_t a)
 {
 	/* convex polygon as a triangle fan */
-	SDL_Vertex v[16];
-	int idx[48], k = 0;
-	if (n > 16) n = 16;
+	SDL_Vertex v[32];
+	int idx[96], k = 0;
+	if (n > 32) n = 32;
 	for (int i = 0; i < n; i++) {
 		v[i].position.x = xy[i * 2];
 		v[i].position.y = xy[i * 2 + 1];
@@ -286,37 +287,54 @@ static void status(const char *m)
 #define BACK_H 60
 
 /* Returns 1 when the on-screen Back button was tapped. */
+static SDL_Texture *logoTex;
+static int logoW, logoH;
+
 static int draw_header(const char *title, int showBack)
 {
 	SDL_Color hdr = { 0, 0, 0 };
-	fill(0, 0, 1280, 100, hdr, 150);
-	/* four-colour stripe under the header */
-	fill(0, 100, 320, 4, PS_GREEN, 255);
-	fill(320, 100, 320, 4, PS_RED, 255);
-	fill(640, 100, 320, 4, PS_BLUE, 255);
-	fill(960, 100, 320, 4, PS_PINK, 255);
+	fill(0, 0, 1280, 104, hdr, 150);
 
 	if (showBack) {
 		SDL_Color panel = { 40, 48, 80 };
 		fill(BACK_X, BACK_Y, BACK_W, BACK_H, panel, 230);
 		outline(BACK_X, BACK_Y, BACK_W, BACK_H, GREY, 120, 2);
-		symbol(SYM_CROSS, BACK_X + 32, BACK_Y + BACK_H / 2, 26);
-		text(fontItem, BACK_X + 56, BACK_Y + BACK_H / 2, "Back", WHITE, 0);
+		float ax = BACK_X + 30, ay = BACK_Y + BACK_H / 2.0f;
+		float tri[6] = { ax - 12, ay, ax + 8, ay - 14, ax + 8, ay + 14 };
+		poly(tri, 3, WHITE, 255);
+		text(fontItem, BACK_X + 52, BACK_Y + BACK_H / 2, "Back", WHITE, 0);
 	} else {
-		/* PlayStation-coloured diamond logo */
-		float cx = 70, cy = 50, r = 26;
-		float q1[6] = { cx, cy - r, cx + r, cy, cx, cy };
-		float q2[6] = { cx + r, cy, cx, cy + r, cx, cy };
-		float q3[6] = { cx, cy + r, cx - r, cy, cx, cy };
-		float q4[6] = { cx - r, cy, cx, cy - r, cx, cy };
-		poly(q1, 3, PS_RED, 255);
-		poly(q2, 3, PS_YELLOW, 255);
-		poly(q3, 3, PS_BLUE, 255);
-		poly(q4, 3, PS_GREEN, 255);
-		text(fontTitle, 112, 50, "WiiUStation", WHITE, 0);
+		if (!logoTex) {
+			SDL_Surface *s = IMG_Load("fs:/vol/content/logo.png");
+			if (s) {
+				logoTex = SDL_CreateTextureFromSurface(R, s);
+				logoW = s->w; logoH = s->h;
+				SDL_FreeSurface(s);
+			}
+		}
+		if (logoTex) {
+			int h = 80, w = logoW * h / logoH;
+			SDL_Rect d = { 28, 12, w, h };
+			SDL_RenderCopy(R, logoTex, NULL, &d);
+		} else {
+			text(fontTitle, 40, 52, "WiiUStation", WHITE, 0);
+		}
 	}
-	if (title) text(fontTitle, 1240, 50, title, WHITE, 2);
+	if (title) text(fontTitle, 1240, 52, title, WHITE, 2);
 	return showBack && tap_in(BACK_X, BACK_Y, BACK_W, BACK_H);
+}
+
+/* Wii U style button glyph: light disc with a dark letter */
+static void wiiu_button(int x, int y, const char *label)
+{
+	const int N = 24;
+	float r = 15, xy[2 * 24];
+	for (int i = 0; i < N; i++) {
+		xy[i * 2] = x + cosf(i * 6.2831853f / N) * r;
+		xy[i * 2 + 1] = y + sinf(i * 6.2831853f / N) * r;
+	}
+	poly(xy, N, WHITE, 230);
+	text(fontSmall, x, y, label, (SDL_Color){ 30, 34, 50, 255 }, 1);
 }
 
 static void draw_footer(const char *hint)
@@ -327,12 +345,11 @@ static void draw_footer(const char *hint)
 		text(fontSmall, 40, 692, statusMsg, PS_YELLOW, 0);
 		return;
 	}
-	/* hint layout: "A ○ Select   B ✕ Back ..." drawn with real symbols */
-	int x = 40;
-	symbol(SYM_CIRCLE, x + 12, 692, 22); x += 32;
-	x += text(fontSmall, x, 692, "A  OK", GREY, 0) + 30;
-	symbol(SYM_CROSS, x + 12, 692, 22); x += 32;
-	x += text(fontSmall, x, 692, "B  Back", GREY, 0) + 30;
+	int x = 52;
+	wiiu_button(x, 692, "A"); x += 24;
+	x += text(fontSmall, x, 692, "OK", GREY, 0) + 34;
+	wiiu_button(x, 692, "B"); x += 24;
+	x += text(fontSmall, x, 692, "Back", GREY, 0) + 34;
 	if (hint) text(fontSmall, x, 692, hint, DIM, 0);
 }
 
@@ -483,7 +500,7 @@ static int list_run(list_t *L, const char **labels, const char **values, int cou
 /* file browser                                                             */
 /* ------------------------------------------------------------------------ */
 typedef struct { char name[256]; int dir; int idTried; char id[16]; } entry_t;
-static char browsePath[512] = WIIU_ISO_DIR;
+static char browsePath[512];
 
 static int is_game_file(const char *n)
 {
@@ -538,6 +555,12 @@ static int scan_dir(const char *path, entry_t **out)
 	return n;
 }
 
+static int at_or_above(const char *path, const char *root)
+{
+	/* 1 when path is root itself (or shorter, i.e. outside it) */
+	return strlen(path) <= strlen(root);
+}
+
 static void go_up(void)
 {
 	char *slash = strrchr(browsePath, '/');
@@ -545,23 +568,57 @@ static void go_up(void)
 	if (strlen(browsePath) < strlen(WIIU_SD_ROOT)) strcpy(browsePath, WIIU_SD_ROOT);
 }
 
-static int browse(const char *title, char *out, size_t outsz)
+/* Game browser (pickDir = 0) or folder picker (pickDir = 1).
+ * Opens in the games folder. B goes up one level and leaves the browser
+ * once it is back in the games folder; the on-screen Back button always
+ * leaves straight away. Returns 1 with the chosen file / folder in out. */
+static int browse(const char *title, char *out, size_t outsz, int pickDir)
 {
 	entry_t *list = NULL;
-	int count = scan_dir(browsePath, &list);
+	int count;
 	list_t L = { 0, 0 };
 	const char **labels = NULL;
-	SDL_Color *marks = NULL;
+	char (*names)[272] = NULL;
+	const char *root = pickDir ? WIIU_SD_ROOT : cfg.games_dir;
+	int ret = 0;
+
+	if (pickDir || !browsePath[0] || strncmp(browsePath, cfg.games_dir, strlen(cfg.games_dir)))
+		strcpy(browsePath, pickDir ? cfg.games_dir : cfg.games_dir);
+	{
+		struct stat st;
+		if (stat(browsePath, &st) != 0) strcpy(browsePath, WIIU_SD_ROOT);
+	}
+
+rescan:
+	free(list);
+	count = scan_dir(browsePath, &list);
+	if (pickDir) {
+		/* folders only, plus "use this folder" on top */
+		int m = 0;
+		for (int i = 0; i < count; i++) if (list[i].dir) list[m++] = list[i];
+		count = m;
+		list = realloc(list, (count + 1) * sizeof(entry_t));
+		memmove(list + 1, list, count * sizeof(entry_t));
+		strcpy(list[0].name, "\x01");    /* marker: use this folder */
+		list[0].dir = 2;
+		list[0].idTried = 1;
+		list[0].id[0] = 0;
+		count++;
+	}
+	labels = realloc(labels, (count + 1) * sizeof(char *));
+	names = realloc(names, (count + 1) * sizeof(*names));
+	for (int i = 0; i < count; i++) {
+		if (list[i].dir == 2) snprintf(names[i], sizeof(names[i]), "[ Use this folder ]");
+		else if (!strcmp(list[i].name, "..")) snprintf(names[i], sizeof(names[i]), ".. (up)");
+		else if (list[i].dir) snprintf(names[i], sizeof(names[i]), "%s/", list[i].name);
+		else snprintf(names[i], sizeof(names[i]), "%s", list[i].name);
+		labels[i] = names[i];
+	}
+	L.sel = 0;
+	L.scroll = 0;
 
 	for (;;) {
-		labels = realloc(labels, (count + 1) * sizeof(char *));
-		marks = realloc(marks, (count + 1) * sizeof(SDL_Color));
-		for (int i = 0; i < count; i++) {
-			labels[i] = list[i].name;
-			marks[i] = list[i].dir ? PS_YELLOW : PS_BLUE;
-		}
 		if (wiiu_quit) break;
-
 		poll_touch();
 		uint32_t b = poll_buttons();
 		int activate = -1;
@@ -581,11 +638,14 @@ static int browse(const char *title, char *out, size_t outsz)
 		}
 		int t = -1;
 		if (count == 0) {
-			text(fontItem, 640, 360, "No games here. Copy them to sd:/wiisxrx/isos", GREY, 1);
+			text(fontItem, 640, 360, "No games in this folder.", GREY, 1);
+			text(fontSmall, 640, 410, "Choose your games folder in Settings.", DIM, 1);
+		} else if (pickDir) {
+			t = list_run(&L, labels, NULL, count, 0, NULL, NULL);
 		} else {
 			entry_t *e = &list[L.sel];
 			listW = 700;
-			t = list_run(&L, labels, NULL, count, 0, NULL, marks);
+			t = list_run(&L, labels, NULL, count, 0, NULL, NULL);
 			listW = 1060;
 			if (!e->dir) {
 				if (!e->idTried && !T.down) {
@@ -598,35 +658,36 @@ static int browse(const char *title, char *out, size_t outsz)
 			}
 		}
 		if (t >= 0) activate = t;
-		draw_footer("L/R  Page    Drag to scroll");
+		draw_footer(pickDir ? "Pick the folder with your games" : "L/R  Page    Drag to scroll");
 		present();
 
-		if (back || (b & WIIU_BTN_B)) {
-			if (count && !strcmp(list[0].name, "..")) activate = 0;
-			else break;
+		if (back || (b & WIIU_BTN_PLUS)) break;               /* leave now */
+		if (b & WIIU_BTN_B) {
+			if (at_or_above(browsePath, root)) break;          /* back to menu */
+			go_up();
+			goto rescan;
 		}
-		if (b & WIIU_BTN_PLUS) break;
-
 		if (activate >= 0 && activate < count) {
 			entry_t *e = &list[activate];
-			if (!strcmp(e->name, "..")) {
+			if (e->dir == 2) {
+				snprintf(out, outsz, "%s", browsePath);
+				ret = 1;
+				break;
+			} else if (!strcmp(e->name, "..")) {
 				go_up();
 			} else if (e->dir) {
 				size_t l = strlen(browsePath);
 				snprintf(browsePath + l, sizeof(browsePath) - l, "/%s", e->name);
 			} else {
 				snprintf(out, outsz, "%s/%s", browsePath, e->name);
-				free(list); free(labels); free(marks);
-				return 1;
+				ret = 1;
+				break;
 			}
-			free(list);
-			count = scan_dir(browsePath, &list);
-			L.sel = 0;
-			L.scroll = 0;
+			goto rescan;
 		}
 	}
-	free(list); free(labels); free(marks);
-	return 0;
+	free(list); free(labels); free(names);
+	return ret;
 }
 
 /* ------------------------------------------------------------------------ */
@@ -636,10 +697,10 @@ static void advanced(void);
 
 static void settings(void)
 {
-	enum { S_CORE, S_SKIP, S_FPS, S_AUDIO, S_ASPECT, S_FILTER, S_SCAN, S_CRT,
+	enum { S_GAMES, S_CORE, S_SKIP, S_FPS, S_AUDIO, S_ASPECT, S_FILTER, S_SCAN, S_CRT,
 	       S_DITHER, S_PAD, S_RUMBLE, S_BIOS, S_LOGO, S_ADV, S_COUNT };
 	const char *labels[S_COUNT] = {
-		"CPU core", "Frame skip", "Show FPS", "Sound", "Screen", "Picture",
+		"Games folder", "CPU core", "Frame skip", "Show FPS", "Sound", "Screen", "Picture",
 		"Scanlines", "CRT mask", "Dithering", "Controller", "Vibration",
 		"BIOS", "PlayStation boot logo", "Advanced..."
 	};
@@ -647,6 +708,13 @@ static void settings(void)
 	list_t L = { 0, 0 };
 
 	for (;;) {
+		{
+			static char gd[64];
+			const char *p = cfg.games_dir + strlen(WIIU_SD_ROOT);
+			size_t l = strlen(p);
+			snprintf(gd, sizeof(gd), "%s%s", l > 26 ? "..." : "", l > 26 ? p + l - 26 : (*p ? p : "/"));
+			values[S_GAMES] = gd;
+		}
 		values[S_CORE]   = cfg.dynarec ? "Lightrec" : "Interpreter";
 		values[S_SKIP]   = cfg.frameskip ? "Auto" : "Off";
 		values[S_FPS]    = cfg.show_fps ? "On" : "Off";
@@ -688,6 +756,17 @@ static void settings(void)
 		}
 		if (!dir) continue;
 		switch (L.sel) {
+		case S_GAMES: {
+			char dir[512];
+			if (browse("Games folder", dir, sizeof(dir), 1)) {
+				strncpy(cfg.games_dir, dir, sizeof(cfg.games_dir) - 1);
+				cfg.games_dir[sizeof(cfg.games_dir) - 1] = 0;
+				browsePath[0] = 0;
+				settings_save();
+				status("Games folder saved.");
+			}
+			break;
+		}
 		case S_CORE:
 			if (!jit_available()) {
 				cfg.dynarec = 0;
@@ -769,15 +848,9 @@ int menu_run(void)
 		"Resume game", "Load game", "Reset game", "Change disc", "Save state",
 		"Load state", "State slot", "Settings", "Exit to Wii U Menu"
 	};
-	static const SDL_Color allMarks[M_COUNT] = {
-		{ 64, 226, 160, 255 }, { 124, 178, 232, 255 }, { 255, 92, 92, 255 },
-		{ 255, 204, 32, 255 }, { 255, 105, 248, 255 }, { 255, 105, 248, 255 },
-		{ 255, 105, 248, 255 }, { 150, 158, 178, 255 }, { 100, 108, 128, 255 }
-	};
 	int map[M_COUNT];
 	const char *labels[M_COUNT];
 	const char *values[M_COUNT];
-	SDL_Color marks[M_COUNT];
 	char slotStr[8], discStr[16];
 	list_t L = { 0, 0 };
 
@@ -799,7 +872,6 @@ int menu_run(void)
 			map[n] = i;
 			labels[n] = allLabels[i];
 			values[n] = NULL;
-			marks[n] = allMarks[i];
 			if (i == M_SLOT) { snprintf(slotStr, sizeof(slotStr), "%d", slot); values[n] = slotStr; }
 			if (i == M_DISC && emu_disk_count() > 1) {
 				snprintf(discStr, sizeof(discStr), "%d / %d", emu_disk_index() + 1, emu_disk_count());
@@ -828,7 +900,7 @@ int menu_run(void)
 		}
 		int arrow = 0;
 		if (loaded) listW = 700;
-		int t = list_run(&L, labels, values, n, 0, &arrow, marks);
+		int t = list_run(&L, labels, values, n, 0, &arrow, NULL);
 		listW = 1060;
 		if (loaded) draw_cover(emu_game_id(), emu_game_id());
 		if (t >= 0) activate = 1;
@@ -857,7 +929,7 @@ int menu_run(void)
 			case M_RESUME:
 				return 1;
 			case M_LOAD:
-				if (browse("Load game", path, sizeof(path))) {
+				if (browse("Load game", path, sizeof(path), 0)) {
 					draw_background();
 					draw_header("Loading", 0);
 					text(fontItem, 640, 360, strrchr(path, '/') ? strrchr(path, '/') + 1 : path, WHITE, 1);
@@ -875,7 +947,7 @@ int menu_run(void)
 					emu_disk_set((emu_disk_index() + 1) % c);
 					snprintf(m, sizeof(m), "Disc %d of %d inserted.", emu_disk_index() + 1, c);
 					status(m);
-				} else if (browse("Change disc", path, sizeof(path))) {
+				} else if (browse("Change disc", path, sizeof(path), 0)) {
 					if (emu_disk_append(path)) return 1;
 					status("Disc change failed.");
 				}

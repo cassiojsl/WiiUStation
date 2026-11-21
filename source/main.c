@@ -85,7 +85,7 @@ void settings_load(void)
 	FILE *f;
 	cfg.dynarec = 1;
 	cfg.gpu_thread = 1;   /* renderer on core 2 */
-	cfg.spu_thread = 1;
+	cfg.spu_thread = 0;   /* off: sound was lost with Lightrec + SPU thread */
 	cfg.frameskip = 0;
 	cfg.show_fps = 0;
 	cfg.aspect = WIIU_ASPECT_4_3;
@@ -99,6 +99,7 @@ void settings_load(void)
 	cfg.analog = 0;       /* digital pad: works with every game */
 	cfg.rumble = 1;
 	cfg.audio = 1;
+	strcpy(cfg.games_dir, WIIU_ISO_DIR);
 	f = fopen(WIIU_CONFIG_FILE, "r");
 	if (f) {
 		int version = 0;
@@ -116,9 +117,18 @@ void settings_load(void)
 			char *k = line;
 			while (*k == ' ') k++;
 			for (char *e = eq - 1; e >= k && *e == ' '; e--) *e = 0;
+			if (!strcmp(k, "games_dir")) {
+				char *v = eq + 1;
+				while (*v == ' ') v++;
+				v[strcspn(v, "\r\n")] = 0;
+				if (!strncmp(v, WIIU_SD_ROOT, strlen(WIIU_SD_ROOT)))
+					strncpy(cfg.games_dir, v, sizeof(cfg.games_dir) - 1);
+				continue;
+			}
 			int v = atoi(eq + 1);
-			if (version < 2 && (!strcmp(k, "gpu_thread") || !strcmp(k, "analog") ||
-			                    !strcmp(k, "spu_thread")))
+			if (version < 2 && (!strcmp(k, "gpu_thread") || !strcmp(k, "analog")))
+				continue;
+			if (version < 3 && (!strcmp(k, "spu_thread") || !strcmp(k, "filter")))
 				continue;
 			for (unsigned i = 0; i < sizeof(OPTS) / sizeof(OPTS[0]); i++)
 				if (!strcmp(OPTS[i].key, k) && v >= OPTS[i].min && v <= OPTS[i].max)
@@ -135,9 +145,10 @@ int settings_save(void)
 	wiiu_mkdirs(WIIU_APP_DIR);
 	f = fopen(WIIU_CONFIG_FILE, "w");
 	if (!f) return 0;
-	fprintf(f, "# WiiUStation settings\nversion = 2\n");
+	fprintf(f, "# WiiUStation settings\nversion = 3\n");
 	for (unsigned i = 0; i < sizeof(OPTS) / sizeof(OPTS[0]); i++)
 		fprintf(f, "%s = %d\n", OPTS[i].key, *OPTS[i].val);
+	fprintf(f, "games_dir = %s\n", cfg.games_dir);
 	fclose(f);
 	return 1;
 }

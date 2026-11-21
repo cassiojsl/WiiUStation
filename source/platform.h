@@ -44,6 +44,7 @@ typedef struct {
 	int analog;         /* pad type: 1 = DualShock */
 	int rumble;
 	int audio;
+	char games_dir[256];  /* folder the game browser opens */
 } wiiu_settings;
 
 extern wiiu_settings cfg;

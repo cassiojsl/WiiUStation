@@ -325,6 +325,29 @@ index 94a1ea68..5ff5da88 100644
  
  	use_lightrec_interpreter = !!getenv("LIGHTREC_INTERPRETER");
  
+diff --git a/plugins/dfsound/spu.c b/plugins/dfsound/spu.c
+index 76f76afe..3f8be392 100644
+--- a/plugins/dfsound/spu.c
++++ b/plugins/dfsound/spu.c
+@@ -1304,7 +1304,18 @@ static void RemoveStreams(void)
+ #ifdef _3DS
+ #include <3ds/svc.h> // semaphore.h dep
+ #endif
++#ifdef WIIU
++/* WiiUStation: newlib's generic POSIX semaphores are not reliable across
++ * Espresso cores; use the native Cafe OS semaphores. */
++#include <coreinit/semaphore.h>
++#define sem_t OSSemaphore
++#define sem_init(s_, p_, v_) (OSInitSemaphore((s_), (v_)), 0)
++#define sem_post(s_) OSSignalSemaphore(s_)
++#define sem_wait(s_) OSWaitSemaphore(s_)
++#define sem_destroy(s_) ((void)(s_))
++#else
+ #include <semaphore.h>
++#endif
+ 
+ static struct {
+  sthread_t *thread;
 diff --git a/plugins/gpulib/gpu_async.c b/plugins/gpulib/gpu_async.c
 index a67509b3..f13fafef 100644
 --- a/plugins/gpulib/gpu_async.c
