@@ -191,7 +191,7 @@
 196|Cielo pixel
 197|Gioca sul GamePad: la TV resta nera. HOME o L3+R3 apre il menu.
 198|Logo di avvio PlayStation
-199|Emulatore PlayStation per Wii U
+199|Emulatore PlayStation (PS1) per Wii U, basato su PCSX-ReARMed
 200|PlayStation è un marchio di Sony Interactive Entertainment.
 201|Controller del giocatore 1
 202|Controller dei giocatori 2+

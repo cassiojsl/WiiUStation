@@ -197,7 +197,7 @@ Pixel city
 Pixel sky
 Play on the GamePad: the TV stays black. HOME or L3+R3 opens the menu.
 PlayStation boot logo
-PlayStation emulator for the Wii U
+PlayStation (PS1) emulator for the Wii U, based on PCSX-ReARMed
 PlayStation is a trademark of Sony Interactive Entertainment.
 Player 1 controller
 Player 2+ controller

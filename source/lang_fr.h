@@ -188,7 +188,7 @@
 { "Pixel sky", "Ciel pixel" },
 { "Play on the GamePad: the TV stays black. HOME or L3+R3 opens the menu.", "Jouez sur le GamePad : la TV reste noire. HOME ou L3+R3 ouvre le menu." },
 { "PlayStation boot logo", "Logo de démarrage PlayStation" },
-{ "PlayStation emulator for the Wii U", "Émulateur PlayStation pour Wii U" },
+{ "PlayStation (PS1) emulator for the Wii U, based on PCSX-ReARMed", "Émulateur PlayStation (PS1) pour Wii U, basé sur PCSX-ReARMed" },
 { "PlayStation is a trademark of Sony Interactive Entertainment.", "PlayStation est une marque de Sony Interactive Entertainment." },
 { "Player 1 controller", "Manette du joueur 1" },
 { "Player 2+ controller", "Manette des joueurs 2+" },

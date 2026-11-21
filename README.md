@@ -1,7 +1,8 @@
 # WiiUStation
 
-A standalone PlayStation emulator for the Wii U, for the Aroma environment
-(`.wuhb`). The emulator core is
+**PlayStation (PS1) emulator for the Wii U, based on PCSX-ReARMed.**
+
+A standalone app for the Aroma environment (`.wuhb`). The emulator core is
 [PCSX-ReARMed](https://github.com/libretro/pcsx_rearmed), linked into the app
 through the libretro API, so RetroArch is not needed. The menu, video,
 controllers, covers and saves are WiiUStation's own.

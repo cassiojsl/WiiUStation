@@ -1906,7 +1906,7 @@ static void credits(void)
 {
 	static const char *lines[] = {
 		"#WiiUStation",
-		"PlayStation emulator for the Wii U",
+		"PlayStation (PS1) emulator for the Wii U, based on PCSX-ReARMed",
 		"",
 		"#Emulator core",
 		"PCSX-ReARMed  -  notaz, Exophase, senquack, pcercuei",

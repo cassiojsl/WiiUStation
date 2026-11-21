@@ -191,7 +191,7 @@
 196|Pixel-Himmel
 197|Auf dem GamePad spielen: der Fernseher bleibt schwarz. HOME oder L3+R3 öffnet das Menü.
 198|PlayStation-Startlogo
-199|PlayStation-Emulator für die Wii U
+199|PlayStation-Emulator (PS1) für die Wii U, basierend auf PCSX-ReARMed
 200|PlayStation ist eine Marke von Sony Interactive Entertainment.
 201|Controller von Spieler 1
 202|Controller der Spieler 2+
