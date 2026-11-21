@@ -37,7 +37,8 @@ In the menu, HOME opens the Wii U HOME Menu.
   MIPS code into PowerPC code. The generated code lives in Cafe OS's codegen
   (JIT) area, which is either writable or executable (W^X). Every write by
   Lightrec is wrapped in RW→RX switches (see `patches/`).
-- **Core 2** runs the GPU renderer (gpulib + gpu_unai, threaded).
+- **Core 2** can run the GPU renderer (gpulib + P.E.Op.S. soft GPU, threaded;
+  experimental on big-endian, off by default).
 - **Core 0** runs SPU mixing and CD-ROM prefetch.
 - **GX2** scales the picture to the TV (720p/1080p) and the GamePad at the
   same time, with bilinear or sharp filtering, 4:3, stretch or integer
@@ -55,7 +56,7 @@ make -C WiiUStation
 
 This needs devkitPro with `wiiu-dev`, `wiiu-sdl2` and `wiiu-sdl2_ttf`. The
 Makefile applies `patches/*.patch` to `vendor/pcsx_rearmed` and builds the
-core (`platform=wiiu`, Lightrec, threaded GPU/SPU, gpu_unai), then links the
+core (`platform=wiiu`, Lightrec, threaded GPU/SPU, P.E.Op.S. GPU), then links the
 frontend.
 
 The patches do three things:

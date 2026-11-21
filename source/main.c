@@ -82,7 +82,7 @@ void settings_load(void)
 	char line[128];
 	FILE *f;
 	cfg.dynarec = 1;
-	cfg.gpu_thread = 1;
+	cfg.gpu_thread = 0;   /* experimental on big-endian: off by default */
 	cfg.spu_thread = 1;
 	cfg.frameskip = 0;
 	cfg.show_fps = 0;

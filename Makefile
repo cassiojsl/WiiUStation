@@ -31,8 +31,9 @@ CORE_PATCHES	:=	$(sort $(wildcard $(TOPDIR)/patches/*.patch))
 
 # Core build options:
 #  - Lightrec dynarec (default for platform=wiiu), code buffer = codegen area
-#  - gpulib + gpu_unai renderer, threaded GPU and SPU (cores 2 and 0)
-CORE_FLAGS	:=	platform=wiiu USE_ASYNC_GPU=1 USE_ASYNC_SPU=1 BUILTIN_GPU=unai
+#  - gpulib + P.E.Op.S. soft renderer (big-endian safe; the official Wii/Wii U
+#    builds use it too), optional threaded GPU and SPU (cores 2 and 0)
+CORE_FLAGS	:=	platform=wiiu USE_ASYNC_GPU=1 USE_ASYNC_SPU=1 BUILTIN_GPU=peops
 CORE_CC		:=	$(DEVKITPPC)/bin/powerpc-eabi-gcc -DWIIU -I$(DEVKITPRO)/wut/include \
 			-Wno-error=int-conversion -Wno-error=incompatible-pointer-types \
 			-Wno-error=implicit-function-declaration
