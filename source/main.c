@@ -311,7 +311,7 @@ static void settings_defaults(void)
 	cfg.frameskip = 0;
 	cfg.show_fps = 0;
 	cfg.aspect = WIIU_ASPECT_4_3;
-	cfg.filter = WIIU_FILTER_LINEAR;
+	cfg.filter = WIIU_FILTER_SHARP_BILINEAR;   /* Sharp smooth */
 	cfg.scanlines = 0;
 	cfg.crt = 0;
 	cfg.reverb = 1;
@@ -395,6 +395,8 @@ static int settings_parse(const char *path, int isGame)
 			continue;
 		if (version < 9 && !strcmp(k, "aspect"))     /* 4:3 became the default */
 			continue;
+		if (version < 10 && !strcmp(k, "filter"))    /* Sharp smooth became the default */
+			continue;
 		for (unsigned i = 0; i < sizeof(OPTS) / sizeof(OPTS[0]); i++)
 			if (!strcmp(OPTS[i].key, k) && v >= OPTS[i].min && v <= OPTS[i].max)
 				*OPTS[i].val = v;
@@ -407,7 +409,7 @@ static int settings_write(const char *path, int isGame)
 {
 	FILE *f = fopen(path, "w");
 	if (!f) return 0;
-	fprintf(f, "# WiiUStation %s\nversion = 9\n", isGame ? "per-game settings" : "settings");
+	fprintf(f, "# WiiUStation %s\nversion = 10\n", isGame ? "per-game settings" : "settings");
 	for (unsigned i = 0; i < sizeof(OPTS) / sizeof(OPTS[0]); i++)
 		if (!isGame || !global_only(OPTS[i].key))
 			fprintf(f, "%s = %d\n", OPTS[i].key, *OPTS[i].val);
