@@ -447,3 +447,4 @@
 { "Preview", "Anteprima" },
 { "Auto (Digital)", "Auto (digitale)" },
 { "Up / Down: other picture options", "Su / Giù: altre opzioni immagine" },
+{ "A: adjust it with the game on screen", "A: regola vedendo il gioco a schermo" },

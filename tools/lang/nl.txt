@@ -458,3 +458,4 @@
 471|Auto (DualShock)
 472|Auto (digitaal)
 473|Omhoog / Omlaag: andere beeldopties
+474|A: aanpassen met de game in beeld

@@ -443,3 +443,4 @@
 { "Preview", "Aperçu" },
 { "Auto (Digital)", "Auto (numérique)" },
 { "Up / Down: other picture options", "Haut / Bas : autres options d'image" },
+{ "A: adjust it with the game on screen", "A : régler en voyant le jeu à l'écran" },

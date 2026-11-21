@@ -450,3 +450,4 @@
 { "Click", "Clic" },
 { "Preview", "Vista previa" },
 { "Up / Down: other picture options", "Arriba / Abajo: otras opciones de imagen" },
+{ "A: adjust it with the game on screen", "A: ajustar viendo el juego en pantalla" },

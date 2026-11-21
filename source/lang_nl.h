@@ -438,3 +438,4 @@
 { "Preview", "Voorbeeld" },
 { "Auto (Digital)", "Auto (digitaal)" },
 { "Up / Down: other picture options", "Omhoog / Omlaag: andere beeldopties" },
+{ "A: adjust it with the game on screen", "A: aanpassen met de game in beeld" },

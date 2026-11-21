@@ -29,6 +29,7 @@
 { ">> Fast forward", ">> Acelerando" },
 { "A little faster. May break timing in some games.", "Um pouco mais rápido. Pode atrapalhar o tempo de alguns jogos." },
 { "A: add to / remove from the collection", "A: colocar na coleção / tirar dela" },
+{ "A: adjust it with the game on screen", "A: ajustar vendo o jogo na tela" },
 { "A: download and install", "A: baixar e instalar" },
 { "A: load this slot", "A: carregar este slot" },
 { "A: overwrite this slot", "A: substituir este slot" },

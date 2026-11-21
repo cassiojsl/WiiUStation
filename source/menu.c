@@ -1961,6 +1961,7 @@ static void settings(void)
 	const char *labels[S_COUNT], *values[S_COUNT];
 	int map[S_COUNT];
 	list_t L = { 0, 0 };
+	int picMode = 0;                  /* the picture options over the game */
 	char scopeStr[96], gd[80], ffs[8], dzs[8];
 	transition();
 
@@ -2055,24 +2056,27 @@ static void settings(void)
 		poll_touch();
 		uint32_t b = poll_buttons();
 		int dir = 0;
-		/* the picture options of a running game are changed over the game
-		 * itself, full screen, so every change is seen as it happens */
+		/* the picture options of a running game: A (or a tap) on one opens
+		 * them over the game itself, full screen, so every change is seen as
+		 * it happens; B goes back to the list */
 #define IS_PIC(r) ((r) == S_ASPECT || (r) == S_FILTER || (r) == S_BEZEL || (r) == S_WIDE || \
                    (r) == S_SCAN || (r) == S_CRT || (r) == S_FX || (r) == S_DITHER)
-		int inPic = loaded && n && IS_PIC(map[L.sel]);
+		if (picMode && !(loaded && n && IS_PIC(map[L.sel]))) picMode = 0;
 		if (b & (WIIU_BTN_UP | WIIU_BTN_DOWN)) {
-			int step = (b & WIIU_BTN_UP) ? -1 : 1, moved = 0;
-			if (inPic)       /* up / down go through the picture options only */
+			int step = (b & WIIU_BTN_UP) ? -1 : 1;
+			if (picMode) {   /* up / down go through the picture options only */
 				for (int j = L.sel + step; j >= 0 && j < n; j += step)
-					if (IS_PIC(map[j])) { L.sel = j; moved = 1; break; }
-			if (!moved) L.sel = step < 0 ? (L.sel > 0 ? L.sel - 1 : n - 1) : (L.sel < n - 1 ? L.sel + 1 : 0);
+					if (IS_PIC(map[j])) { L.sel = j; break; }
+			} else L.sel = step < 0 ? (L.sel > 0 ? L.sel - 1 : n - 1) : (L.sel < n - 1 ? L.sel + 1 : 0);
 		}
+		int cur = n ? map[L.sel] : -1;
+		int canPic = loaded && cur >= 0 && IS_PIC(cur);
+		if (!picMode && canPic && (b & WIIU_BTN_A)) { picMode = 1; b &= ~WIIU_BTN_A; }
 		if (b & (WIIU_BTN_RIGHT | WIIU_BTN_A)) dir = 1;
 		if (b & WIIU_BTN_LEFT) dir = -1;
 
-		int cur = n ? map[L.sel] : -1;
 		int back = 0;
-		if (loaded && cur >= 0 && IS_PIC(cur)) {
+		if (picMode) {
 			SDL_Texture *pv = (SDL_Texture *)video_preview();
 			SDL_SetRenderDrawColor(R, 0, 0, 0, 255);
 			SDL_RenderClear(R);
@@ -2092,7 +2096,7 @@ static void settings(void)
 			poly(rq, 3, WHITE, 255);
 			wiiu_button(52, 700, "B");
 			text(fontSmall, 76, 700, "Back", GREY, 0);
-			text(fontSmall, 640, 700, "Up / Down: other picture options", DIM, 1);
+			marquee(fontSmall, 680, 700, 1000, allHelp[cur], DIM, 1, 1);
 			if (statusMsg[0] && SDL_GetTicks() < statusUntil) {
 				fill(0, 548, 1280, 44, k, 160);
 				text(fontSmall, 640, 570, statusMsg, PS_YELLOW, 1);
@@ -2101,18 +2105,17 @@ static void settings(void)
 			 * a tap above it goes back to the list */
 			if (tap_in(0, 596, 640, 124)) dir = -1;
 			else if (tap_in(640, 596, 640, 124)) dir = 1;
-			else if (T.tapped && T.ty < 596) {
-				for (int j = L.sel; j < n; j++) if (!IS_PIC(map[j])) { L.sel = j; break; }
-			}
+			else if (T.tapped && T.ty < 596) picMode = 0;
 			present();
+			if (b & WIIU_BTN_B) { picMode = 0; b &= ~WIIU_BTN_B; }
 		} else {
 			draw_background();
 			back = draw_header(game ? "Game settings" : "Settings", 1);
 			int arrow = 0;
 			int t = list_run(&L, labels, values, n, 1, &arrow, NULL);
-			if (t >= 0) dir = 1;
+			if (t >= 0) { if (loaded && IS_PIC(map[t])) picMode = 1; else dir = 1; }
 			if (arrow) dir = arrow;
-			draw_footer(cur >= 0 ? allHelp[cur] : NULL);
+			draw_footer(canPic ? "A: adjust it with the game on screen" : cur >= 0 ? allHelp[cur] : NULL);
 			present();
 		}
 

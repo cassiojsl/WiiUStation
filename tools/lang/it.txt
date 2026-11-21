@@ -458,3 +458,4 @@
 471|Auto (DualShock)
 472|Auto (digitale)
 473|Su / Giù: altre opzioni immagine
+474|A: regola vedendo il gioco a schermo

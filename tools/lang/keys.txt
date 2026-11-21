@@ -472,3 +472,4 @@ Auto
 Auto (DualShock)
 Auto (Digital)
 Up / Down: other picture options
+A: adjust it with the game on screen

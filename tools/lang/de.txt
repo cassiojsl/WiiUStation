@@ -458,3 +458,4 @@
 471|Auto (DualShock)
 472|Auto (Digital)
 473|Hoch / Runter: weitere Bildoptionen
+474|A: mit dem Spiel im Bild einstellen
