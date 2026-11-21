@@ -62,7 +62,13 @@ frontend.
 The patches do three things:
 - point Lightrec's code buffer at the codegen area and add the W^X hooks;
 - enable the native Wii U threads in libretro-common, pinned to cores 0 and 2;
-- fix a big-endian build error in gpulib's threaded renderer.
+- fix a big-endian build error in gpulib's threaded renderer;
+- fix the GTE (3D geometry coprocessor) on big-endian hosts. MVMVA and the
+  light-colour matrix in NCS/NCT/NCCS/NCDS read 16-bit matrix and vector
+  elements as a flat array, which swaps every pair on PowerPC. The result was
+  collapsed or invisible polygons in 3D games.
+  `tools/gte_endian_test.sh` checks the GTE output against a little-endian
+  build (it needs qemu-ppc).
 
 ## Licence
 

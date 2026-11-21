@@ -185,6 +185,80 @@ index dccc9d89..2dfdca60 100644
   #if defined(__GLIBC__) || \
      (defined(__ANDROID_API__) && __ANDROID_API__ >= 26)
  	if (h && (unsigned int)type < (unsigned int)PCSXRT_COUNT)
+diff --git a/libpcsxcore/gte.c b/libpcsxcore/gte.c
+index 357eb160..7a0ce56c 100644
+--- a/libpcsxcore/gte.c
++++ b/libpcsxcore/gte.c
+@@ -545,6 +545,20 @@ static inline s32 divide(u32 *flags, u16 h, u16 sz3)
+ 	return 0x1ffff;
+ }
+ 
++#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
++/* The register file is an array of 32-bit words holding two 16-bit halves
++ * (PAIR). Code that walks a matrix/vector as a flat s16 array assumes the
++ * little-endian halfword order; on big-endian hosts the halves of every
++ * word are swapped in memory, so copy them out in logical order first. */
++static inline void gte_load_s16(s16 *out, const PAIR *p, int n)
++{
++	int i;
++	for (i = 0; i < n; i++)
++		out[i] = (i & 1) ? p[i >> 1].sw.h : p[i >> 1].sw.l;
++}
++#define GTE_BE_MX(name, pairs) s16 name##_be[10]; gte_load_s16(name##_be, pairs, 9)
++#endif
++
+ #ifdef HAVE_ARMV5
+ 
+ #define gteMAC123f gteMAC123f_arm
+@@ -696,8 +710,18 @@ static inline force_inline void gteMVMVA(psxCP2Regs *regs,
+ 	int mx, int v, int cv, int shift, int lm)
+ {
+ 	const s16 v3[3] = { regs->CP2D.p[9].sw.l, regs->CP2D.p[10].sw.l, regs->CP2D.p[11].sw.l };
++#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
++	s16 vbe[4], mxbe[10];
++	const s16 *vp = vbe;
++	const s16 *mxp = mxbe;
++	vbe[0] = regs->CP2D.p[(v & 3) << 1].sw.l;
++	vbe[1] = regs->CP2D.p[(v & 3) << 1].sw.h;
++	vbe[2] = regs->CP2D.p[((v & 3) << 1) + 1].sw.l;
++	gte_load_s16(mxbe, &regs->CP2C.p[(mx & 3) << 3], 9);
++#else
+ 	const s16 *vp = &regs->CP2D.p[v << 1].sw.l;
+ 	const s16 *mxp = &regs->CP2C.p[mx << 3].sw.l;
++#endif
+ 	const s32 *cvp = (s32 *)&regs->CP2C.r[(cv << 3) + 5];
+ 	const s32 cv3[3] = { 0, 0, 0 };
+ 	s16 mx3[9];
+@@ -809,7 +833,14 @@ static inline force_inline void runColor1(psxCP2Regs *regs, u32 *flags, int shif
+ 	ir1 = limB1(flags, mac1, lm);
+ 	ir2 = limB2(flags, mac2, lm);
+ 	ir3 = limB3(flags, mac3, lm);
++#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
++	{
++		GTE_BE_MX(lc, &regs->CP2C.p[16]);
++		*flags |= gteMAC123f(regs, ir1, ir2, ir3, lc_be, &gteRBK, shift);
++	}
++#else
+ 	*flags |= gteMAC123f(regs, ir1, ir2, ir3, &gteLR1, &gteRBK, shift);
++#endif
+ 	mac1 = gteMAC1;
+ 	mac2 = gteMAC2;
+ 	mac3 = gteMAC3;
+@@ -1072,7 +1103,14 @@ static inline void runColor3(psxCP2Regs *regs, int shift, int lm, int is_cdp)
+ 	s32 ir1, ir2, ir3;
+ 	u32 flags;
+ 
++#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
++	{
++		GTE_BE_MX(lc, &regs->CP2C.p[16]);
++		flags = gteMAC123f(regs, gteIR1, gteIR2, gteIR3, lc_be, &gteRBK, shift);
++	}
++#else
+ 	flags = gteMAC123f(regs, gteIR1, gteIR2, gteIR3, &gteLR1, &gteRBK, shift);
++#endif
+ 	ir1 = limB1(&flags, gteMAC1, lm);
+ 	ir2 = limB2(&flags, gteMAC2, lm);
+ 	ir3 = limB3(&flags, gteMAC3, lm);
 diff --git a/libpcsxcore/lightrec/mem.h b/libpcsxcore/lightrec/mem.h
 index 9984604e..aeaf7c85 100644
 --- a/libpcsxcore/lightrec/mem.h
