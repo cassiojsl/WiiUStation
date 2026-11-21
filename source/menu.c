@@ -1896,7 +1896,11 @@ static void settings(void)
 			case S_VIEW:   values[k] = view_name(cfg.view); break;
 			case S_COVERS: values[k] = cfg.cover3d ? "3D box" : "2D"; break;
 			case S_LANG:   values[k] = lang_name(cfg.lang); break;
-			case S_SFX:    values[k] = cfg.menusfx ? "On" : "Off"; break;
+			case S_SFX: {
+				static const char *sn[7] = { "Off", "Classic", "Soft", "Retro 8-bit", "Crystal", "Marimba", "Click" };
+				values[k] = sn[cfg.menusfx >= 0 && cfg.menusfx <= 6 ? cfg.menusfx : 1];
+				break;
+			}
 			case S_AUTOSTART: values[k] = cfg.autostart ? "On" : "Off"; break;
 			case S_AUTOFIX: values[k] = cfg.autofix ? "On" : "Off"; break;
 			case S_UPDATE: values[k] = app_version(); break;
@@ -2058,7 +2062,7 @@ static void settings(void)
 		               break;
 		case S_CONTROLS: controls(); transition(); break;
 		case S_HOTKEYS:  hotkeys(); transition(); break;
-		case S_SFX:      cfg.menusfx = !cfg.menusfx; sfx_play(SFX_OK); break;
+		case S_SFX:      cfg.menusfx = (cfg.menusfx + 7 + dir) % 7; sfx_play(SFX_OK); break;
 		case S_AUTOSTART:
 			cfg.autostart = !cfg.autostart;
 			if (cfg.autostart) status("The last game opens when WiiUStation starts. Hold B during the opening to go to the menu.");

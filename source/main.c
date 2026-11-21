@@ -132,7 +132,7 @@ static struct { const char *key; int *val; int min, max; } OPTS[] = {
 	{ "cover3d",    &cfg.cover3d,    0, 1 },
 	{ "sort",       &cfg.sort,       0, 2 },
 	{ "regionf",    &cfg.regionf,    0, 4 + 64 },
-	{ "menusfx",    &cfg.menusfx,    0, 1 },
+	{ "menusfx",    &cfg.menusfx,    0, 6 },
 	{ "autostart",  &cfg.autostart,  0, 1 },
 	{ "autofix",    &cfg.autofix,    0, 1 },
 	{ "lang",       &cfg.lang,       -1, LANG_COUNT - 1 },

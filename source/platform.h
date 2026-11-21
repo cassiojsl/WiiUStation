@@ -101,7 +101,7 @@ typedef struct {
 	int lang;           /* LANG_*, LANG_AUTO = follow the Wii U */
 	int sort;           /* game list: 0 name, 1 last played, 2 most played */
 	int regionf;        /* game list: 0 all, 1 USA, 2 Europe, 3 Japan, 4 favourites, 5+ a collection */
-	int menusfx;        /* menu sounds and the opening */
+	int menusfx;        /* menu sounds: 0 off, 1 classic, 2 soft, 3 retro, 4 crystal, 5 marimba, 6 click */
 	int autostart;      /* open the last game when the app starts */
 	int autofix;        /* apply the built-in fixes for known games */
 	int cover3d;        /* covers: 0 = 2D front, 1 = 3D box */

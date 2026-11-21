@@ -48,20 +48,40 @@ static void callback(void *ud, Uint8 *stream, int len)
 	}
 }
 
-/* a few sine partials with an exponential fade; notes in Hz, one after another */
-static void synth(int id, const float *notes, int nnotes, float noteSec, float decay, float vol)
+/* styles of menu sound (cfg.menusfx): 1 classic, 2 soft, 3 retro 8-bit,
+ * 4 crystal, 5 marimba, 6 click */
+enum { ST_CLASSIC = 1, ST_SOFT, ST_RETRO, ST_CRYSTAL, ST_MARIMBA, ST_CLICK, ST_COUNT };
+
+static float wave(int style, float f, float t)
+{
+	const float w = 6.2831853f * f * t;
+	switch (style) {
+	case ST_SOFT:    return sinf(w) + 0.15f * sinf(2 * w);
+	case ST_RETRO:   return (sinf(w) >= 0 ? 0.55f : -0.55f);                     /* square */
+	case ST_CRYSTAL: return sinf(w) + 0.5f * sinf(2.76f * w) + 0.25f * sinf(5.4f * w); /* bell */
+	case ST_MARIMBA: return sinf(w) + 0.35f * sinf(4.0f * w) * expf(-t * 60);    /* wood */
+	default:         return sinf(w) + 0.3f * sinf(2 * w) + 0.12f * sinf(3 * w);
+	}
+}
+
+/* notes in Hz, one after another, each with an exponential fade */
+static void synth(int id, int style, const float *notes, int nnotes, float noteSec, float decay, float vol)
 {
 	int per = (int)(noteSec * SFX_RATE), tail = (int)(decay * SFX_RATE);
 	int len = per * (nnotes - 1) + tail;
 	int16_t *d = calloc(len, sizeof(int16_t));
 	if (!d) return;
+	uint32_t seed = 12345;
 	for (int n = 0; n < nnotes; n++) {
 		int start = n * per;
 		for (int i = 0; start + i < len && i < tail; i++) {
 			float t = (float)i / SFX_RATE;
 			float env = expf(-t * 5.0f / decay) * (i < 96 ? i / 96.0f : 1.0f);
-			float v = sinf(6.2831853f * notes[n] * t) + 0.3f * sinf(6.2831853f * notes[n] * 2 * t)
-			          + 0.12f * sinf(6.2831853f * notes[n] * 3 * t);
+			float v;
+			if (style == ST_CLICK) {           /* filtered noise burst */
+				seed = seed * 1103515245u + 12345u;
+				v = ((int)(seed >> 16 & 0x7fff) - 16384) / 16384.0f * expf(-t * 900) + 0.4f * sinf(6.2831853f * notes[n] * t) * expf(-t * 200);
+			} else v = wave(style, notes[n], t);
 			int x = d[start + i] + (int)(v * env * vol * 9000.0f);
 			d[start + i] = (int16_t)(x > 32767 ? 32767 : x < -32768 ? -32768 : x);
 		}
@@ -72,19 +92,64 @@ static void synth(int id, const float *notes, int nnotes, float noteSec, float d
 
 static void sfx_build(void)
 {
-	static int built;
-	if (built) return;
-	built = 1;
-	const float move[1] = { 1318.5f };                         /* E6, a soft tick */
-	const float ok[2] = { 987.8f, 1318.5f };                   /* B5 -> E6 */
-	const float back[2] = { 1174.7f, 880.0f };                 /* D6 -> A5 */
-	const float err[2] = { 311.1f, 293.7f };
+	static int builtFor = -1;
+	int st = cfg.menusfx;
+	if (st < ST_CLASSIC || st >= ST_COUNT) st = ST_CLASSIC;
+	if (builtFor == st) return;
+	/* stop what is playing before replacing the sounds */
+	SDL_LockAudio();
+	sfxPlay = NULL;
+	SDL_UnlockAudio();
+	for (int i = 0; i < SFX_COUNT; i++) { free(sfxData[i]); sfxData[i] = NULL; }
+	builtFor = st;
 	const float intro[5] = { 523.3f, 659.3f, 784.0f, 1046.5f, 1568.0f };   /* C major, up */
-	synth(SFX_MOVE, move, 1, 0, 0.05f, 0.35f);
-	synth(SFX_OK, ok, 2, 0.05f, 0.12f, 0.45f);
-	synth(SFX_BACK, back, 2, 0.05f, 0.10f, 0.4f);
-	synth(SFX_ERROR, err, 2, 0.08f, 0.15f, 0.45f);
-	synth(SFX_INTRO, intro, 5, 0.11f, 1.6f, 0.5f);
+	const float err[2] = { 311.1f, 293.7f };
+	switch (st) {
+	case ST_SOFT: {
+		const float mv[1] = { 659.3f }, ok[2] = { 523.3f, 784.0f }, bk[2] = { 587.3f, 440.0f };
+		synth(SFX_MOVE, st, mv, 1, 0, 0.06f, 0.30f);
+		synth(SFX_OK, st, ok, 2, 0.06f, 0.14f, 0.40f);
+		synth(SFX_BACK, st, bk, 2, 0.06f, 0.12f, 0.36f);
+		break;
+	}
+	case ST_RETRO: {
+		const float mv[1] = { 1046.5f }, ok[3] = { 784.0f, 1046.5f, 1568.0f }, bk[2] = { 784.0f, 523.3f };
+		synth(SFX_MOVE, st, mv, 1, 0, 0.035f, 0.22f);
+		synth(SFX_OK, st, ok, 3, 0.035f, 0.07f, 0.24f);
+		synth(SFX_BACK, st, bk, 2, 0.04f, 0.07f, 0.22f);
+		break;
+	}
+	case ST_CRYSTAL: {
+		const float mv[1] = { 2093.0f }, ok[2] = { 1568.0f, 2093.0f }, bk[2] = { 1760.0f, 1318.5f };
+		synth(SFX_MOVE, st, mv, 1, 0, 0.18f, 0.20f);
+		synth(SFX_OK, st, ok, 2, 0.07f, 0.35f, 0.26f);
+		synth(SFX_BACK, st, bk, 2, 0.07f, 0.30f, 0.24f);
+		break;
+	}
+	case ST_MARIMBA: {
+		const float mv[1] = { 784.0f }, ok[2] = { 659.3f, 987.8f }, bk[2] = { 880.0f, 587.3f };
+		synth(SFX_MOVE, st, mv, 1, 0, 0.09f, 0.40f);
+		synth(SFX_OK, st, ok, 2, 0.07f, 0.16f, 0.45f);
+		synth(SFX_BACK, st, bk, 2, 0.07f, 0.14f, 0.42f);
+		break;
+	}
+	case ST_CLICK: {
+		const float mv[1] = { 3000.0f }, ok[2] = { 2400.0f, 3200.0f }, bk[2] = { 2600.0f, 1800.0f };
+		synth(SFX_MOVE, st, mv, 1, 0, 0.02f, 0.35f);
+		synth(SFX_OK, st, ok, 2, 0.03f, 0.03f, 0.40f);
+		synth(SFX_BACK, st, bk, 2, 0.03f, 0.03f, 0.38f);
+		break;
+	}
+	default: {
+		const float mv[1] = { 1318.5f }, ok[2] = { 987.8f, 1318.5f }, bk[2] = { 1174.7f, 880.0f };
+		synth(SFX_MOVE, st, mv, 1, 0, 0.05f, 0.35f);
+		synth(SFX_OK, st, ok, 2, 0.05f, 0.12f, 0.45f);
+		synth(SFX_BACK, st, bk, 2, 0.05f, 0.10f, 0.4f);
+		break;
+	}
+	}
+	synth(SFX_ERROR, st == ST_CLICK ? ST_CLASSIC : st, err, 2, 0.08f, 0.15f, 0.40f);
+	synth(SFX_INTRO, st == ST_CLICK || st == ST_RETRO ? ST_CLASSIC : st, intro, 5, 0.11f, 1.6f, 0.5f);
 }
 
 void sfx_play(int id)
