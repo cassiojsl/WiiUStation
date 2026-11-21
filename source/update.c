@@ -124,6 +124,7 @@ int update_check(char *tag, size_t tn, char *err, size_t en)
 	curl_easy_cleanup(c);
 	curl_slist_free_all(h);
 	if (rc != CURLE_OK || code != 200 || !m.buf) {
+		wlog("update check failed: curl %d, http %ld", (int)rc, code);
 		snprintf(err, en, "%s", code == 404 ? tr("No release has been published yet.") : tr("Could not reach GitHub."));
 		free(m.buf);
 		return -1;
@@ -232,9 +233,9 @@ static int download_thread(void *ud)
 	wiiu_mkdirs(WIIU_APP_DIR);
 	remove(tmp);
 	FILE *f = fopen(tmp, "wb");
-	if (!f) { snprintf(dlErr, sizeof(dlErr), "%s", tr("Could not write to the SD card.")); dlState = -1; return 0; }
+	if (!f) { snprintf(dlErr, sizeof(dlErr), "%s", tr("Could not write to the SD card.")); wlog("update download failed: %s", dlErr); dlState = -1; return 0; }
 	CURL *c = new_handle(latestUrl);
-	if (!c) { fclose(f); remove(tmp); snprintf(dlErr, sizeof(dlErr), "%s", tr("Could not start the download.")); dlState = -1; return 0; }
+	if (!c) { fclose(f); remove(tmp); snprintf(dlErr, sizeof(dlErr), "%s", tr("Could not start the download.")); wlog("update download failed: %s", dlErr); dlState = -1; return 0; }
 	char cerr[CURL_ERROR_SIZE] = "";
 	curl_easy_setopt(c, CURLOPT_WRITEFUNCTION, file_write_cb);
 	curl_easy_setopt(c, CURLOPT_WRITEDATA, f);
@@ -254,16 +255,19 @@ static int download_thread(void *ud)
 		remove(tmp);
 		if (rc != CURLE_OK) snprintf(dlErr, sizeof(dlErr), tr("Download error %d: %s"), (int)rc, cerr[0] ? cerr : curl_easy_strerror(rc));
 		else snprintf(dlErr, sizeof(dlErr), tr("The server answered %ld."), code);
+		wlog("update download failed: %s", dlErr);
 		dlState = -1;
 		return 0;
 	}
 	if (!wok || got < 1024 * 1024) {
 		remove(tmp);
 		snprintf(dlErr, sizeof(dlErr), tr("The downloaded file is incomplete (%ld bytes)."), got);
+		wlog("update download failed: %s", dlErr);
 		dlState = -1;
 		return 0;
 	}
 	/* ready: the file is swapped when the app closes (update_finish) */
+	wlog("update %s downloaded (%ld bytes)", latestTag, got);
 	dlState = 2;
 	return 0;
 }
@@ -277,7 +281,7 @@ int update_start(void)
 	dlNow = dlTotal = 0;
 	/* curl with TLS needs a large stack */
 	SDL_Thread *t = SDL_CreateThreadWithStackSize(download_thread, "update", 256 * 1024, NULL);
-	if (!t) { dlState = -1; return 0; }
+	if (!t) { wlog("update download failed: %s", dlErr); dlState = -1; return 0; }
 	SDL_DetachThread(t);
 	return 1;
 }
@@ -373,7 +377,8 @@ int update_finish(void)
 	int ok = 0;
 	if (remove(full) == 0 || file_size(full) < 0) ok = rename(staged, full) == 0;
 	if (!ok) ok = overwrite_file(staged, full) && remove(staged) == 0;
-	if (!ok) return 0;
+	if (!ok) { wlog("update: could not replace %s", full); return 0; }
+	wlog("update installed: %s", full);
 	rl_path launch = (rl_path)rl_find("RL_LaunchHomebrew");
 	return launch && launch(rel) == 0;
 }

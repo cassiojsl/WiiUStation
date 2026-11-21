@@ -280,6 +280,9 @@ const char *app_version(void);
 int  net_download(const char *url, const char *path);   /* 1 ok, -1 404, 0 failed */
 void update_check_background(void);
 const char *update_error(void);
+void wlog(const char *fmt, ...);        /* log.txt */
+void wlog_init(void);
+void wlog_exit(void);
 const char *emu_load_error(void);      /* why the last game did not load */
 void update_install_on_exit(void);   /* swap the file and restart when the app closes */
 int update_pending(void);

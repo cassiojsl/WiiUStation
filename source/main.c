@@ -541,7 +541,17 @@ static int coreLogN, coreLogOn;
 
 static void core_log(enum retro_log_level level, const char *fmt, ...)
 {
-	if (!coreLogOn) return;
+	if (!coreLogOn) {
+		if (level >= RETRO_LOG_WARN) {                 /* during the game: only problems */
+			char w[200];
+			va_list ap2;
+			va_start(ap2, fmt);
+			vsnprintf(w, sizeof(w), fmt, ap2);
+			va_end(ap2);
+			wlog("core: %s", w);
+		}
+		return;
+	}
 	char b[184];
 	va_list ap;
 	va_start(ap, fmt);
@@ -1029,7 +1039,7 @@ void emu_save_memcards(void)
 	if (write_file(path, data, size) == 0) {
 		if (!srmShadow) srmShadow = malloc(size);
 		if (srmShadow) memcpy(srmShadow, data, size);
-	}
+	} else wlog("could not write the memory card: %s", path);
 }
 
 static void load_memcard(void)
@@ -1157,9 +1167,20 @@ int emu_load_game(const char *pathIn)
 	ppfFromDisc = 0;
 	coreLogN = 0;
 	coreLogOn = 1;
+	{
+		struct stat gst;
+		wlog("loading %s (%lld bytes)", path, stat(path, &gst) == 0 ? (long long)gst.st_size : -1LL);
+	}
+	const uint32_t loadStart = SDL_GetTicks();
 	bool loadedOk = retro_load_game(&gi);
 	coreLogOn = 0;
-	if (!loadedOk) { load_failed(path); settings_leave_game(); return -1; }
+	if (!loadedOk) {
+		load_failed(path);
+		wlog("could not load the game: %s", loadError);
+		settings_leave_game();
+		return -1;
+	}
+	wlog("loaded in %u ms", (unsigned)(SDL_GetTicks() - loadStart));
 	loaded = 1;
 	retro_get_system_av_info(&av);
 	emu_apply_settings();
@@ -1182,6 +1203,7 @@ int emu_load_game(const char *pathIn)
 void emu_unload_game(void)
 {
 	if (!loaded) return;
+	wlog("closing %s", gameName);
 	emu_save_memcards();
 	if (cfg.resume) emu_state_save(-1);     /* "continue where you left off" */
 	retro_unload_game();
@@ -1371,6 +1393,7 @@ int emu_state_save(int slot)
 		}
 	}
 	free(buf);
+	if (!ok) wlog("could not save the state (slot %d)", slot);
 	return ok;
 }
 
@@ -2055,6 +2078,7 @@ int main(int argc, char **argv)
 	if (video_init() < 0) return -1;
 	app_folder_move();
 	update_cleanup();
+	wlog_init();
 	wiiu_input_init();
 	wiiu_mkdirs(WIIU_ISO_DIR);
 	wiiu_mkdirs(WIIU_BIOS_DIR);
@@ -2065,6 +2089,9 @@ int main(int argc, char **argv)
 	wiiu_mkdirs(WIIU_APP_DIR "/patches");
 	jit_available();          /* probe codegen on the main core */
 	settings_load();
+	wlog("start: jit %s, dynarec %s, gpu thread %s, vsync %s, aspect %d, filter %d, region %d",
+	     jit_available() ? "available" : "unavailable", cfg.dynarec ? "on" : "off", cfg.gpu_thread ? "on" : "off",
+	     cfg.vsync ? "on" : "off", cfg.aspect, cfg.filter, cfg.region);
 
 	retro_set_environment(environment);
 	retro_set_video_refresh(video_cb);
@@ -2091,6 +2118,7 @@ int main(int argc, char **argv)
 		if (!update_finish()) SYSLaunchMenu();
 		while (pump_events()) SDL_Delay(10);
 	}
+	wlog_exit();
 	video_shutdown();
 	return 0;
 }

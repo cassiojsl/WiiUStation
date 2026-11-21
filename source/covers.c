@@ -187,6 +187,7 @@ static int worker_main(void *ud)
 		SDL_UnlockMutex(qlock);
 		if (!strcmp(id, "QUIT")) break;
 		int r = download(id);
+		if (r == 0) wlog("cover download failed: %s", id);   /* network error; 404 is normal */
 		SDL_LockMutex(qlock);
 		int *st = state_of(id, 1);
 		if (st) *st = r > 0 ? ST_DONE : r < 0 ? ST_MISSING : ST_FAILED;

@@ -28,6 +28,7 @@ sd:/wiiu/apps/WiiUStation/
 ├── screenshots/
 ├── gamesettings/  per-game settings
 ├── favorites.txt, recent.txt
+├── log.txt     what happened (games loaded or not and why, errors); last_error.txt: the last game that did not load
 └── settings.cfg
 ```
 
