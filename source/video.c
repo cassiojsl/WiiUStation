@@ -377,6 +377,73 @@ static SDL_Texture *custom_bezel(void)
 	return bezelTex;
 }
 
+/* built-in bezels: content/bezels/<file>.png, 1280x720 with a 960x720 hole */
+static const struct { int id; const char *name, *file; } BEZELS[] = {
+	{ BEZEL_OFF,       "Off",          NULL },
+	{ BEZEL_AMBIENT,   "Ambient",      NULL },
+	{ BEZEL_TV,        "Retro TV",     "tv" },
+	{ BEZEL_GREY,      "Grey console", "grey" },
+	{ BEZEL_CARBON,    "Carbon",       "carbon" },
+	{ BEZEL_SYNTHWAVE, "Synthwave",    "synthwave" },
+	{ BEZEL_WOOD,      "Wood",         "wood" },
+	{ BEZEL_WHITE,     "White",        "white" },
+	{ BEZEL_SPACE,     "Space",        "space" },
+	{ BEZEL_CUSTOM,    "Custom image", NULL },
+};
+#define NBEZELS (int)(sizeof(BEZELS) / sizeof(BEZELS[0]))
+
+static int bezel_pos(int b)
+{
+	for (int i = 0; i < NBEZELS; i++)
+		if (BEZELS[i].id == b) return i;
+	return 0;
+}
+
+const char *bezel_name(int b) { return BEZELS[bezel_pos(b)].name; }
+
+int bezel_next(int b, int dir)
+{
+	return BEZELS[(bezel_pos(b) + NBEZELS + dir) % NBEZELS].id;
+}
+
+static SDL_Texture *builtinTex;
+static int builtinLoaded = -1;
+
+static SDL_Texture *builtin_bezel(int b)
+{
+	if (b != builtinLoaded) {
+		const char *f = BEZELS[bezel_pos(b)].file;
+		if (builtinTex) { SDL_DestroyTexture(builtinTex); builtinTex = NULL; }
+		if (f) {
+			char path[128];
+			snprintf(path, sizeof(path), "fs:/vol/content/bezels/%s.png", f);
+			SDL_Surface *s = IMG_Load(path);
+			if (s) {
+				builtinTex = SDL_CreateTextureFromSurface(renderer, s);
+				if (builtinTex) {
+					SDL_SetTextureBlendMode(builtinTex, SDL_BLENDMODE_BLEND);
+					SDL_SetTextureScaleMode(builtinTex, SDL_ScaleModeLinear);
+				}
+				SDL_FreeSurface(s);
+			}
+		}
+		builtinLoaded = b;
+	}
+	return builtinTex;
+}
+
+static void draw_builtin_bezel(int b, const SDL_Rect *dst)
+{
+	/* scale the art so its hole sits exactly around the picture, whatever
+	 * the screen mode (4:3, zoom, integer); the outer edge may go off screen */
+	SDL_Texture *t = builtin_bezel(b);
+	if (!t) return;
+	float sx = dst->w / 960.0f, sy = dst->h / 720.0f, k = sx > sy ? sx : sy;
+	int bw = (int)(1280 * k + 0.5f), bh = (int)(720 * k + 0.5f);
+	SDL_Rect r = { dst->x + dst->w / 2 - bw / 2, dst->y + dst->h / 2 - bh / 2, bw, bh };
+	SDL_RenderCopy(renderer, t, NULL, &r);
+}
+
 static void draw_ambient(const SDL_Rect *src, const SDL_Rect *dst)
 {
 	/* The frame itself, blown up past the screen edges: the bilinear
@@ -445,6 +512,8 @@ void video_draw_game(int dim)
 	if (cfg.bezel == BEZEL_CUSTOM) {
 		SDL_Texture *b = custom_bezel();
 		if (b) SDL_RenderCopy(renderer, b, NULL, NULL);
+	} else if (cfg.bezel >= BEZEL_TV) {
+		draw_builtin_bezel(cfg.bezel, &dst);
 	}
 	if (dim) {
 		SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);

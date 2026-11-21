@@ -59,7 +59,9 @@ controllers.
   - filters: Smooth, Pixel, Sharp smooth;
   - effects: scanlines, CRT mask;
   - screen: 4:3, stretch, integer scale;
-  - borders: **Ambient**, a soft, dimmed copy of the game behind it, or
+  - borders: **Ambient**, a soft, dimmed copy of the game behind it; 7
+    built-in bezels (Retro TV, Grey console, Carbon, Synthwave, Wood, White,
+    Space) that always fit around the picture, including with Auto zoom; or
     **Custom image**, your own PNG bezels.
 - **Saves**: memory cards are saved automatically. There are 10 save-state
   slots, each with a thumbnail.
@@ -104,6 +106,8 @@ Patches to the core:
 Tools:
 - `tools/gte_endian_test.sh` checks the GTE output against a little-endian
   build. It needs `qemu-ppc` and `powerpc-linux-gnu-gcc`.
+- `tools/bezels/make_bezels.py` draws the built-in bezels into
+  `content/bezels/` (needs Python with Pillow and NumPy).
 - `tools/menu_preview/run.sh` renders the menu screens on a PC and saves
   screenshots.
 

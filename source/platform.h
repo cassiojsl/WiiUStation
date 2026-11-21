@@ -35,7 +35,12 @@ int wiiu_mkdirs(const char *path);
 /* ---- settings ---- */
 /* ZOOM: 4:3 with the black borders the game itself draws cropped away */
 enum { WIIU_ASPECT_4_3 = 0, WIIU_ASPECT_STRETCH, WIIU_ASPECT_INTEGER, WIIU_ASPECT_ZOOM };
-enum { BEZEL_OFF = 0, BEZEL_AMBIENT, BEZEL_CUSTOM };
+/* values are stored in settings.cfg: keep the first three as they were */
+enum { BEZEL_OFF = 0, BEZEL_AMBIENT, BEZEL_CUSTOM,
+       BEZEL_TV, BEZEL_GREY, BEZEL_CARBON, BEZEL_SYNTHWAVE, BEZEL_WOOD,
+       BEZEL_WHITE, BEZEL_SPACE, BEZEL_COUNT };
+const char *bezel_name(int b);   /* "Retro TV", ... */
+int bezel_next(int b, int dir);  /* menu order */
 enum { WIIU_FILTER_LINEAR = 0, WIIU_FILTER_NEAREST, WIIU_FILTER_SHARP_BILINEAR };
 
 typedef struct {
@@ -61,7 +66,7 @@ typedef struct {
 	int ffspeed;        /* 2..4x */
 	int rumble;
 	int audio;
-	int bezel;          /* 0 off, 1 ambient, 2 custom image */
+	int bezel;          /* BEZEL_* */
 	int view;           /* game browser: 0 grid, 1 list */
 	int map[16];        /* PSX button (RETRO_DEVICE_ID_JOYPAD_*) -> WIIU_BTN bit index */
 	char games_dir[256];  /* folder the game browser opens */
@@ -89,7 +94,7 @@ void video_set_fps_text(const char *txt);
 void video_set_game_id(const char *id);
 void video_fade_in(void);
 /* save the last game frame as PNG; width 0 = full size, else scaled */
-int  video_save_frame(const char *path, int width);                 /* fade the game in from black */   /* for per-game bezels */
+int  video_save_frame(const char *path, int width);
 void *video_open_font(int size);       /* TTF_Font* (system font) */
 
 /* events: 0 when the app must quit (HOME Menu -> Close) */

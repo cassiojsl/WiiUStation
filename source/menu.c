@@ -1379,7 +1379,7 @@ static void settings(void)
 			                           cfg.aspect == WIIU_ASPECT_STRETCH ? "Stretch" : "Integer"; break;
 			case S_FILTER: values[k] = cfg.filter == WIIU_FILTER_LINEAR ? "Smooth" :
 			                           cfg.filter == WIIU_FILTER_NEAREST ? "Pixel" : "Sharp smooth"; break;
-			case S_BEZEL:  values[k] = cfg.bezel == BEZEL_OFF ? "Off" : cfg.bezel == BEZEL_AMBIENT ? "Ambient" : "Custom image"; break;
+			case S_BEZEL:  values[k] = bezel_name(cfg.bezel); break;
 			case S_SCAN:   values[k] = cfg.scanlines ? "On" : "Off"; break;
 			case S_CRT:    values[k] = cfg.crt ? "On" : "Off"; break;
 			case S_DITHER: values[k] = cfg.dithering == 0 ? "Off" : cfg.dithering == 1 ? "On" : "Force"; break;
@@ -1439,7 +1439,7 @@ static void settings(void)
 		case S_VIEW:   cfg.view = !cfg.view; break;
 		case S_RESUME: cfg.resume = !cfg.resume; break;
 		case S_BEZEL:
-			cfg.bezel = (cfg.bezel + 3 + dir) % 3;
+			cfg.bezel = bezel_next(cfg.bezel, dir);
 			if (cfg.bezel == BEZEL_CUSTOM)
 				status("Put 1280x720 PNGs in WiiUStation/bezels: default.png or <GAME-ID>.png");
 			break;

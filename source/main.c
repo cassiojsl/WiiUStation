@@ -87,7 +87,7 @@ static struct { const char *key; int *val; int min, max; } OPTS[] = {
 	{ "ffspeed",    &cfg.ffspeed,    2, 4 },
 	{ "rumble",     &cfg.rumble,     0, 1 },
 	{ "audio",      &cfg.audio,      0, 1 },
-	{ "bezel",      &cfg.bezel,      0, 2 },
+	{ "bezel",      &cfg.bezel,      0, BEZEL_COUNT - 1 },
 	{ "view",       &cfg.view,       0, 1 },
 };
 /* keys that only make sense globally (never in a per-game file) */
