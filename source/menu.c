@@ -84,6 +84,7 @@ static tcache_t *get_text(TTF_Font *font, const char *s, SDL_Color c)
 static int text(TTF_Font *f, int x, int yc, const char *s, SDL_Color c, int align)
 {
 	if (!f || !s || !*s) return 0;
+	s = tr(s);                         /* interface language */
 	tcache_t *e = get_text(f, s, c);
 	if (!e || !e->tex) return 0;
 	SDL_Rect d = { x, yc - e->h / 2, e->w, e->h };
@@ -415,6 +416,7 @@ static uint32_t statusUntil;
 
 static void status(const char *m)
 {
+	m = tr(m);
 	strncpy(statusMsg, m, sizeof(statusMsg) - 1);
 	statusMsg[sizeof(statusMsg) - 1] = 0;
 	statusUntil = SDL_GetTicks() + 3000;
@@ -497,6 +499,7 @@ static void draw_footer(const char *hint)
 	x += text(fontSmall, x, 692, "OK", GREY, 0) + 34;
 	wiiu_button(x, 692, "B"); x += 24;
 	x += text(fontSmall, x, 692, "Back", GREY, 0) + 34;
+	if (hint) hint = tr(hint);
 	if (hint && hint[0] == 'X' && hint[1] == ' ') {     /* "X  ..." -> X glyph */
 		wiiu_button(x, 692, "X"); x += 24;
 		hint += 3;
@@ -953,7 +956,7 @@ static void disc_badge(entry_t *e, int x, int y, int sz)
 	if (e->fav) star(x + sz - sz * 12 / 100, y + sz * 17 / 100, sz * 9.5f / 100, PS_YELLOW);
 	if (e->discs > 1) {
 		char dn[16];
-		snprintf(dn, sizeof(dn), sz < 150 ? "%d CD" : "%d discs", e->discs);
+		snprintf(dn, sizeof(dn), tr(sz < 150 ? "%d CD" : "%d discs"), e->discs);
 		int bw = sz < 150 ? 62 : 92;
 		SDL_Color badge = { 0, 110, 190 };
 		rrect(x + 6, y + sz - 34, bw, 28, 14, badge, 255);
@@ -1421,14 +1424,14 @@ rescan:
 	labels = realloc(labels, (count + 1) * sizeof(char *));
 	names = realloc(names, (count + 1) * sizeof(*names));
 	for (int i = 0; i < count; i++) {
-		if (list[i].dir == 2) snprintf(names[i], sizeof(names[i]), "[ Use this folder ]");
-		else if (!strcmp(list[i].name, "..")) snprintf(names[i], sizeof(names[i]), ".. (up)");
+		if (list[i].dir == 2) snprintf(names[i], sizeof(names[i]), "%s", tr("[ Use this folder ]"));
+		else if (!strcmp(list[i].name, "..")) snprintf(names[i], sizeof(names[i]), "%s", tr(".. (up)"));
 		else if (list[i].dir) snprintf(names[i], sizeof(names[i]), "%s/", list[i].name);
 		else if (list[i].discs > 1) {
 			char b[256], nm[256];
 			if (!disc_tag(list[i].name, b, sizeof(b))) snprintf(b, sizeof(b), "%s", list[i].name);
 			pretty_name(b, nm, sizeof(nm));
-			snprintf(names[i], sizeof(names[i]), "%s%s  (%d discs)", list[i].fav ? "\xe2\x98\x85 " : "", nm, list[i].discs);
+			snprintf(names[i], sizeof(names[i]), tr("%s%s  (%d discs)"), list[i].fav ? "\xe2\x98\x85 " : "", nm, list[i].discs);
 		}
 		else {
 			char nm[256];
@@ -1514,7 +1517,7 @@ rescan:
 			cfg.view = view_next(cfg.view, 1);   /* X: next view */
 			settings_save();
 			if (cfg.view == VIEW_LIST) L.sel = G.sel; else if (wasList) G.sel = L.sel;
-			{ char vm[64]; snprintf(vm, sizeof(vm), "View: %s", view_name(cfg.view)); status(vm); }
+			{ char vm[64]; snprintf(vm, sizeof(vm), tr("View: %s"), tr(view_name(cfg.view))); status(vm); }
 			L.hyInit = G.hInit = 0;
 			transition();
 		}
@@ -1524,8 +1527,8 @@ rescan:
 		{
 			const char *p = browsePath + strlen(WIIU_SD_ROOT);
 			char sub[200];
-			snprintf(sub, sizeof(sub), "%s%s%s%s%s", *p ? p : "/", favOnly ? "   \xe2\x98\x85 Favourites" : "",
-			         searchText[0] ? "   Search: \"" : "", searchText, searchText[0] ? "\"" : "");
+			snprintf(sub, sizeof(sub), "%s%s%s%s%s", *p ? p : "/", favOnly ? tr("   \xe2\x98\x85 Favourites") : "",
+			         searchText[0] ? tr("   Search: \"") : "", searchText, searchText[0] ? "\"" : "");
 			text(fontSmall, LIST_X, 116, sub, DIM, 0);
 		}
 		int t = -1;
@@ -1638,8 +1641,8 @@ static void settings(void)
 				if (game) {
 					char nm[64];
 					pretty_name(emu_game_name(), nm, sizeof(nm));
-					snprintf(scopeStr, sizeof(scopeStr), "This game only");
-				} else snprintf(scopeStr, sizeof(scopeStr), "All games");
+					snprintf(scopeStr, sizeof(scopeStr), "%s", tr("This game only"));
+				} else snprintf(scopeStr, sizeof(scopeStr), "%s", tr("All games"));
 				values[k] = scopeStr;
 				break;
 			case S_GAMES: {
@@ -1801,7 +1804,7 @@ static void settings(void)
 		               break;
 		case S_CONTROLS: controls(); transition(); break;
 		case S_HOTKEYS:  hotkeys(); transition(); break;
-		case S_LANG:     cfg.lang = !cfg.lang; break;
+		case S_LANG:     cfg.lang = !cfg.lang; video_lang_changed(); break;
 		case S_RUMBLE: cfg.rumble = !cfg.rumble; break;
 		case S_REGION: cfg.region = (cfg.region + 3 + dir) % 3; status("Applies the next time a game is loaded."); break;
 		case S_BIOS:   cfg.bios_hle = !cfg.bios_hle; status("Applies the next time a game is loaded."); break;
@@ -2182,7 +2185,7 @@ static void slot_date(int i, char *out, size_t n)
 {
 	time_t t = (time_t)emu_state_time(i);
 	struct tm *tm = t ? localtime(&t) : NULL;
-	if (!tm) { snprintf(out, n, "Empty"); return; }
+	if (!tm) { snprintf(out, n, "%s", tr("Empty")); return; }
 	snprintf(out, n, "%02d/%02d/%04d  %02d:%02d", tm->tm_mday, tm->tm_mon + 1,
 	         tm->tm_year + 1900, tm->tm_hour, tm->tm_min);
 }
@@ -2228,7 +2231,7 @@ static int slot_picker(int save)
 			SDL_Rect d = { LX + 8, y + 5, 48, 36 };
 			if (thumbs[i]) SDL_RenderCopy(R, thumbs[i], NULL, &d);
 			else rrect(d.x, d.y, d.w, d.h, 6, slotc, 255);
-			snprintf(m, sizeof(m), "Slot %d", i);
+			snprintf(m, sizeof(m), tr("Slot %d"), i);
 			text(fontSmall, LX + 72, y + (RH - 6) / 2, m, on ? WHITE : GREY, 0);
 			text(fontSmall, LX + LW - 16, y + (RH - 6) / 2, date[i], on ? WHITE : DIM, 2);
 		}
@@ -2248,7 +2251,7 @@ static int slot_picker(int save)
 				     emu_state_time(sel) ? "No picture for this slot" : "Empty slot", DIM, 1);
 			}
 			if (tap_in(ix, iy, iw, ih)) activate = 1;
-			snprintf(m, sizeof(m), "Slot %d", sel);
+			snprintf(m, sizeof(m), tr("Slot %d"), sel);
 			text(fontItem, PX + 28, PY + PH - 32, m, WHITE, 0);
 			text(fontSmall, PX + PW - 28, PY + PH - 32,
 			     emu_state_time(sel) ? date[sel] : "Empty", GREY, 2);
@@ -2263,13 +2266,13 @@ static int slot_picker(int save)
 		if (back || (b & WIIU_BTN_B) || wiiu_quit) { thumbs_free(); return 0; }
 		if (!activate) continue;
 		if (save) {
-			snprintf(m, sizeof(m), emu_state_save(sel) ? "Saved to slot %d." : "Could not save to slot %d.", sel);
+			snprintf(m, sizeof(m), emu_state_save(sel) ? tr("Saved to slot %d.") : tr("Could not save to slot %d."), sel);
 			status(m);
 			thumbs_load();
 			slot_date(sel, date[sel], sizeof(date[sel]));
 		} else {
 			if (emu_state_load(sel)) { thumbs_free(); return 1; }
-			snprintf(m, sizeof(m), "Slot %d is empty.", sel);
+			snprintf(m, sizeof(m), tr("Slot %d is empty."), sel);
 			status(m);
 		}
 	}
@@ -2380,7 +2383,7 @@ static int choose_disc(const char *title, int ndisc, int current)
 			rrect(r.x, r.y, r.w, r.h, 20, i == sel ? hl : btn, 255);
 			ring(r.x + w / 2.0f, r.y + 54, 30, 18, WHITE);
 			char d[16];
-			snprintf(d, sizeof(d), "Disc %d", i + 1);
+			snprintf(d, sizeof(d), tr("Disc %d"), i + 1);
 			text(fontItem, r.x + w / 2, r.y + 112, d, WHITE, 1);
 		}
 		draw_footer(NULL);
@@ -2402,7 +2405,7 @@ static int disc_picker_ingame(void)
 		if (d != emu_disk_index()) {
 			emu_disk_set(d);
 			char m[64];
-			snprintf(m, sizeof(m), "Disc %d inserted.", d + 1);
+			snprintf(m, sizeof(m), tr("Disc %d inserted."), d + 1);
 			video_osd(m);
 		}
 		return 1;
@@ -2572,7 +2575,7 @@ int menu_run(void)
 			text(fontSmall, 245, 168, "NOW PLAYING", PS_BLUE, 0);
 			text(fontTitle, 245, 214, nm, WHITE, 0);
 			int np = emu_player_count();
-			snprintf(pl, sizeof(pl), np > 1 ? "%d players" : "1 player", np);
+			snprintf(pl, sizeof(pl), tr(np > 1 ? "%d players" : "1 player"), np);
 			text(fontSmall, 245, 258, pl, DIM, 0);
 		} else {
 			text(fontItem, 60, 140, nrec ? "Recently played" : "Welcome", WHITE, 0);
@@ -2609,8 +2612,8 @@ int menu_run(void)
 				static const char *lab[] = { "", "Save state", "Load state", "Cheats", "Screenshot", "Reset", "" };
 				const char *l = lab[it[i].kind];
 				if (it[i].kind == H_DISC) {
-					if (emu_disk_count() > 1) snprintf(m, sizeof(m), "Disc %d of %d", emu_disk_index() + 1, emu_disk_count());
-					else snprintf(m, sizeof(m), "Change disc");
+					if (emu_disk_count() > 1) snprintf(m, sizeof(m), tr("Disc %d of %d"), emu_disk_index() + 1, emu_disk_count());
+					else snprintf(m, sizeof(m), "%s", tr("Change disc"));
 					l = m;
 				}
 				rrect(r.x, r.y, r.w, r.h, 18, card, 255);

@@ -255,6 +255,7 @@ void video_upload(const void *data, unsigned w, unsigned h, size_t pitch)
 
 void video_osd(const char *msg)
 {
+	msg = tr(msg);
 	strncpy(osdMsg, msg, sizeof(osdMsg) - 1);
 	osdMsg[sizeof(osdMsg) - 1] = 0;
 	osdUntil = SDL_GetTicks() + 2500;
@@ -901,6 +902,12 @@ int video_panel_hit(int x, int y)
 
 static SDL_Texture *panelText[12];
 static int panelTextW[12], panelTextH[12];
+
+void video_lang_changed(void)
+{
+	for (int i = 0; i < 12; i++)
+		if (panelText[i]) { SDL_DestroyTexture(panelText[i]); panelText[i] = NULL; }
+}
 
 static void panel_label(int k, const char *s, int cx, int cy)
 {

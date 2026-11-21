@@ -87,7 +87,8 @@ const char *pad_type_name(int t) { (void)t; return "Digital"; }
 const char *hotkey_name(int i) { (void)i; return "Save state"; }
 const char *button_name(int b) { (void)b; return "R"; }
 const int default_hotkeys[HK_COUNT];
-const char *tr(const char *s) { return s; }
+
+void video_lang_changed(void) {}
 long long emu_state_time(int s) { return emu_state_exists(s) ? 1795000000LL + s * 86400LL : 0; }
 void emu_state_thumb(int s, char *o, size_t n) { snprintf(o, n, "%s/states/thumb%d.png", WIIU_APP_DIR, s); }
 int emu_screenshot(void) { return 1; }
@@ -123,6 +124,7 @@ void *covers_texture(void *r, const char *id, int *w, int *h) {
 }
 
 void covers_flush(void) {}
+#include "lang.c"
 #include "menu.c"
 
 int main(int argc, char **argv)
@@ -132,6 +134,7 @@ int main(int argc, char **argv)
 	SDL_Init(SDL_INIT_VIDEO); TTF_Init(); IMG_Init(IMG_INIT_JPG | IMG_INIT_PNG);
 	SDL_Window *w = SDL_CreateWindow("m", 0, 0, 1280, 720, SDL_WINDOW_HIDDEN);
 	ren = SDL_CreateRenderer(w, -1, SDL_RENDERER_SOFTWARE);
+	if (getenv("PT")) cfg.lang = 1;
 	strcpy(cfg.games_dir, WIIU_ISO_DIR); cfg.dynarec = 1; cfg.gpu_thread = 1; cfg.bezel = 1; memcpy(cfg.map, default_map, sizeof(cfg.map));
 	if (!strcmp(mode, "main")) { menu_run(); }
 	else if (!strcmp(mode, "ingame")) { loaded = 1; menu_run(); }

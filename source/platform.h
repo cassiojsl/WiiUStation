@@ -133,7 +133,8 @@ void video_set_game_id(const char *id);
 /* screen point (1280x720) -> game frame, -32767..32767; 0 when outside the picture */
 int  video_screen_to_game(int sx, int sy, int *gx, int *gy);
 void video_fade_in(void);
-void video_set_ingame(int ingame);        /* screens follow cfg.drc only in a game */
+void video_set_ingame(int ingame);
+void video_lang_changed(void);           /* drop cached translated labels */        /* screens follow cfg.drc only in a game */
 int  video_screen_modes_ok(void);         /* 0 if TV / GamePad can't be split */
 int  video_panel_hit(int x, int y);       /* control panel button at a touch, or -1 */
 void video_panel_state(int slot, int ff, int paused, const char *game);

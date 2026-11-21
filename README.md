@@ -46,8 +46,7 @@ controllers.
   In the menu, HOME opens the Wii U HOME Menu.
 - The menu is built for touch. A single tap opens an item and dragging
   scrolls. In the settings, tap the ◀ ▶ arrows to change a value. **X**
-  changes the game browser view: Grid, Compact grid, Shelf, Carousel or
-  List.
+  changes the game browser view: Carousel, Grid, Compact grid or List.
 
 ## Features
 
@@ -81,6 +80,16 @@ controllers.
   shows favourites only, + searches by name. **Screenshots** can be taken
   from the menu.
 - **Region**: Auto, NTSC or PAL, also per game.
+- **Hotkeys**: hold the hotkey button (− by default) and press R / L to save /
+  load the quick slot, ← → to change slot, Y for a screenshot, ZR for fast
+  forward, X to pause. All configurable in Settings → Hotkeys.
+- **Controllers**: Digital, DualShock, neGcon, PlayStation Mouse, GunCon and
+  Justifier. The light guns and the mouse use the GamePad touch screen.
+  Analog dead zone and the core's analog options.
+- **Screen effects**: CRT curve, LCD grid, glow, and the Scale2x filter.
+- **GamePad screen**: same as the TV, GamePad only, TV only, or a control
+  panel (game on the TV, touch buttons on the GamePad).
+- **Language**: English or Português (Settings → Language).
 - Multi-disc games are supported (`.m3u`, or "Change disc").
 
 ## Building
@@ -109,6 +118,8 @@ Patches to the core:
 Tools:
 - `tools/gte_endian_test.sh` checks the GTE output against a little-endian
   build. It needs `qemu-ppc` and `powerpc-linux-gnu-gcc`.
+- `tools/lang/pt.py` holds the Portuguese texts and writes
+  `source/lang_pt.h`.
 - `tools/bezels/make_bezels.py` draws the built-in bezels into
   `content/bezels/` (needs Python with Pillow and NumPy).
 - `tools/menu_preview/run.sh` renders the menu screens on a PC and saves
