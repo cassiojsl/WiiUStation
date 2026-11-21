@@ -1,0 +1,281 @@
+0|   Suche: \"
+1|   \xe2\x98\x85 Favoriten
+2|#Inhalte
+3|#Emulator-Kern
+4|#Bibliotheken
+5|#Lizenz
+6|#Soundeffekte
+7|#Prozessorkerne
+8|%d CDs
+9|%d Discs
+10|%d Spieler
+11|%s%s  (%d Discs)
+12|%s%s%d Discs
+13|+ (Plus)
+14|- (Minus)
+15|.. (zurück)
+16|1 Spieler
+17|3D-Hülle
+18|3D-Hüllen werden beim Durchblättern geladen. Ohne Hülle wird das 2D-Cover gezeigt.
+19|4:3 Auto-Zoom
+20|>> Schnellvorlauf
+21|Etwas schneller. Kann das Timing mancher Spiele stören.
+22|A: diesen Platz laden
+23|A: diesen Platz überschreiben
+24|A: hier speichern
+25|Zu Favoriten hinzugefügt.
+26|Erweitert
+27|Erweitert...
+28|Alle Spiele
+29|Umgebung
+30|Analog-Totzone
+31|Analog-Bereich
+32|Gilt ab dem nächsten geladenen Spiel.
+34|Fragen
+35|Zurück
+36|Rahmen
+37|Randlos
+38|Randlos entfernt seitliche Ränder, die manche Spiele zeichnen.
+39|Eingebaut
+40|Tastenbelegung...
+41|Tasten, die den Analogmodus des DualShock umschalten, wie die ANALOG-Taste.
+42|CD-Audiospuren
+43|CPU-Kern
+44|CRT-Krümmung
+45|CRT-Maske
+46|Carbon
+47|Karussell
+48|Disc wechseln
+49|Änderungen gelten nur für dieses Spiel
+50|Cheat %d
+51|Cheats
+52|Cheats werden pro Spiel gespeichert
+53|Disc auswählen
+54|Wähle deinen Spieleordner in den Einstellungen.
+55|Kreis
+56|Klassischer Fernseher
+57|Spiel schließen
+58|Kompaktes Raster
+59|Kompatibilität
+60|Komprimierte Musik und Stimmen. Aus spart CPU, macht sie aber stumm.
+61|Weiter
+62|Dort weitermachen, wo du aufgehört hast
+63|Dort weitermachen, wo du aufgehört hast?
+64|Bedienfeld
+65|Controller
+66|Steuerung
+67|Kopiere eine libretro-.cht-Datei nach WiiUStation/cheats,
+68|Fortsetzen nicht möglich: der Spielstand ist unlesbar.
+69|Spiel konnte nicht geladen werden (defektes Image oder fehlendes BIOS?).
+70|Screenshot konnte nicht gespeichert werden.
+71|Speichern auf Platz %d nicht möglich.
+72|Cover
+73|Mitwirkende
+74|Schneidet die schwarzen Ränder des Spiels ab und füllt die Höhe aus.
+75|Kreuz
+76|Kubisch
+77|Eigenes Bild
+78|Steuerkreuz unten
+79|Steuerkreuz links
+80|Steuerkreuz rechts
+81|Steuerkreuz oben
+82|Standardbelegung wiederhergestellt.
+83|Digital/Analog-Umschaltung
+84|Koordinatenprüfung abschalten
+85|Disc %d
+86|Disc %d eingelegt.
+87|Disc %d von %d
+88|Disc-Wechsel fehlgeschlagen.
+89|Dithering
+90|Unten
+91|Zum Blättern ziehen
+92|Vierecke als Dreiecke zeichnen
+93|Zeichnet das Bild auf einem anderen CPU-Kern. Schneller. Gilt ab dem nächsten Spiel.
+94|DualShock: manche ältere Spiele laufen nur mit Digital.
+95|Echo-Effekt der Originalkonsole. Aus ist etwas schneller.
+96|Leer
+97|Leerer Platz
+98|Emuliert das Besetzt-Signal der GPU. Behebt manche Spiele, etwas langsamer.
+99|Ausnahme-Emulation
+100|Beenden
+101|Bildbreite erweitern
+102|DATEI
+103|GPU-Besetztstatus vortäuschen
+104|Schnelles CD-Laden
+105|Schnellvorlauf
+106|Schnellvorlauf an/aus
+107|Tempo des Schnellvorlaufs
+108|Behebt schwarze Bildschirme in Lunar: Silver Star Story.
+109|Behebt verzerrte Schattierung, mit etwas schlechteren Texturen.
+110|Behebt flackernde Textboxen in Dragon Warrior VII und Pandemonium 2.
+111|Behebt die Grafik von Star Wars: Dark Forces.
+112|Behebt Hänger in Spielen wie Chrono Cross.
+113|Ordner
+114|Ordner 
+115|Für Capcom-2D-Kampfspiele: zeigt den ganzen Hintergrund.
+116|Für die PlayStation-Maus: wie schnell sich der Zeiger bewegt.
+117|Für den neGcon: wie weit sich der Stick bewegt, bevor gelenkt wird.
+118|Erzwingen
+119|Bilder überspringen
+120|GPL-2.0 oder neuer. Der Quellcode ist auf GitHub.
+121|GPU-Korrekturen
+122|GPU-Rendering auf Kern 2
+123|Spiel
+125|Spieleliste
+126|Spiel auf dem Fernseher, Touch-Tasten auf dem GamePad (Speichern, Laden, Pause...).
+127|Spieleinstellungen
+128|Nur GamePad
+129|GamePad-Bildschirm
+130|Spiele
+131|Spieleordner
+132|Spieleordner gespeichert.
+133|Gauß
+134|Gauß klingt wie die Originalkonsole. Aus ist am schnellsten.
+135|Leuchten
+136|Graue Konsole
+137|Raster
+138|Höher entfernt Verlangsamungen der Originalkonsole. Auto ist am sichersten.
+139|R3 halten
+140|ZL+ZR halten
+141|Hotkey-Taste (halten)
+142|Hotkeys
+143|Hotkeys sind aus. Wähle eine Hotkey-Taste, um sie zu nutzen.
+144|Hotkeys...
+145|Helligkeitsfarbe ignorieren
+146|Im Spiel: HOME / Berühren / L3+R3 = dieses Menü
+147|Im Spiel: %s halten und die Taste einer Aktion drücken
+148|Befehls-Cache
+149|Ganzzahlig
+150|Interpreter
+151|Linker Stick (drücken)
+152|LCD-Raster
+153|Sprache
+154|Verzögerte Bildaktualisierung
+155|Links
+156|Lichtpistole: Berühre den GamePad-Bildschirm zum Schießen, außerhalb des Bildes zum Nachladen.
+158|Lightrec nicht verfügbar: kein JIT-Bereich (Codegen) für diesen Titel.
+159|Liste
+160|Spiel öffnen
+161|Zustand laden
+162|Platz %d geladen.
+163|Cover wird geladen
+164|Wird geladen...
+165|Mischt den Ton auf einem anderen CPU-Kern. Ausschalten, wenn kein Ton kommt.
+166|Mausgeschwindigkeit
+167|Maus: auf dem GamePad ziehen oder den rechten Stick nutzen. ZR = linke, ZL = rechte Taste.
+169|Multitap (bis zu 5 Spieler)
+170|Musik von den Audiospuren der Disc.
+171|LÄUFT GERADE
+172|Von wenigen Spielen benötigt (z. B. Formula One 2001). Nur Interpreter.
+173|Von wenigen Spielen benötigt, die hängen oder fehlerhafte Grafik zeigen.
+174|Nächster Platz
+175|Keine Cheats für dieses Spiel.
+176|Kein Cover
+177|Keine Spiele in diesem Ordner.
+178|Keine passenden Spiele.
+179|Kein Bild für diesen Platz
+180|Keine
+181|Mit dieser SDL-Version nicht verfügbar.
+182|Du bearbeitest jetzt die eigenen Einstellungen dieses Spiels.
+183|Gerade/Ungerade-Bit-Trick
+184|Aus
+185|Alter Kompatibilitätsmodus. Nur wenn ein Spiel falsch gezeichnet wird.
+186|An
+189|CPU-Takt der PS1
+190|Pause
+191|Pausiert
+192|Wähle den Ordner mit deinen Spielen
+193|Bild
+194|Pixel-Burg
+195|Pixel-Stadt
+196|Pixel-Himmel
+197|Auf dem GamePad spielen: der Fernseher bleibt schwarz. HOME oder L3+R3 öffnet das Menü.
+198|PlayStation-Startlogo
+199|PlayStation-Emulator für die Wii U
+200|PlayStation ist eine Marke von Sony Interactive Entertainment.
+201|Controller von Spieler 1
+202|Controller der Spieler 2+
+203|Spieler 1-4 an Port 1, Spieler 5 an Port 2. Gilt beim Fortsetzen.
+204|Drücke - oder +, um den Filter zu ändern.
+205|R3 drücken (umschalten)
+206|Vorheriger Platz
+207|Lege 1280x720-PNGs in WiiUStation/bezels ab: default.png oder <SPIEL-ID>.png
+208|Lege deine Spiele in sd:/wiiu/apps/WiiUStation/games ab
+209|Quadratisch
+210|Quadratisch und Kubisch erlauben feinere Steuerung nahe der Mitte.
+211|Schnellplatz: %d
+212|Rechter Stick (drücken)
+213|Selten nötig. Nur Interpreter.
+214|Zuletzt gespielt
+215|Region
+216|Aus den Favoriten entfernt.
+217|Wiederholte flache Dreiecke
+218|Neustart
+219|Auf Standard zurücksetzen
+220|Fortsetzen
+221|Retro-Fernseher
+222|Rechts
+225|Wie der Fernseher
+226|Dieselbe Belegung für alle Controller
+227|Zustand speichern
+228|Auf Platz %d gespeichert.
+229|Scanlines
+230|Bildschirm
+231|Bildzentrierung
+232|Bildeffekt
+233|Screenshot
+234|Screenshot in WiiUStation/screenshots gespeichert.
+235|Spiele suchen
+236|Einstellungen
+237|Einstellungen für
+238|Scharf weich
+239|Kürzere Ladebildschirme. Ausschalten, wenn ein Spiel beim Laden hängt.
+240|FPS anzeigen
+241|Overscan anzeigen
+242|Alle Spiele werden angezeigt.
+243|Nur Favoriten werden angezeigt.
+244|Zeigt den Randbereich, den alte Fernseher verdeckten.
+245|Einfach
+246|CPU-Wartezeiten überspringen
+247|Platz %d (leer)
+248|Platz %d ist leer.
+249|Langsames Abarbeiten der GPU-Listen
+250|Weich
+251|Ton
+252|Ton-Interpolation
+253|Tonmischung auf Kern 0
+254|Hall
+255|Weltraum
+256|Geschwindigkeit
+257|Quadrat
+258|Quadrat lässt den Stick die Ecken erreichen, wie manche Spiele es erwarten.
+259|Neu beginnen
+260|Strecken
+261|Nur Fernseher
+262|Tippe auf Spiele, um ein Spiel zu wählen.
+263|Tippe auf die Pfeile, um zu ändern
+264|Der GamePad-Bildschirm bleibt schwarz. HOME oder L3+R3 öffnet das Menü.
+265|Nur dieses Spiel
+266|Dieses Spiel nutzt wieder die allgemeinen Einstellungen.
+267|Dieser Platz ist leer
+268|Dreieck
+269|Röhrenfernseher
+270|Nur ausschalten, wenn ein Spiel Fehler zeigt.
+271|Zwei Spieler.
+272|Namen eingeben...
+273|Oben
+274|Nutze die Tastatur des GamePads
+275|Vibration
+276|Ansicht: %s
+277|Willkommen
+278|Weiß
+279|Wii U ist eine Marke von Nintendo. Dieses Projekt ist weder mit
+280|Holz
+281|X  Ansicht wechseln   Y Favorit   - Nur Favoriten   + Suche
+282|XA-Audio (Musik, Stimmen)
+283|[ Diesen Ordner verwenden ]
+289|benannt wie die Spieldatei oder ihre ID (z. B. SCUS-94244.cht).
+290|neGcon-Lenkverhalten
+291|neGcon-Totzone beim Drehen
+292|neGcon: linker Stick lenkt, ZR / rechter Stick hoch = I, ZL / runter = II.
+293|Sony noch Nintendo verbunden oder von ihnen unterstützt.

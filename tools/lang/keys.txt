@@ -1,0 +1,295 @@
+   Search: \"
+   \xe2\x98\x85 Favourites
+#Content
+#Emulator core
+#Libraries
+#Licence
+#Sound effects
+#Threads
+%d CD
+%d discs
+%d players
+%s%s  (%d discs)
+%s%s%d discs
++ (Plus)
+- (Minus)
+.. (up)
+1 player
+3D box
+3D boxes are downloaded as you browse. Without one, the 2D cover is shown.
+4:3 Auto zoom
+>> Fast forward
+A little faster. May break timing in some games.
+A: load this slot
+A: overwrite this slot
+A: save here
+Added to favourites.
+Advanced
+Advanced...
+All games
+Ambient
+Analog dead zone
+Analog range
+Applies the next time a game is loaded.
+Aroma environment  -  Maschell and contributors
+Ask
+Back
+Border
+Borderless
+Borderless removes side borders some games draw.
+Built-in
+Button mapping...
+Buttons that toggle the DualShock's analog mode, like the ANALOG button.
+CD audio tracks
+CPU core
+CRT curve
+CRT mask
+Carbon
+Carousel
+Change disc
+Changes apply to this game only
+Cheat %d
+Cheats
+Cheats are saved per game
+Choose a disc
+Choose your games folder in Settings.
+Circle
+Classic TV
+Close game
+Compact grid
+Compatibility
+Compressed music and voices. Off saves CPU but silences them.
+Continue
+Continue where you left off
+Continue where you left off?
+Control panel
+Controller
+Controls
+Copy a libretro .cht file to WiiUStation/cheats,
+Could not continue: the saved state is unreadable.
+Could not load the game (bad image or missing BIOS?).
+Could not save the screenshot.
+Could not save to slot %d.
+Covers
+Credits
+Crops the black borders the game draws, then fills the height.
+Cross
+Cubic
+Custom image
+D-Pad Down
+D-Pad Left
+D-Pad Right
+D-Pad Up
+Default layout restored.
+Digital/analog switch combo
+Disable coordinate check
+Disc %d
+Disc %d inserted.
+Disc %d of %d
+Disc change failed.
+Dithering
+Down
+Drag to scroll
+Draw quads as triangles
+Draws the picture on another CPU core. Faster. Applies on the next game.
+DualShock: some older games only work with Digital.
+Echo effect of the real console. Off is a little faster.
+Empty
+Empty slot
+Emulates the GPU busy flag. Fixes some games, a bit slower.
+Exception emulation
+Exit
+Expand screen width
+FILE
+Fake GPU busy state
+Fast CD loading
+Fast forward
+Fast forward on/off
+Fast forward speed
+Fixes black screens in Lunar: Silver Star Story.
+Fixes distorted shading, with slightly worse textures.
+Fixes flickering text boxes in Dragon Warrior VII, Pandemonium 2.
+Fixes graphics in Star Wars: Dark Forces.
+Fixes lock-ups in games such as Chrono Cross.
+Folder
+Folder 
+For Capcom 2D fighting games: shows the whole background.
+For the PlayStation Mouse: how fast the pointer moves.
+For the neGcon: how far the stick moves before steering starts.
+Force
+Frame skip
+GPL-2.0-or-later. Source code is available on GitHub.
+GPU fixes
+GPU rendering on core 2
+Game
+Game covers  -  xlenore/psx-covers
+Game list
+Game on the TV, touch buttons on the GamePad (save, load, pause...).
+Game settings
+GamePad only
+GamePad screen
+Games
+Games folder
+Games folder saved.
+Gaussian
+Gaussian sounds like the real console. Off is the fastest.
+Glow
+Grey console
+Grid
+Higher removes slowdowns the real console had. Auto is safest.
+Hold R3
+Hold ZL+ZR
+Hotkey button (hold)
+Hotkeys
+Hotkeys are off. Choose a hotkey button to use them.
+Hotkeys...
+Ignore brightness colour
+In game: HOME / touch / L3+R3 = this menu
+In game: hold %s and press the button of an action
+Instruction cache
+Integer
+Interpreter
+L-Stick click
+LCD grid
+Language
+Lazy screen update
+Left
+Light gun: touch the GamePad screen to shoot, touch outside the picture to reload.
+Lightrec MIPS-to-PowerPC recompiler  -  Paul Cercueil
+Lightrec unavailable: no JIT (codegen) area for this title.
+List
+Load game
+Load state
+Loaded slot %d.
+Loading cover
+Loading...
+Mixes sound on another CPU core. Turn off if there is no sound.
+Mouse speed
+Mouse: drag on the GamePad or use the right stick. ZR = left, ZL = right button.
+Mozilla CA certificate store (certifi)
+Multitap (up to 5 players)
+Music played from the disc's audio tracks.
+NOW PLAYING
+Needed by a few games (e.g. Formula One 2001). Interpreter only.
+Needed by a few games that hang or show broken graphics.
+Next slot
+No cheats for this game.
+No cover
+No games in this folder.
+No games match.
+No picture for this slot
+None
+Not available with this SDL version.
+Now editing this game's own settings.
+Odd/even bit hack
+Off
+Old compatibility mode. Only if a game draws wrongly.
+On
+P.E.Op.S. soft GPU  -  Pete Bernert and the P.E.Op.S. team
+PCSX / PCSX-df / PCSX-Reloaded teams
+PS1 CPU clock
+Pause
+Paused
+Pick the folder with your games
+Picture
+Pixel castle
+Pixel city
+Pixel sky
+Play on the GamePad: the TV stays black. HOME or L3+R3 opens the menu.
+PlayStation boot logo
+PlayStation emulator for the Wii U
+PlayStation is a trademark of Sony Interactive Entertainment.
+Player 1 controller
+Player 2+ controller
+Players 1-4 on port 1, player 5 on port 2. Applies on resume.
+Press - or + to change the filter.
+Press R3 (toggle)
+Previous slot
+Put 1280x720 PNGs in WiiUStation/bezels: default.png or <GAME-ID>.png
+Put your games in sd:/wiiu/apps/WiiUStation/games
+Quadratic
+Quadratic and Cubic give finer control near the centre.
+Quick slot: %d
+R-Stick click
+Rarely needed. Interpreter only.
+Recently played
+Region
+Removed from favourites.
+Repeated flat triangles
+Reset
+Reset to default
+Resume
+Retro TV
+Right
+SDL2 for Wii U  -  GaryOderNichts, Maschell and contributors
+SDL2, SDL2_ttf, SDL2_image  -  Sam Lantinga and the SDL team
+Same as TV
+Same layout for every controller
+Save state
+Saved to slot %d.
+Scanlines
+Screen
+Screen centering
+Screen effect
+Screenshot
+Screenshot saved to WiiUStation/screenshots.
+Search games
+Settings
+Settings for
+Sharp smooth
+Shorter loading screens. Turn off if a game hangs while loading.
+Show FPS
+Show overscan
+Showing all games.
+Showing favourites only.
+Shows the area at the screen edges that TVs used to hide.
+Simple
+Skip CPU stalls
+Slot %d (empty)
+Slot %d is empty.
+Slow GPU list walking
+Smooth
+Sound
+Sound interpolation
+Sound mixing on core 0
+Sound reverb
+Space
+Speed
+Square
+Square lets the stick reach the corners, like some games expect.
+Start over
+Stretch
+TV only
+Tap Games to choose a game.
+Tap the arrows to change
+The GamePad screen stays black. HOME or L3+R3 opens the menu.
+This game only
+This game uses the global settings again.
+This slot is empty
+Triangle
+Tube TV
+Turn these off only if a game shows glitches.
+Two players.
+Type a name...
+Up
+Use the keyboard on the GamePad
+Vibration
+View: %s
+Welcome
+White
+Wii U is a trademark of Nintendo. This project is not affiliated
+Wood
+X  Change view   Y Favourite   - Favourites only   + Search
+XA audio (music, voices)
+[ Use this folder ]
+and the libretro / PCSX-ReARMed contributors
+devkitPPC / devkitPro toolchain
+dfsound SPU  -  PCSX-df team
+libchdr  -  Romain Tisserand and contributors
+libcurl  -  Daniel Stenberg and contributors
+named like the game file or its ID (e.g. SCUS-94244.cht).
+neGcon steering response
+neGcon twist dead zone
+neGcon: left stick steers, ZR / right stick up = I, ZL / down = II.
+with or endorsed by Sony or Nintendo.
+wut  -  devkitPro and the Wii U homebrew community

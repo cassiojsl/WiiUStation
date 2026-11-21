@@ -122,7 +122,7 @@ static struct { const char *key; int *val; int min, max; } OPTS[] = {
 	{ "bezel",      &cfg.bezel,      0, BEZEL_COUNT - 1 },
 	{ "view",       &cfg.view,       0, 4 },
 	{ "cover3d",    &cfg.cover3d,    0, 1 },
-	{ "lang",       &cfg.lang,       0, 1 },
+	{ "lang",       &cfg.lang,       0, LANG_COUNT - 1 },
 	{ "hk0", &cfg.hk[0], -1, 15 }, { "hk1", &cfg.hk[1], -1, 15 }, { "hk2", &cfg.hk[2], -1, 15 },
 	{ "hk3", &cfg.hk[3], -1, 15 }, { "hk4", &cfg.hk[4], -1, 15 }, { "hk5", &cfg.hk[5], -1, 15 },
 	{ "hk6", &cfg.hk[6], -1, 15 }, { "hk7", &cfg.hk[7], -1, 15 }, { "hk8", &cfg.hk[8], -1, 15 },

@@ -10,14 +10,39 @@
 #include <stdlib.h>
 #include "platform.h"
 
-typedef struct { const char *en, *pt; } tr_t;
+typedef struct { const char *en, *tx; } tr_t;
 
 static const tr_t PT[] = {
 #include "lang_pt.h"
 };
-#define NPT (sizeof(PT) / sizeof(PT[0]))
+static const tr_t ES[] = {
+#include "lang_es.h"
+};
+static const tr_t FR[] = {
+#include "lang_fr.h"
+};
+static const tr_t DE[] = {
+#include "lang_de.h"
+};
+static const tr_t IT[] = {
+#include "lang_it.h"
+};
 
-static const tr_t **sorted;   /* PT sorted by the English text, for bsearch */
+static struct { const tr_t *t; size_t n; const tr_t **sorted; } LANGS[LANG_COUNT] = {
+	[LANG_PT] = { PT, sizeof(PT) / sizeof(PT[0]), NULL },
+	[LANG_ES] = { ES, sizeof(ES) / sizeof(ES[0]), NULL },
+	[LANG_FR] = { FR, sizeof(FR) / sizeof(FR[0]), NULL },
+	[LANG_DE] = { DE, sizeof(DE) / sizeof(DE[0]), NULL },
+	[LANG_IT] = { IT, sizeof(IT) / sizeof(IT[0]), NULL },
+};
+
+/* each language's name, written in that language */
+const char *lang_name(int l)
+{
+	static const char *n[LANG_COUNT] = { "English", "Portugu\xc3\xaas", "Espa\xc3\xb1ol",
+		"Fran\xc3\xa7" "ais", "Deutsch", "Italiano" };
+	return l >= 0 && l < LANG_COUNT ? n[l] : n[0];
+}
 
 static int cmp_tr(const void *a, const void *b)
 {
@@ -31,13 +56,15 @@ static int cmp_key(const void *k, const void *e)
 
 const char *tr(const char *en)
 {
-	if (!en || !*en || cfg.lang != LANG_PT) return en;
-	if (!sorted) {
-		sorted = malloc(NPT * sizeof(*sorted));
-		if (!sorted) return en;
-		for (size_t i = 0; i < NPT; i++) sorted[i] = &PT[i];
-		qsort(sorted, NPT, sizeof(*sorted), cmp_tr);
+	int l = cfg.lang;
+	if (!en || !*en || l <= LANG_EN || l >= LANG_COUNT || !LANGS[l].t) return en;
+	if (!LANGS[l].sorted) {
+		const tr_t **v = malloc(LANGS[l].n * sizeof(*v));
+		if (!v) return en;
+		for (size_t i = 0; i < LANGS[l].n; i++) v[i] = &LANGS[l].t[i];
+		qsort(v, LANGS[l].n, sizeof(*v), cmp_tr);
+		LANGS[l].sorted = v;
 	}
-	const tr_t **hit = bsearch(en, sorted, NPT, sizeof(*sorted), cmp_key);
-	return hit ? (*hit)->pt : en;
+	const tr_t **hit = bsearch(en, LANGS[l].sorted, LANGS[l].n, sizeof(*hit), cmp_key);
+	return hit ? (*hit)->tx : en;
 }

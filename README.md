@@ -89,7 +89,8 @@ controllers.
 - **Screen effects**: CRT curve, LCD grid, glow, and the Scale2x filter.
 - **GamePad screen**: same as the TV, GamePad only, TV only, or a control
   panel (game on the TV, touch buttons on the GamePad).
-- **Language**: English or Português (Settings → Language).
+- **Language**: English, Português, Español, Français, Deutsch or Italiano
+  (Settings → Language).
 - Multi-disc games are supported (`.m3u`, or "Change disc").
 
 ## Building
@@ -118,8 +119,8 @@ Patches to the core:
 Tools:
 - `tools/gte_endian_test.sh` checks the GTE output against a little-endian
   build. It needs `qemu-ppc` and `powerpc-linux-gnu-gcc`.
-- `tools/lang/pt.py` holds the Portuguese texts and writes
-  `source/lang_pt.h`.
+- `tools/lang/` holds the translations; `build.py` writes
+  `source/lang_*.h` and checks the placeholders.
 - `tools/bezels/make_bezels.py` draws the built-in bezels into
   `content/bezels/` (needs Python with Pillow and NumPy).
 - `tools/menu_preview/run.sh` renders the menu screens on a PC and saves

@@ -134,7 +134,7 @@ int main(int argc, char **argv)
 	SDL_Init(SDL_INIT_VIDEO); TTF_Init(); IMG_Init(IMG_INIT_JPG | IMG_INIT_PNG);
 	SDL_Window *w = SDL_CreateWindow("m", 0, 0, 1280, 720, SDL_WINDOW_HIDDEN);
 	ren = SDL_CreateRenderer(w, -1, SDL_RENDERER_SOFTWARE);
-	if (getenv("PT")) cfg.lang = 1;
+	if (getenv("PT")) cfg.lang = atoi(getenv("PT"));
 	strcpy(cfg.games_dir, WIIU_ISO_DIR); cfg.dynarec = 1; cfg.gpu_thread = 1; cfg.bezel = 1; memcpy(cfg.map, default_map, sizeof(cfg.map));
 	if (!strcmp(mode, "main")) { menu_run(); }
 	else if (!strcmp(mode, "ingame")) { loaded = 1; menu_run(); }

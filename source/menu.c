@@ -693,8 +693,8 @@ static int list_run(list_t *L, const char **labels, const char **values, int cou
 			fill(LIST_X, y + ROW_H / 2 - 9, 18, 18, marks[idx], 255);
 			tx += 34;
 		}
-		if (labels[idx][0] == '#') {      /* section title */
-			text(fontSmall, tx, y + ROW_H / 2 + 6, labels[idx] + 1, PS_BLUE, 0);
+		if (labels[idx][0] == '#') {      /* section title, translated with its '#' */
+			text(fontSmall, tx, y + ROW_H / 2 + 6, tr(labels[idx]) + 1, PS_BLUE, 0);
 			continue;
 		}
 		text(fontItem, tx, y + ROW_H / 2, labels[idx], selected ? WHITE : GREY, 0);
@@ -1664,7 +1664,7 @@ static void settings(void)
 			}
 			case S_VIEW:   values[k] = view_name(cfg.view); break;
 			case S_COVERS: values[k] = cfg.cover3d ? "3D box" : "2D"; break;
-			case S_LANG:   values[k] = cfg.lang == LANG_PT ? "Portugu\xc3\xaas" : "English"; break;
+			case S_LANG:   values[k] = lang_name(cfg.lang); break;
 			case S_RESUME: values[k] = cfg.resume ? "Ask" : "Off"; break;
 			case S_CORE:   values[k] = cfg.dynarec ? "Lightrec" : "Interpreter"; break;
 			case S_SKIP:   values[k] = cfg.frameskip ? "Auto" : "Off"; break;
@@ -1813,7 +1813,7 @@ static void settings(void)
 		               break;
 		case S_CONTROLS: controls(); transition(); break;
 		case S_HOTKEYS:  hotkeys(); transition(); break;
-		case S_LANG:     cfg.lang = !cfg.lang; video_lang_changed(); break;
+		case S_LANG:     cfg.lang = (cfg.lang + LANG_COUNT + dir) % LANG_COUNT; video_lang_changed(); break;
 		case S_RUMBLE: cfg.rumble = !cfg.rumble; break;
 		case S_REGION: cfg.region = (cfg.region + 3 + dir) % 3; status("Applies the next time a game is loaded."); break;
 		case S_BIOS:   cfg.bios_hle = !cfg.bios_hle; status("Applies the next time a game is loaded."); break;
@@ -1964,7 +1964,7 @@ static void credits(void)
 			int y = 150 + i * LH - (int)scroll;
 			if (y < 100 || y > 700) continue;
 			if (lines[i][0] == '#')
-				text(fontItem, 640, y, lines[i] + 1, PS_BLUE, 1);
+				text(fontItem, 640, y, tr(lines[i]) + 1, PS_BLUE, 1);
 			else
 				text(fontSmall, 640, y, lines[i], i < 2 ? WHITE : GREY, 1);
 		}
@@ -2628,7 +2628,11 @@ int menu_run(void)
 				}
 				rrect(r.x, r.y, r.w, r.h, 18, card, 255);
 				action_icon(it[i].kind, r.x + r.w / 2.0f, r.y + 54, 46, f ? WHITE : GREY);
-				text(fontSmall, r.x + r.w / 2, r.y + r.h - 30, l, f ? WHITE : GREY, 1);
+				{   /* long translations are cut to the card */
+					char fl[96];
+					fit_text(fontSmall, tr(l), r.w - 10, fl, sizeof(fl));
+					text(fontSmall, r.x + r.w / 2, r.y + r.h - 30, fl, f ? WHITE : GREY, 1);
+				}
 				break;
 			}
 			case H_RECENT: {
