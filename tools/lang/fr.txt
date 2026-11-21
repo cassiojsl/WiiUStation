@@ -200,7 +200,7 @@
 205|Appuyer sur R3 (bascule)
 206|Emplacement précédent
 207|Mettez des PNG 1280x720 dans WiiUStation/bezels : default.png ou <ID-DU-JEU>.png
-208|Mettez vos jeux dans sd:/WiiUStation/games
+208|Mettez vos jeux dans sd:/wiiu/apps/WiiUStation/games
 209|Quadratique
 210|Quadratique et Cubique donnent un contrôle plus fin au centre.
 211|Emplacement rapide : %d

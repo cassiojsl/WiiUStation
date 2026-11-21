@@ -4173,7 +4173,7 @@ int menu_run(void)
 				rrect(50, 168, 1180, 170, 22, card, 200);
 				if (games_folder_ok()) {
 					text(fontItem, 640, 230, "Tap Games to choose a game.", WHITE, 1);
-					text_wrap(fontSmall, 640, 280, 1000, "Put your games in sd:/WiiUStation/games", GREY);
+					text_wrap(fontSmall, 640, 280, 1000, "Put your games in sd:/wiiu/apps/WiiUStation/games", GREY);
 				} else {
 					text(fontItem, 640, 214, "Choose the folder with your games to start.", WHITE, 1);
 				}

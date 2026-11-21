@@ -187,7 +187,7 @@
 { "Press R3 (toggle)", "R3 indrukken (schakelen)" },
 { "Previous slot", "Vorig slot" },
 { "Put 1280x720 PNGs in WiiUStation/bezels: default.png or <GAME-ID>.png", "Zet 1280x720-PNG's in WiiUStation/bezels: default.png of <GAME-ID>.png" },
-{ "Put your games in sd:/WiiUStation/games", "Zet je games in sd:/WiiUStation/games" },
+{ "Put your games in sd:/wiiu/apps/WiiUStation/games", "Zet je games in sd:/wiiu/apps/WiiUStation/games" },
 { "Quadratic", "Kwadratisch" },
 { "Quadratic and Cubic give finer control near the centre.", "Kwadratisch en Kubisch geven fijnere controle rond het midden." },
 { "Quick slot: %d", "Snel slot: %d" },

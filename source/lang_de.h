@@ -189,7 +189,7 @@
 { "Press R3 (toggle)", "R3 drücken (umschalten)" },
 { "Previous slot", "Vorheriger Platz" },
 { "Put 1280x720 PNGs in WiiUStation/bezels: default.png or <GAME-ID>.png", "Lege 1280x720-PNGs in WiiUStation/bezels ab: default.png oder <SPIEL-ID>.png" },
-{ "Put your games in sd:/WiiUStation/games", "Lege deine Spiele in sd:/WiiUStation/games ab" },
+{ "Put your games in sd:/wiiu/apps/WiiUStation/games", "Lege deine Spiele in sd:/wiiu/apps/WiiUStation/games ab" },
 { "Quadratic", "Quadratisch" },
 { "Quadratic and Cubic give finer control near the centre.", "Quadratisch und Kubisch erlauben feinere Steuerung nahe der Mitte." },
 { "Quick slot: %d", "Schnellplatz: %d" },

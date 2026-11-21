@@ -330,7 +330,7 @@
 { "Purple", "Roxo" },
 { "Put 1280x720 PNGs in WiiUStation/bezels: default.png or <GAME-ID>.png", "Coloque PNGs 1280x720 em WiiUStation/bezels: default.png ou <ID-DO-JOGO>.png" },
 { "Put BIOS files (e.g. scph5501.bin) in WiiUStation/bios.", "Coloque arquivos de BIOS (ex.: scph5501.bin) em WiiUStation/bios." },
-{ "Put your games in sd:/WiiUStation/games", "Coloque seus jogos em sd:/WiiUStation/games" },
+{ "Put your games in sd:/wiiu/apps/WiiUStation/games", "Coloque seus jogos em sd:/wiiu/apps/WiiUStation/games" },
 { "Quadratic", "Quadrática" },
 { "Quadratic and Cubic give finer control near the centre.", "Quadrática e Cúbica dão controle mais fino perto do centro." },
 { "Quick actions while playing: hold a button and press another.", "Ações rápidas durante o jogo: segure um botão e aperte outro." },

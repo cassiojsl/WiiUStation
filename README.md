@@ -12,12 +12,12 @@ controllers, covers and saves are WiiUStation's own.
 ## Install
 
 1. Copy `WiiUStation.wuhb` to `sd:/wiiu/apps/`.
-2. Start WiiUStation once. It creates its folder at the root of the SD card
-   (builds before this one kept it in `sd:/wiiu/apps/WiiUStation`; it is
-   moved there on the first start):
+2. Start WiiUStation once. It creates its folder next to the app
+   (versions 1.0.0 and 1.0.1 kept it at `sd:/WiiUStation`; it is moved back
+   on the first start):
 
 ```
-sd:/WiiUStation/
+sd:/wiiu/apps/WiiUStation/
 ├── games/      your games (.cue/.bin, .chd, .pbp, .iso, .img, .m3u, ...)
 ├── bios/       optional: scph1001.bin, scph5501.bin, ...
 ├── saves/      memory cards (<game>.srm)

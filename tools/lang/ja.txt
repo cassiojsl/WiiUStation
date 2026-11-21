@@ -200,7 +200,7 @@
 205|R3を押す(切り替え)
 206|前のスロット
 207|1280x720のPNGをWiiUStation/bezelsに: default.pngか<ゲームID>.png
-208|ゲームをsd:/WiiUStation/gamesに入れてください
+208|ゲームをsd:/wiiu/apps/WiiUStation/gamesに入れてください
 209|二次
 210|二次と三次は中央付近を細かく操作できます。
 211|クイックスロット: %d

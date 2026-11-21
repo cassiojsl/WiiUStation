@@ -200,7 +200,7 @@
 205|Premi R3 (attiva/disattiva)
 206|Slot precedente
 207|Metti PNG 1280x720 in WiiUStation/bezels: default.png o <ID-DEL-GIOCO>.png
-208|Metti i tuoi giochi in sd:/WiiUStation/games
+208|Metti i tuoi giochi in sd:/wiiu/apps/WiiUStation/games
 209|Quadratica
 210|Quadratica e Cubica danno un controllo più fine vicino al centro.
 211|Slot rapido: %d

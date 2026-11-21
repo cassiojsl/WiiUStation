@@ -1859,10 +1859,10 @@ static void run_game(void)
 	wiiu_input_reset_hotkey();
 }
 
-/* The data folder moved from sd:/wiiu/apps/WiiUStation to sd:/WiiUStation.
- * On the first start of this version the folder is moved as a whole (same
- * card, so it is only renamed) and the paths saved in its lists are
- * rewritten. */
+/* Versions 1.0.0 and 1.0.1 kept the data folder at sd:/WiiUStation; it is
+ * back in sd:/wiiu/apps/WiiUStation. On the first start of this version the
+ * folder is moved as a whole (same card, so it is only renamed) and the
+ * paths saved in its lists are rewritten. */
 static void replace_in_file(const char *path, const char *from, const char *to)
 {
 	FILE *f = fopen(path, "rb");
@@ -1895,6 +1895,7 @@ static void app_folder_move(void)
 {
 	struct stat st;
 	if (stat(WIIU_APP_DIR, &st) == 0) return;                          /* already there */
+	wiiu_mkdirs(WIIU_SD_ROOT "/wiiu/apps");
 	if (stat(WIIU_PREV_APP_DIR, &st) != 0 || !S_ISDIR(st.st_mode)) return;   /* new install */
 	if (rename(WIIU_PREV_APP_DIR, WIIU_APP_DIR) != 0) return;            /* keep using nothing old */
 	static const char *files[] = { "settings.cfg", "recent.txt", "favorites.txt", "collections.txt",

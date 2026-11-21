@@ -200,7 +200,7 @@
 205|R3 drücken (umschalten)
 206|Vorheriger Platz
 207|Lege 1280x720-PNGs in WiiUStation/bezels ab: default.png oder <SPIEL-ID>.png
-208|Lege deine Spiele in sd:/WiiUStation/games ab
+208|Lege deine Spiele in sd:/wiiu/apps/WiiUStation/games ab
 209|Quadratisch
 210|Quadratisch und Kubisch erlauben feinere Steuerung nahe der Mitte.
 211|Schnellplatz: %d

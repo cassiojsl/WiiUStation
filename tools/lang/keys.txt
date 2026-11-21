@@ -206,7 +206,7 @@ Press - or + to change the filter.
 Press R3 (toggle)
 Previous slot
 Put 1280x720 PNGs in WiiUStation/bezels: default.png or <GAME-ID>.png
-Put your games in sd:/WiiUStation/games
+Put your games in sd:/wiiu/apps/WiiUStation/games
 Quadratic
 Quadratic and Cubic give finer control near the centre.
 Quick slot: %d

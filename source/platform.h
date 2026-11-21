@@ -14,15 +14,15 @@ extern "C" {
 
 /* ---- SD card layout ----
  *   sd:/wiiu/apps/WiiUStation.wuhb      the app
- *   sd:/WiiUStation/{games,bios,saves,states,covers,bezels,...}
- * (the data folder was sd:/wiiu/apps/WiiUStation before; it is moved on
- * the first start, see app_folder_move in main.c)
+ *   sd:/wiiu/apps/WiiUStation/{games,bios,saves,states,covers,bezels,...}
+ * (versions 1.0.0 and 1.0.1 kept the data folder at sd:/WiiUStation; it is
+ * moved back on the first start, see app_folder_move in main.c)
  */
 #ifndef WIIU_SD_ROOT
 #define WIIU_SD_ROOT     "fs:/vol/external01"
 #endif
-#define WIIU_APP_DIR     WIIU_SD_ROOT "/WiiUStation"
-#define WIIU_PREV_APP_DIR WIIU_SD_ROOT "/wiiu/apps/WiiUStation"
+#define WIIU_APP_DIR     WIIU_SD_ROOT "/wiiu/apps/WiiUStation"
+#define WIIU_PREV_APP_DIR WIIU_SD_ROOT "/WiiUStation"
 #define WIIU_ISO_DIR     WIIU_APP_DIR "/games"
 #define WIIU_BIOS_DIR    WIIU_APP_DIR "/bios"
 #define WIIU_SAVE_DIR    WIIU_APP_DIR "/saves"
