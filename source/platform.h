@@ -45,6 +45,15 @@ const char *bezel_name(int b);   /* "Retro TV", ... */
 int bezel_next(int b, int dir);  /* menu order */
 enum { WIIU_FILTER_LINEAR = 0, WIIU_FILTER_NEAREST, WIIU_FILTER_SHARP_BILINEAR };
 
+/* hotkeys: hold the modifier (hk[HK_MOD]) and press the action's button */
+enum { HK_MOD = 0, HK_SAVE, HK_LOAD, HK_SLOTUP, HK_SLOTDOWN, HK_SHOT, HK_FFWD, HK_PAUSE, HK_RESET, HK_COUNT };
+const char *hotkey_name(int i);
+const char *button_name(int bit);       /* "A", "ZL", "None" for -1 ... */
+
+/* interface language */
+enum { LANG_EN = 0, LANG_PT };
+const char *tr(const char *en);          /* translated text (lang.c) */
+
 typedef struct {
 	int dynarec;        /* Lightrec */
 	int gpu_thread;     /* render on core 2 */
@@ -69,9 +78,11 @@ typedef struct {
 	int rumble;
 	int audio;
 	int bezel;          /* BEZEL_* */
+	int lang;           /* LANG_* */
 	int cover3d;        /* covers: 0 = 2D front, 1 = 3D box */
 	int view;           /* game browser: 0 grid, 1 list, 2 compact, 3 shelf, 4 carousel */
 	int core[24];       /* extra PCSX-ReARMed options, see core_opt_* */
+	int hk[HK_COUNT];   /* hotkeys: WIIU_BTN bit index, -1 = none; hk[0] = modifier */
 	int map[16];        /* PSX button (RETRO_DEVICE_ID_JOYPAD_*) -> WIIU_BTN bit index */
 	char games_dir[256];  /* folder the game browser opens */
 } wiiu_settings;

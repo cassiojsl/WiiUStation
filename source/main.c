@@ -64,6 +64,34 @@ static int write_file(const char *path, const void *buf, size_t size)
 /* ------------------------------------------------------------------------ */
 /* settings                                                                 */
 /* ------------------------------------------------------------------------ */
+/* WIIU_BTN bit numbers: 0 A 1 B 2 X 3 Y 4 Up 5 Down 6 Left 7 Right 8 L 9 R
+ * 10 ZL 11 ZR 12 + 13 - 14 L3 15 R3 */
+const int default_hotkeys[HK_COUNT] = {
+	13,  /* modifier: - (Select) */
+	9,   /* save state: R */
+	8,   /* load state: L */
+	7,   /* next slot: Right */
+	6,   /* previous slot: Left */
+	3,   /* screenshot: Y */
+	11,  /* fast forward: ZR */
+	2,   /* pause: X */
+	-1,  /* reset: none */
+};
+
+const char *hotkey_name(int i)
+{
+	static const char *n[HK_COUNT] = { "Hotkey button (hold)", "Save state", "Load state",
+		"Next slot", "Previous slot", "Screenshot", "Fast forward on/off", "Pause", "Reset" };
+	return i >= 0 && i < HK_COUNT ? n[i] : "";
+}
+
+const char *button_name(int bit)
+{
+	static const char *n[16] = { "A", "B", "X", "Y", "Up", "Down", "Left", "Right",
+		"L", "R", "ZL", "ZR", "+", "-", "L3", "R3" };
+	return bit >= 0 && bit < 16 ? n[bit] : "None";
+}
+
 static struct { const char *key; int *val; int min, max; } OPTS[] = {
 	{ "dynarec",    &cfg.dynarec,    0, 1 },
 	{ "gpu_thread", &cfg.gpu_thread, 0, 1 },
@@ -90,6 +118,10 @@ static struct { const char *key; int *val; int min, max; } OPTS[] = {
 	{ "bezel",      &cfg.bezel,      0, BEZEL_COUNT - 1 },
 	{ "view",       &cfg.view,       0, 4 },
 	{ "cover3d",    &cfg.cover3d,    0, 1 },
+	{ "lang",       &cfg.lang,       0, 1 },
+	{ "hk0", &cfg.hk[0], -1, 15 }, { "hk1", &cfg.hk[1], -1, 15 }, { "hk2", &cfg.hk[2], -1, 15 },
+	{ "hk3", &cfg.hk[3], -1, 15 }, { "hk4", &cfg.hk[4], -1, 15 }, { "hk5", &cfg.hk[5], -1, 15 },
+	{ "hk6", &cfg.hk[6], -1, 15 }, { "hk7", &cfg.hk[7], -1, 15 }, { "hk8", &cfg.hk[8], -1, 15 },
 };
 
 /* ---- extra PCSX-ReARMed options (Advanced) ---- */
@@ -170,7 +202,7 @@ void core_opt_cycle(int i, int dir)
 /* keys that only make sense globally (never in a per-game file) */
 static int global_only(const char *k)
 {
-	return !strcmp(k, "view") || !strcmp(k, "cover3d") || !strcmp(k, "games_dir") || !strcmp(k, "gpu_thread") ||
+	return !strcmp(k, "view") || !strcmp(k, "cover3d") || !strcmp(k, "lang") || !strncmp(k, "hk", 2) || !strcmp(k, "games_dir") || !strcmp(k, "gpu_thread") ||
 	       !strcmp(k, "spu_thread") || !strcmp(k, "resume") || !strcmp(k, "ffwd");
 }
 
@@ -205,6 +237,7 @@ static void settings_defaults(void)
 	cfg.bezel = BEZEL_AMBIENT;
 	cfg.view = 4;         /* carousel */
 	for (int i = 0; i < NCOREOPT; i++) cfg.core[i] = COREOPT[i].def;
+	memcpy(cfg.hk, default_hotkeys, sizeof(cfg.hk));
 	strcpy(cfg.games_dir, WIIU_ISO_DIR);
 	memcpy(cfg.map, default_map, sizeof(cfg.map));
 }
@@ -569,9 +602,11 @@ const int default_map[16] = {
 	14, 15,                         /* L3 R3 */
 };
 
+static uint32_t hkHide;   /* WIIU buttons used by a hotkey right now */
+
 static uint32_t psx_mask(const wiiu_pad_state *p, int analog)
 {
-	uint32_t b = p->held, m = 0;
+	uint32_t b = p->held & ~hkHide, m = 0;
 	/* Digital pad: the left stick also drives the d-pad */
 	if (!analog) {
 		if (p->ly > 0.5f)  b |= WIIU_BTN_UP;
@@ -1048,6 +1083,8 @@ int emu_disk_append(const char *path)
 /* ------------------------------------------------------------------------ */
 /* frame loop                                                               */
 /* ------------------------------------------------------------------------ */
+static int quickSlot;     /* slot used by the save / load hotkeys */
+
 static int hotkey_pressed(void)
 {
 	static int latch = 1;
@@ -1082,10 +1119,63 @@ static void run_game(void)
 	audio_pause(!cfg.audio);
 	hotkey_pressed();   /* arm the latch */
 
-	int ffToggle = 0, ffPrev = 0;
+	int ffToggle = 0, ffPrev = 0, paused = 0;
+	uint32_t hkPrev = 0xffffffffu;   /* ignore buttons already held on entry */
 	while (!wiiu_quit) {
 		wiiu_input_update();
 		if (hotkey_pressed()) break;
+
+		/* ---- hotkeys: hold the hotkey button, press an action ---- */
+		{
+			uint32_t held = 0;
+			for (int i = 0; i < WIIU_MAX_PADS; i++)
+				if (wiiu_input_get(i)->connected) held |= wiiu_input_get(i)->held;
+			uint32_t pressed = held & ~hkPrev;
+			hkPrev = held;
+			hkHide = 0;
+			if (cfg.hk[HK_MOD] >= 0 && (held & (1u << cfg.hk[HK_MOD]))) {
+				char m[64];
+				for (int a = 1; a < HK_COUNT; a++) {
+					int bit = cfg.hk[a];
+					if (bit < 0 || bit == cfg.hk[HK_MOD]) continue;
+					hkHide |= 1u << bit;                   /* the game doesn't see it */
+					if (!(pressed & (1u << bit))) continue;
+					switch (a) {
+					case HK_SAVE:
+						snprintf(m, sizeof(m), emu_state_save(quickSlot) ? tr("Saved to slot %d.")
+						                                               : tr("Could not save to slot %d."), quickSlot);
+						video_osd(m);
+						break;
+					case HK_LOAD:
+						snprintf(m, sizeof(m), emu_state_load(quickSlot) ? tr("Loaded slot %d.")
+						                                               : tr("Slot %d is empty."), quickSlot);
+						video_osd(m);
+						break;
+					case HK_SLOTUP:
+					case HK_SLOTDOWN:
+						quickSlot = (quickSlot + (a == HK_SLOTUP ? 1 : 9)) % 10;
+						snprintf(m, sizeof(m), tr(emu_state_exists(quickSlot) ? "Slot %d" : "Slot %d (empty)"), quickSlot);
+						video_osd(m);
+						break;
+					case HK_SHOT:
+						video_osd(emu_screenshot() ? tr("Screenshot saved to WiiUStation/screenshots.")
+						                           : tr("Could not save the screenshot."));
+						break;
+					case HK_FFWD:  ffToggle = !ffToggle; break;
+					case HK_PAUSE: paused = !paused; break;
+					case HK_RESET: emu_reset(); video_osd(tr("Reset")); break;
+					}
+				}
+			}
+		}
+		if (paused) {
+			video_draw_game(1);
+			video_osd(tr("Paused"));
+			video_present();
+			if (!pump_events()) break;
+			OSSleepTicks(OSMillisecondsToTicks(16));
+			continue;
+		}
 
 		/* ---- fast forward ---- */
 		uint32_t any = 0;
@@ -1093,9 +1183,10 @@ static void run_game(void)
 			if (wiiu_input_get(i)->connected) any |= wiiu_input_get(i)->held;
 		int r3 = (any & WIIU_BTN_STICKR) && !(any & WIIU_BTN_STICKL);   /* L3+R3 = menu */
 		int zlzr = (any & (WIIU_BTN_ZL | WIIU_BTN_ZR)) == (WIIU_BTN_ZL | WIIU_BTN_ZR);
+		if (hkHide) r3 = zlzr = 0;   /* a hotkey is being used */
 		if (cfg.ffwd == 2 && r3 && !ffPrev) ffToggle = !ffToggle;
 		ffPrev = r3;
-		int ff = (cfg.ffwd == 1 && r3) || (cfg.ffwd == 2 && ffToggle) || (cfg.ffwd == 3 && zlzr);
+		int ff = (cfg.ffwd == 1 && r3) || ffToggle || (cfg.ffwd == 3 && zlzr);
 		ffwdMask = 0xffffffffu;
 		if (cfg.ffwd == 1 || cfg.ffwd == 2) ffwdMask &= ~(1u << RETRO_DEVICE_ID_JOYPAD_R3);
 		if (cfg.ffwd == 3 && zlzr)
@@ -1137,6 +1228,7 @@ static void run_game(void)
 	}
 
 	ffwdMask = 0xffffffffu;
+	hkHide = 0;
 	audio_pause(1);
 	for (int i = 0; i < WIIU_MAX_PADS; i++) wiiu_input_rumble(i, 0);
 	wiiu_home_button_ingame(0);

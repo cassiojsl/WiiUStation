@@ -1595,17 +1595,18 @@ rescan:
 /* ------------------------------------------------------------------------ */
 static void advanced(void);
 static void controls(void);
+static void hotkeys(void);
 
 static void settings(void)
 {
-	enum { S_SCOPE, S_GAMES, S_VIEW, S_COVERS, S_RESUME, S_CORE, S_SKIP, S_FFWD, S_FFSPEED, S_FPS, S_AUDIO,
+	enum { S_SCOPE, S_LANG, S_GAMES, S_VIEW, S_COVERS, S_RESUME, S_CORE, S_SKIP, S_FFWD, S_FFSPEED, S_FPS, S_AUDIO,
 	       S_ASPECT, S_FILTER, S_BEZEL, S_SCAN, S_CRT, S_DITHER, S_PAD, S_PAD2, S_MTAP,
-	       S_CONTROLS, S_RUMBLE, S_REGION, S_BIOS, S_LOGO, S_ADV, S_COUNT };
+	       S_CONTROLS, S_HOTKEYS, S_RUMBLE, S_REGION, S_BIOS, S_LOGO, S_ADV, S_COUNT };
 	static const char *allLabels[S_COUNT] = {
-		"Settings for", "Games folder", "Game list", "Covers", "Continue where you left off", "CPU core",
+		"Settings for", "Language", "Games folder", "Game list", "Covers", "Continue where you left off", "CPU core",
 		"Frame skip", "Fast forward", "Fast forward speed", "Show FPS", "Sound", "Screen",
 		"Picture", "Border", "Scanlines", "CRT mask", "Dithering", "Player 1 controller",
-		"Player 2+ controller", "Multitap (up to 5 players)", "Button mapping...", "Vibration",
+		"Player 2+ controller", "Multitap (up to 5 players)", "Button mapping...", "Hotkeys...", "Vibration",
 		"Region", "BIOS", "PlayStation boot logo", "Advanced..."
 	};
 	const char *labels[S_COUNT], *values[S_COUNT];
@@ -1620,7 +1621,7 @@ static void settings(void)
 			if (i == S_SCOPE && !loaded) continue;
 			/* app-wide options are hidden while editing one game's settings */
 			if (game && (i == S_GAMES || i == S_VIEW || i == S_COVERS || i == S_RESUME ||
-			             i == S_FFWD)) continue;
+			             i == S_FFWD || i == S_LANG || i == S_HOTKEYS)) continue;
 			map[n] = i;
 			labels[n] = allLabels[i];
 			values[n] = NULL;
@@ -1646,6 +1647,7 @@ static void settings(void)
 			}
 			case S_VIEW:   values[k] = view_name(cfg.view); break;
 			case S_COVERS: values[k] = cfg.cover3d ? "3D box" : "2D"; break;
+			case S_LANG:   values[k] = cfg.lang == LANG_PT ? "Portugu\xc3\xaas" : "English"; break;
 			case S_RESUME: values[k] = cfg.resume ? "Ask" : "Off"; break;
 			case S_CORE:   values[k] = cfg.dynarec ? "Lightrec" : "Interpreter"; break;
 			case S_SKIP:   values[k] = cfg.frameskip ? "Auto" : "Off"; break;
@@ -1763,6 +1765,8 @@ static void settings(void)
 		                                   : "Two players.");
 		               break;
 		case S_CONTROLS: controls(); transition(); break;
+		case S_HOTKEYS:  hotkeys(); transition(); break;
+		case S_LANG:     cfg.lang = !cfg.lang; break;
 		case S_RUMBLE: cfg.rumble = !cfg.rumble; break;
 		case S_REGION: cfg.region = (cfg.region + 3 + dir) % 3; status("Applies the next time a game is loaded."); break;
 		case S_BIOS:   cfg.bios_hle = !cfg.bios_hle; status("Applies the next time a game is loaded."); break;
@@ -1972,6 +1976,60 @@ static const char *wiiu_btn_name(int bit)
 	                           "D-Pad Right", "L", "R", "ZL", "ZR", "+ (Plus)", "- (Minus)",
 	                           "L-Stick click", "R-Stick click" };
 	return bit >= 0 && bit < 16 ? n[bit] : "None";
+}
+
+/* ------------------------------------------------------------------------ */
+/* hotkeys                                                                  */
+/* ------------------------------------------------------------------------ */
+static void hotkeys(void)
+{
+	enum { NR = HK_COUNT + 1 };
+	const char *labels[NR], *values[NR];
+	list_t L = { 0, 0 };
+	transition();
+	for (;;) {
+		for (int i = 0; i < HK_COUNT; i++) {
+			labels[i] = hotkey_name(i);
+			values[i] = button_name(cfg.hk[i]);
+		}
+		labels[HK_COUNT] = "Reset to default";
+		values[HK_COUNT] = NULL;
+		poll_touch();
+		uint32_t b = poll_buttons();
+		int dir = 0;
+		if (b & WIIU_BTN_UP)   L.sel = L.sel > 0 ? L.sel - 1 : NR - 1;
+		if (b & WIIU_BTN_DOWN) L.sel = L.sel < NR - 1 ? L.sel + 1 : 0;
+		if (b & (WIIU_BTN_RIGHT | WIIU_BTN_A)) dir = 1;
+		if (b & WIIU_BTN_LEFT) dir = -1;
+
+		draw_background();
+		int back = draw_header("Hotkeys", 1);
+		int arrow = 0;
+		int t = list_run(&L, labels, values, NR, 1, &arrow, NULL);
+		if (t >= 0) dir = 1;
+		if (arrow) dir = arrow;
+		{
+			char h[160];
+			if (cfg.hk[HK_MOD] < 0) snprintf(h, sizeof(h), "%s", tr("Hotkeys are off. Choose a hotkey button to use them."));
+			else snprintf(h, sizeof(h), tr("In game: hold %s and press the button of an action"), button_name(cfg.hk[HK_MOD]));
+			draw_footer(h);
+		}
+		present();
+
+		if (back || (b & WIIU_BTN_B) || wiiu_quit) return;
+		if (!dir) continue;
+		if (L.sel == HK_COUNT) {
+			extern const int default_hotkeys[HK_COUNT];
+			memcpy(cfg.hk, default_hotkeys, sizeof(cfg.hk));
+			status("Default layout restored.");
+			continue;
+		}
+		/* -1 (none) .. 15 */
+		int v = cfg.hk[L.sel] + dir;
+		if (v < -1) v = 15;
+		if (v > 15) v = -1;
+		cfg.hk[L.sel] = v;
+	}
 }
 
 static void controls(void)
