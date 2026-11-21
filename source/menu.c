@@ -126,6 +126,9 @@ static tcache_t *get_text(TTF_Font *font, const char *s, SDL_Color c)
 	return victim;
 }
 
+/* opacity of the text drawn (for fades); 255 normally */
+static uint8_t textAlpha = 255;
+
 /* align: 0 left, 1 centre, 2 right; y is the vertical centre */
 static int text(TTF_Font *f, int x, int yc, const char *s, SDL_Color c, int align)
 {
@@ -136,7 +139,9 @@ static int text(TTF_Font *f, int x, int yc, const char *s, SDL_Color c, int alig
 	SDL_Rect d = { x, yc - e->h / 2, e->w, e->h };
 	if (align == 1) d.x = x - e->w / 2;
 	if (align == 2) d.x = x - e->w;
+	if (textAlpha != 255) SDL_SetTextureAlphaMod(e->tex, textAlpha);
 	SDL_RenderCopy(R, e->tex, NULL, &d);
+	if (textAlpha != 255) SDL_SetTextureAlphaMod(e->tex, 255);
 	return e->w;
 }
 
@@ -2459,26 +2464,56 @@ static void credits(void)
 	}
 }
 
-/* Loading screen shown while the game starts (the load itself blocks). */
+/* Loading screen shown while the game starts (the load itself blocks).
+ * It comes in smoothly: the cover grows into place with a glow, then the
+ * name and the spinner fade in; the colours follow the theme. */
 static void loading_screen(const char *path)
 {
 	char id[16] = "";
 	const char *name = strrchr(path, '/') ? strrchr(path, '/') + 1 : path;
+	char nm[80];
 	covers_detect_id(path, id);
-	for (int frame = 0; frame < 2; frame++) {     /* two frames: TV + GamePad */
+	pretty_name(name, nm, sizeof(nm));
+	const uint32_t T0 = SDL_GetTicks(), LEN = 450;
+	for (int last = 0; last < 2;) {
+		uint32_t now = SDL_GetTicks() - T0;
+		float p = now >= LEN ? 1.0f : (float)now / LEN;
+		if (p >= 1.0f) last++;                       /* two final frames: TV + GamePad */
+		float e = 1 - (1 - p) * (1 - p) * (1 - p);     /* ease out */
 		SDL_SetRenderDrawColor(R, 0, 0, 0, 255);
 		SDL_RenderClear(R);
 		for (int y = 0; y < 720; y += 6) {
-			SDL_Color c = { (uint8_t)(4 + y / 90), (uint8_t)(8 + y / 40), (uint8_t)(30 + y / 14) };
+			SDL_Color c = th(4 + y / 90, 8 + y / 40, 30 + y / 14);
 			fill(0, y, 1280, 6, c, 255);
 		}
-		cover_or_disc(id, 640 - 150, 150, 300);
-		char nm[80];
-		pretty_name(name, nm, sizeof(nm));
-		text(fontItem, 640, 500, nm, WHITE, 1);
-		spinner(640, 580, 22, PS_BLUE);
-		text(fontSmall, 640, 630, "Loading...", GREY, 1);
+		/* glow behind the cover */
+		for (int i = 4; i >= 1; i--) {
+			bgNV = bgNI = 0;
+			float r = (120 + i * 40) * e;
+			SDL_Color g = th(30, 90, 200);
+			g.a = (Uint8)(22 * e);
+			bg_ngon(640, 300, r, 40, r, 0, g);
+			SDL_SetRenderDrawBlendMode(R, SDL_BLENDMODE_BLEND);
+			SDL_RenderGeometry(R, NULL, bgV, bgNV, bgIdx, bgNI);
+		}
+		/* the cover grows from 70% with a fade */
+		int sz = (int)(300 * (0.7f + 0.3f * e));
+		cover_or_disc(id, 640 - sz / 2, 300 - sz / 2, sz);
+		if (p < 1) fill(640 - sz / 2 - 2, 300 - sz / 2 - 2, sz + 4, sz + 4, th(4, 8, 30), (uint8_t)(255 * (1 - e)));
+		/* the name and the spinner a moment later */
+		float q = p < 0.4f ? 0 : (p - 0.4f) / 0.6f;
+		if (q > 0) {
+			int dy = (int)(16 * (1 - q));
+			SDL_Color sp = PS_BLUE;
+			sp.a = (Uint8)(255 * q);
+			textAlpha = (uint8_t)(255 * q);
+			marquee(fontItem, 640, 500 + dy, 1100, nm, WHITE, 1, 1);
+			text(fontSmall, 640, 630 + dy, "Loading...", GREY, 1);
+			textAlpha = 255;
+			if (q > 0.5f) spinner(640, 580 + dy, 22, sp);
+		}
 		SDL_RenderPresent(R);
+		pump_events();
 	}
 }
 

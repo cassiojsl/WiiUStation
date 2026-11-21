@@ -357,7 +357,10 @@ static int settings_parse(const char *path, int isGame)
 		char *k = line;
 		while (*k == ' ') k++;
 		for (char *e = eq - 1; e >= k && *e == ' '; e--) *e = 0;
-		if (isGame && global_only(k)) continue;
+		if (isGame == 1 && global_only(k)) continue;
+		/* the file of the old builds (isGame 2): only the games folder is
+		 * taken; its other values (sound off, ...) were test settings */
+		if (isGame == 2 && strcmp(k, "games_dir")) continue;
 		if (!strcmp(k, "games_dir")) {
 			char *v = eq + 1;
 			while (*v == ' ') v++;
@@ -426,7 +429,7 @@ void settings_load(void)
 {
 	settings_defaults();
 	if (!settings_parse(WIIU_CONFIG_FILE, 0))
-		settings_parse(WIIU_OLD_DIR "/wiiustation.cfg", 0);   /* older builds */
+		settings_parse(WIIU_OLD_DIR "/wiiustation.cfg", 2);   /* older builds: the games folder */
 	if (gameKey[0]) {
 		char p[256];
 		game_cfg_path(p, sizeof(p));
