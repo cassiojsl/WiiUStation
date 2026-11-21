@@ -98,6 +98,8 @@ void covers_remember_id(const char *p, const char *i) { (void)p; (void)i; }
 long emu_playtime(const char *k, long long *l) { if (l) *l = 0; return strlen(k) * 977; }
 void emu_playtime_reset(const char *k) { (void)k; }
 int wiiu_battery(void) { return 4; }
+int covers_have(const char *i) { return i[3] == 'S'; }
+int covers_missing(const char *i) { return i[5] == 9 && i[6] == 4 && i[7] == 3; }
 int emu_coll_count(void) { return 2; }
 const char *emu_coll_name(int i) { return i ? "Para jogar" : "RPGs"; }
 int emu_coll_has(const char *c, const char *p) { return strstr(p, "Metal") && !strcmp(c, "RPGs"); }
@@ -181,6 +183,7 @@ int main(int argc, char **argv)
 	else if (!strcmp(mode, "update")) { R = ren; menu_fonts(); update_screen(); }
 	else if (!strcmp(mode, "info")) { R = ren; menu_fonts(); entry_t e; memset(&e, 0, sizeof(e)); strcpy(e.name, "Metal Gear Solid (SLUS-00594).chd"); game_info(&e, WIIU_ISO_DIR); }
 	else if (!strcmp(mode, "colls")) { R = ren; menu_fonts(); entry_t e; memset(&e, 0, sizeof(e)); strcpy(e.name, "Metal Gear Solid (SLUS-00594).chd"); game_collections(&e, WIIU_ISO_DIR); }
+	else if (!strcmp(mode, "allcovers")) { R = ren; menu_fonts(); strcpy(cfg.games_dir, WIIU_ISO_DIR); all_covers(); }
 	else if (!strcmp(mode, "gallery")) { R = ren; menu_fonts(); scriptBtn[8] = WIIU_BTN_RIGHT; gallery(); }
 	else if (!strcmp(mode, "options")) { R = ren; menu_fonts(); entry_t e; memset(&e, 0, sizeof(e)); strcpy(e.name, "Metal Gear Solid (SLUS-00594).chd"); strcpy(e.id, "SLUS-00594"); game_options(&e, WIIU_ISO_DIR); }
 	else if (!strcmp(mode, "settings")) { R = ren; menu_fonts(); settings(); }

@@ -289,6 +289,8 @@ void  covers_request(const char *id);
 int   covers_status(const char *id);   /* 2 have, 1 downloading, 0 none */
 void *covers_texture(void *renderer, const char *id, int *w, int *h);
 void  covers_shutdown(void);
+int   covers_have(const char *id);
+int   covers_missing(const char *id);
 int   net_status(void);                 /* 1 online, 0 offline, -1 not known yet */
 void  covers_flush(void);              /* after changing 2D / 3D */
 /* custom covers, by game key (file name without extension / disc tag) */

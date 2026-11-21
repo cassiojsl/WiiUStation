@@ -304,6 +304,25 @@ void covers_remove_custom(const char *gameKey)
 	covers_flush();
 }
 
+/* the cover of this ID (2D or 3D, as chosen) is already on the SD card */
+int covers_have(const char *id)
+{
+	char key[16], p[256];
+	if (!id || !id[0]) return 0;
+	show_key(id, key, sizeof(key));
+	cover_path(key, p, sizeof(p));
+	return file_exists(p);
+}
+
+/* the repository has no cover for it (remembered in missing.txt) */
+int covers_missing(const char *id)
+{
+	char key[16];
+	if (!id || !id[0]) return 0;
+	show_key(id, key, sizeof(key));
+	return state_get(key) == ST_MISSING;
+}
+
 void covers_request(const char *id)
 {
 	char key[16];

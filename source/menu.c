@@ -1776,14 +1776,15 @@ static void advanced(void);
 static void controls(void);
 static void hotkeys(void);
 static void update_screen(void);
+static void all_covers(void);
 
 static void settings(void)
 {
-	enum { S_SCOPE, S_LANG, S_SFX, S_AUTOSTART, S_GAMES, S_VIEW, S_COVERS, S_RESUME, S_CORE, S_SKIP, S_FFWD, S_FFSPEED, S_FPS, S_AUDIO,
+	enum { S_SCOPE, S_LANG, S_SFX, S_AUTOSTART, S_GAMES, S_VIEW, S_COVERS, S_ALLCOVERS, S_RESUME, S_CORE, S_SKIP, S_FFWD, S_FFSPEED, S_FPS, S_AUDIO,
 	       S_ASPECT, S_FILTER, S_BEZEL, S_WIDE, S_SCAN, S_CRT, S_FX, S_DRC, S_DITHER, S_PAD, S_GYRO, S_PAD2, S_DEADZONE, S_MTAP,
 	       S_CONTROLS, S_HOTKEYS, S_RUMBLE, S_REGION, S_BIOS, S_LOGO, S_ADV, S_UPDATE, S_COUNT };
 	static const char *allLabels[S_COUNT] = {
-		"Settings for", "Language", "Menu sounds", "Open the last game at start", "Games folder", "Game list", "Covers", "Continue where you left off", "CPU core",
+		"Settings for", "Language", "Menu sounds", "Open the last game at start", "Games folder", "Game list", "Covers", "Download all covers...", "Continue where you left off", "CPU core",
 		"Frame skip", "Fast forward", "Fast forward speed", "Show FPS", "Sound", "Screen",
 		"Picture", "Border", "Widescreen (16:9)", "Scanlines", "CRT mask", "Screen effect", "GamePad screen", "Dithering", "Player 1 controller", "Aim with GamePad motion",
 		"Player 2+ controller", "Analog dead zone", "Multitap (up to 5 players)", "Button mapping...", "Hotkeys...", "Vibration",
@@ -1802,7 +1803,7 @@ static void settings(void)
 			/* app-wide options are hidden while editing one game's settings */
 			if (game && (i == S_GAMES || i == S_VIEW || i == S_COVERS || i == S_RESUME ||
 			             i == S_FFWD || i == S_LANG || i == S_HOTKEYS || i == S_SFX || i == S_UPDATE ||
-			             i == S_AUTOSTART)) continue;
+			             i == S_AUTOSTART || i == S_ALLCOVERS)) continue;
 			map[n] = i;
 			labels[n] = allLabels[i];
 			values[n] = NULL;
@@ -1996,6 +1997,7 @@ static void settings(void)
 			if (cfg.autostart) status("The last game opens when WiiUStation starts. Hold B during the opening to go to the menu.");
 			break;
 		case S_UPDATE:   update_screen(); transition(); break;
+		case S_ALLCOVERS: all_covers(); transition(); break;
 		case S_LANG:     cfg.lang = (cfg.lang + LANG_COUNT + dir) % LANG_COUNT; video_lang_changed(); break;
 		case S_RUMBLE: cfg.rumble = !cfg.rumble; break;
 		case S_REGION: cfg.region = (cfg.region + 3 + dir) % 3; status("Applies the next time a game is loaded."); break;
@@ -2364,6 +2366,90 @@ static void controls(void)
 			cfg.map[id] = (cfg.map[id] + 16 + dir) % 16;
 		}
 	}
+}
+
+/* ------------------------------------------------------------------------ */
+/* download every cover of the library                                      */
+/* ------------------------------------------------------------------------ */
+static void collect_games(const char *dir, int depth, char (**paths)[512], int *n, int *cap)
+{
+	entry_t *list = NULL;
+	int count = scan_dir(dir, &list);
+	collapse_entries(dir, list, &count);
+	for (int i = 0; i < count; i++) {
+		if (!strcmp(list[i].name, "..")) continue;
+		char p[512];
+		snprintf(p, sizeof(p), "%s/%s", dir, list[i].name);
+		if (list[i].dir) {
+			if (depth < 3) collect_games(p, depth + 1, paths, n, cap);
+			continue;
+		}
+		if (*n == *cap) { *cap = *cap ? *cap * 2 : 64; *paths = realloc(*paths, *cap * sizeof(**paths)); }
+		snprintf((*paths)[(*n)++], 512, "%s", p);
+	}
+	free(list);
+}
+
+static void all_covers(void)
+{
+	char (*paths)[512] = NULL;
+	int n = 0, cap = 0, cur = 0, waiting = 0, done = 0;
+	int got = 0, had = 0, missing = 0, noid = 0, failed = 0;
+	char id[16] = "";
+	uint32_t waitStart = 0;
+	int scanned = 0;
+	transition();
+	for (;;) {
+		poll_touch();
+		uint32_t b = poll_buttons();
+		draw_background();
+		int back = draw_header("Download all covers", 1);
+		if (!scanned) {
+			text(fontItem, 640, 330, "Looking for games...", WHITE, 1);
+		} else if (!n) {
+			text(fontItem, 640, 330, "No games in this folder.", GREY, 1);
+		} else {
+			char m[160];
+			float f = (float)cur / n;
+			snprintf(m, sizeof(m), done ? tr("Finished: %d games") : tr("Game %d of %d"), done ? n : cur + 1, n);
+			text(fontItem, 640, 260, m, WHITE, 1);
+			SDL_Color bg = { 26, 32, 60 }, fg = { 0, 140, 220 };
+			rrect(240, 300, 800, 26, 13, bg, 255);
+			rrect(240, 300, (int)(800 * (f < 0.02f ? 0.02f : f)), 26, 13, fg, 255);
+			snprintf(m, sizeof(m), tr("Downloaded %d   Already had %d   Not in the repository %d"), got, had, missing);
+			text(fontSmall, 640, 370, m, GREY, 1);
+			snprintf(m, sizeof(m), tr("Without a game ID %d   Failed %d"), noid, failed);
+			text(fontSmall, 640, 405, m, DIM, 1);
+			if (!done) {
+				char nm[96];
+				pretty_name(paths[cur], nm, sizeof(nm));
+				text(fontSmall, 640, 460, nm, DIM, 1);
+			}
+		}
+		draw_footer(done || !n ? NULL : "B: stop");
+		present();
+		if (back || (b & WIIU_BTN_B) || wiiu_quit) break;
+		if (!scanned) {
+			collect_games(cfg.games_dir, 0, &paths, &n, &cap);
+			scanned = 1;
+			continue;
+		}
+		if (done || !n) continue;
+		/* one step per frame */
+		if (!waiting) {
+			if (!covers_detect_id(paths[cur], id) || !id[0]) { noid++; cur++; }
+			else if (covers_have(id)) { had++; cur++; }
+			else if (covers_missing(id)) { missing++; cur++; }
+			else { covers_request(id); waiting = 1; waitStart = SDL_GetTicks(); }
+		} else {
+			int st = covers_status(id);
+			if (covers_have(id)) { got++; waiting = 0; cur++; }
+			else if (covers_missing(id)) { missing++; waiting = 0; cur++; }
+			else if (st != 1 || SDL_GetTicks() - waitStart > 60000) { failed++; waiting = 0; cur++; }
+		}
+		if (cur >= n) { done = 1; sfx_play(SFX_OK); }
+	}
+	free(paths);
 }
 
 /* ------------------------------------------------------------------------ */
