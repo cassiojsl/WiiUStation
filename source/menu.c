@@ -481,7 +481,7 @@ static void draw_cover(const char *id, const char *caption)
 		outline(d.x - 2, d.y - 2, d.w + 4, d.h + 4, GREY, 160, 2);
 	} else {
 		float cx = COVER_X + COVER_W / 2.0f, cy = y + COVER_W / 2.0f;
-		if (id && id[0]) {
+		if (covers_status(id) == 1) {
 			spinner(cx, cy, 46, PS_BLUE);
 			text(fontSmall, (int)cx, (int)cy + 90, "Loading cover", DIM, 1);
 		} else {
@@ -701,7 +701,7 @@ static void cover_or_disc(const char *id, int x, int y, int sz)
 	} else {
 		SDL_Color slot = { 26, 32, 60 };
 		fill(x, y, sz, sz, slot, 220);
-		if (id && id[0]) spinner(x + sz / 2.0f, y + sz / 2.0f, 26, PS_BLUE);
+		if (covers_status(id) == 1) spinner(x + sz / 2.0f, y + sz / 2.0f, 26, PS_BLUE);
 		else {
 			ring(x + sz / 2.0f, y + sz / 2.0f, sz * 0.36f, sz * 0.26f, (SDL_Color){ 60, 66, 92, 255 });
 			ring(x + sz / 2.0f, y + sz / 2.0f, sz * 0.09f, 3, GREY);

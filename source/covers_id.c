@@ -264,7 +264,12 @@ int covers_detect_id(const char *path, char *out)
 	const char *n = base_name(path);
 	ids_load();
 	for (int i = 0; i < nids; i++)
-		if (!strcmp(ids[i].name, n)) { strcpy(out, ids[i].id); return out[0] != 0; }
+		if (!strcmp(ids[i].name, n)) {
+			/* "-" = analysed before and no ID found: don't read the file again */
+			if (!strcmp(ids[i].id, "-")) { out[0] = 0; return 0; }
+			strcpy(out, ids[i].id);
+			return out[0] != 0;
+		}
 
 	int ok = 0;
 	if (id_from_name(n, out)) ok = 1;
@@ -275,6 +280,7 @@ int covers_detect_id(const char *path, char *out)
 	                 !strcasecmp(ext, ".img") || !strcasecmp(ext, ".mdf")))
 		ok = id_from_iso(path, out);
 	if (ok) ids_remember(path, out);
+	else { ids_remember(path, "-"); out[0] = 0; }
 	return ok;
 }
 

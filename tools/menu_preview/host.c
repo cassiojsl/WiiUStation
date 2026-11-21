@@ -74,6 +74,7 @@ int covers_detect_id(const char *path, char *out) {
 	const char *o = strchr(path, '('); if (!o || strlen(o) < 11) { out[0] = 0; return 0; }
 	memcpy(out, o + 1, 10); out[10] = 0; return 1;
 }
+int covers_status(const char *id) { (void)id; return 0; }
 void *covers_texture(void *r, const char *id, int *w, int *h) {
 	static char last[8][16]; static SDL_Texture *tex[8];
 	for (int i = 0; i < 8; i++) if (tex[i] && !strcmp(last[i], id)) { SDL_QueryTexture(tex[i], 0, 0, w, h); return tex[i]; }

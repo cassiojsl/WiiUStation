@@ -56,9 +56,52 @@ static volatile int qhead, qtail;
 static SDL_mutex *qlock;
 static SDL_sem *qsem;
 static SDL_Thread *worker;
-static char failed[64][12];
-static int nfailed;
 static int netReady = -1;
+
+/* Per-ID download state. MISSING (HTTP 404: the repository has no cover for
+ * this ID) is remembered on the SD card in covers/missing.txt, so it is never
+ * requested again. FAILED (network error) is only kept for this session. */
+enum { ST_NONE = 0, ST_PENDING, ST_MISSING, ST_FAILED, ST_DONE };
+#define MAXST 512
+static struct { char id[12]; int st; } states[MAXST];
+static int nstates, missingLoaded;
+#define MISSING_FILE COVER_DIR "/missing.txt"
+
+static int *state_of(const char *id, int create)
+{
+	for (int i = 0; i < nstates; i++)
+		if (!strcmp(states[i].id, id)) return &states[i].st;
+	if (!create || nstates >= MAXST) return NULL;
+	strncpy(states[nstates].id, id, sizeof(states[nstates].id) - 1);
+	states[nstates].st = ST_NONE;
+	return &states[nstates++].st;
+}
+
+static void missing_load(void)
+{
+	FILE *f;
+	char line[32];
+	if (missingLoaded) return;
+	missingLoaded = 1;
+	f = fopen(MISSING_FILE, "r");
+	if (!f) return;
+	while (fgets(line, sizeof(line), f)) {
+		line[strcspn(line, "\r\n")] = 0;
+		int *st = line[0] ? state_of(line, 1) : NULL;
+		if (st) *st = ST_MISSING;
+	}
+	fclose(f);
+}
+
+static void missing_add(const char *id)
+{
+	FILE *f;
+	wiiu_mkdirs(COVER_DIR);
+	f = fopen(MISSING_FILE, "a");
+	if (!f) return;
+	fprintf(f, "%s\n", id);
+	fclose(f);
+}
 
 static void cover_path(const char *id, char *out, size_t n)
 {
@@ -110,7 +153,7 @@ static int download(const char *id)
 		return 1;
 	}
 	remove(tmp);
-	return 0;
+	return rc == CURLE_OK && code == 404 ? -1 : 0;
 }
 
 static int worker_main(void *ud)
@@ -125,7 +168,12 @@ static int worker_main(void *ud)
 		qhead = (qhead + 1) % QSIZE;
 		SDL_UnlockMutex(qlock);
 		if (!strcmp(id, "QUIT")) break;
-		if (!download(id) && nfailed < 64) strcpy(failed[nfailed++], id);
+		int r = download(id);
+		SDL_LockMutex(qlock);
+		int *st = state_of(id, 1);
+		if (st) *st = r > 0 ? ST_DONE : r < 0 ? ST_MISSING : ST_FAILED;
+		SDL_UnlockMutex(qlock);
+		if (r < 0) missing_add(id);
 	}
 	return 0;
 }
@@ -136,27 +184,50 @@ void covers_request(const char *id)
 	if (!id || !id[0]) return;
 	cover_path(id, path, sizeof(path));
 	if (file_exists(path)) return;
-	for (int i = 0; i < nfailed; i++) if (!strcmp(failed[i], id)) return;
 	if (!qlock) {
 		qlock = SDL_CreateMutex();
 		qsem = SDL_CreateSemaphore(0);
 		worker = SDL_CreateThread(worker_main, "covers", NULL);
 	}
 	SDL_LockMutex(qlock);
-	for (int i = qhead; i != qtail; i = (i + 1) % QSIZE)
-		if (!strcmp(queue[i], id)) { SDL_UnlockMutex(qlock); return; }
-	if ((qtail + 1) % QSIZE != qhead) {
+	missing_load();
+	int *st = state_of(id, 1);
+	if (st && *st == ST_NONE && (qtail + 1) % QSIZE != qhead) {
+		*st = ST_PENDING;          /* queued once; never every frame */
 		strcpy(queue[qtail], id);
 		qtail = (qtail + 1) % QSIZE;
 		SDL_SemPost(qsem);
 	}
 	SDL_UnlockMutex(qlock);
-	/* remember the attempt so we do not queue it every frame */
-	if (nfailed < 64) {
-		/* cleared again only by an app restart; a successful download makes
-		 * the file exist, which is checked first above */
-		strcpy(failed[nfailed++], id);
-	}
+}
+
+static int state_get(const char *id)
+{
+	int r;
+	if (!qlock) { qlock = SDL_CreateMutex(); qsem = SDL_CreateSemaphore(0);
+	              worker = SDL_CreateThread(worker_main, "covers", NULL); }
+	SDL_LockMutex(qlock);
+	missing_load();
+	int *st = state_of(id, 0);
+	r = st ? *st : ST_NONE;
+	SDL_UnlockMutex(qlock);
+	return r;
+}
+
+static void state_set(const char *id, int v)
+{
+	SDL_LockMutex(qlock);
+	int *st = state_of(id, 1);
+	if (st) *st = v;
+	SDL_UnlockMutex(qlock);
+}
+
+/* 2 = cover available, 1 = being downloaded, 0 = no cover (no SD access) */
+int covers_status(const char *id)
+{
+	if (!id || !id[0]) return 0;
+	int st = state_get(id);
+	return st == ST_DONE ? 2 : st == ST_PENDING ? 1 : 0;
 }
 
 void covers_shutdown(void)
@@ -196,10 +267,15 @@ void *covers_texture(void *renderer, const char *id, int *w, int *h)
 		if (!texc[i].t) victim = i;
 		else if (texc[victim].t && texc[i].used < texc[victim].used) victim = i;
 	}
+	/* Only touch the SD card when the state is unknown or freshly
+	 * downloaded; pending / missing / failed covers cost nothing. */
+	int st = state_get(id);
+	if (st == ST_PENDING || st == ST_MISSING || st == ST_FAILED) return NULL;
 	cover_path(id, path, sizeof(path));
 	if (!file_exists(path)) { covers_request(id); return NULL; }
 	s = IMG_Load(path);
-	if (!s) return NULL;
+	if (!s) { state_set(id, ST_FAILED); return NULL; }   /* unreadable file */
+	state_set(id, ST_DONE);
 	if (texc[victim].t) SDL_DestroyTexture(texc[victim].t);
 	texc[victim].t = SDL_CreateTextureFromSurface((SDL_Renderer *)renderer, s);
 	texc[victim].w = s->w;

@@ -157,6 +157,7 @@ void emu_save_memcards(void);
 int   covers_detect_id(const char *path, char *out);   /* out: "SCUS-94244" */
 void  covers_set_loaded_id(const char *path, const char *cdromId);
 void  covers_request(const char *id);
+int   covers_status(const char *id);   /* 2 have, 1 downloading, 0 none */
 void *covers_texture(void *renderer, const char *id, int *w, int *h);
 void  covers_shutdown(void);
 const char *emu_game_id(void);
