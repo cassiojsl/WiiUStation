@@ -1846,15 +1846,58 @@ static void bios_screen(void);
 
 static void settings(void)
 {
-	enum { S_SCOPE, S_LANG, S_SFX, S_AUTOSTART, S_GAMES, S_VIEW, S_COVERS, S_ALLCOVERS, S_RESUME, S_CORE, S_SKIP, S_FFWD, S_FFSPEED, S_FPS, S_AUDIO,
+	enum { S_SCOPE, S_LANG, S_SFX, S_AUTOSTART, S_GAMES, S_VIEW, S_COVERS, S_ALLCOVERS, S_RESUME, S_CORE, S_SKIP, S_FFWD, S_FFSPEED, S_FPS, S_VSYNC, S_AUDIO,
 	       S_ASPECT, S_FILTER, S_BEZEL, S_WIDE, S_SCAN, S_CRT, S_FX, S_DRC, S_DITHER, S_PAD, S_GYRO, S_PAD2, S_DEADZONE, S_MTAP,
 	       S_CONTROLS, S_HOTKEYS, S_RUMBLE, S_REGION, S_BIOS, S_BIOSCHECK, S_LOGO, S_AUTOFIX, S_ADV, S_UPDATE, S_COUNT };
 	static const char *allLabels[S_COUNT] = {
 		"Settings for", "Language", "Menu sounds", "Open the last game at start", "Games folder", "Game list", "Covers", "Download all covers...", "Continue where you left off", "CPU core",
-		"Frame skip", "Fast forward", "Fast forward speed", "Show FPS", "Sound", "Screen",
+		"Frame skip", "Fast forward", "Fast forward speed", "Show FPS", "VSync (no tearing)", "Sound", "Screen",
 		"Picture", "Border", "Widescreen (16:9)", "Scanlines", "CRT mask", "Screen effect", "GamePad screen", "Dithering", "Player 1 controller", "Aim with GamePad motion",
 		"Player 2+ controller", "Analog dead zone", "Multitap (up to 5 players)", "Button mapping...", "Hotkeys...", "Vibration",
 		"Region", "BIOS", "Check BIOS files...", "PlayStation boot logo", "Automatic game fixes", "Advanced...", "Check for updates"
+	};
+	/* shown in the footer for the selected option */
+	static const char *allHelp[S_COUNT] = {
+		"Choose whether changes apply to all games or only to this one.",
+		"The language of WiiUStation. System follows the Wii U's language.",
+		"Sounds when you move and choose in the menu, and their style.",
+		"Opens the last game right away when WiiUStation starts.",
+		"The folder the game list opens in.",
+		"How the games are shown: carousel, grid, compact grid or list.",
+		"2D front covers or 3D boxes.",
+		"Downloads the cover of every game in the games folder now.",
+		"Saves where you stop when leaving a game and offers to continue there.",
+		"Lightrec is much faster. Interpreter only for games that misbehave.",
+		"Skips drawing some frames when the game can't keep full speed.",
+		"How fast forward is turned on: holding R3, pressing R3, or holding ZL+ZR.",
+		"How many times faster the game runs while fast forwarding.",
+		"Shows the frames per second in a corner.",
+		"Waits for the screen to refresh before showing a frame, so the picture never tears.",
+		"Turns the game's sound on or off.",
+		"The shape and size of the picture: 4:3, Auto zoom, stretch or whole multiples.",
+		"Smooth softens the pixels, Pixel keeps them square, Sharp smooth is a mix.",
+		"What fills the sides of the screen: a blurred copy of the game, a frame or your own image.",
+		"Shows the game in 16:9 using its widescreen cheat, when it has one.",
+		"Dark lines between the rows, like an old TV.",
+		"The colour pattern of a CRT TV's screen.",
+		"Curved CRT glass, an LCD grid or a soft glow over the picture.",
+		"What the GamePad shows during a game: the same as the TV, only the game, nothing or touch buttons.",
+		"The PlayStation's dithering pattern. Off looks cleaner, Force adds it everywhere.",
+		"Auto uses a DualShock for games that support it. Light guns and the mouse use the GamePad screen.",
+		"With a light gun: aim by turning the GamePad.",
+		"The controller of the other players.",
+		"How far the sticks move before the game notices.",
+		"Up to 5 players, for games that support the Multitap.",
+		"Change which Wii U button does what.",
+		"Quick actions while playing: hold a button and press another.",
+		"Vibration of the GamePad and Pro Controller.",
+		"Auto detects the region of the game. NTSC is 60 Hz, PAL is 50 Hz.",
+		"Uses a real BIOS from the bios folder when there is one, or always the built-in one.",
+		"Shows which BIOS files you have and for which regions.",
+		"Shows the PlayStation logo when a game starts (needs a real BIOS).",
+		"Applies the fixes that some known games need.",
+		"More options: threads, speed, sound, compatibility and GPU fixes.",
+		"Looks for a new version of WiiUStation on GitHub.",
 	};
 	const char *labels[S_COUNT], *values[S_COUNT];
 	int map[S_COUNT];
@@ -1913,6 +1956,7 @@ static void settings(void)
 			case S_FFWD:   values[k] = cfg.ffwd == 0 ? "Off" : cfg.ffwd == 1 ? "Hold R3" :
 			                           cfg.ffwd == 2 ? "Press R3 (toggle)" : "Hold ZL+ZR"; break;
 			case S_FFSPEED: snprintf(ffs, sizeof(ffs), "%dx", cfg.ffspeed); values[k] = ffs; break;
+			case S_VSYNC:  values[k] = cfg.vsync ? "On" : "Off"; break;
 			case S_FPS:    values[k] = cfg.show_fps ? "On" : "Off"; break;
 			case S_AUDIO:  values[k] = cfg.audio ? "On" : "Off"; break;
 			case S_ASPECT: values[k] = cfg.aspect == WIIU_ASPECT_4_3 ? "4:3" :
@@ -1960,10 +2004,26 @@ static void settings(void)
 		draw_background();
 		int back = draw_header(game ? "Game settings" : "Settings", 1);
 		int arrow = 0;
+		/* live preview: on the picture options, the game drawn with them */
+		int cur = n ? map[L.sel] : -1;
+		int preview = loaded && (cur == S_ASPECT || cur == S_FILTER || cur == S_BEZEL || cur == S_WIDE ||
+		                         cur == S_SCAN || cur == S_CRT || cur == S_FX || cur == S_DITHER);
+		if (preview) listW = 640;
 		int t = list_run(&L, labels, values, n, 1, &arrow, NULL);
+		listW = 1060;
+		if (preview) {
+			SDL_Texture *pv = (SDL_Texture *)video_preview();
+			SDL_Color frame = { 0, 140, 220 };
+			rrect(786, 180, 468, 267, 12, frame, 255);
+			if (pv) {
+				SDL_Rect d = { 790, 184, 460, 259 };
+				SDL_RenderCopy(R, pv, NULL, &d);
+			}
+			text(fontSmall, 1020, 160, "Preview", GREY, 1);
+		}
 		if (t >= 0) dir = 1;
 		if (arrow) dir = arrow;
-		draw_footer(game ? "Changes apply to this game only" : "Tap the arrows to change");
+		draw_footer(cur >= 0 ? allHelp[cur] : NULL);
 		present();
 
 		if (back || (b & WIIU_BTN_B) || wiiu_quit) {
@@ -1991,6 +2051,7 @@ static void settings(void)
 			break;
 		}
 		case S_VIEW:   cfg.view = view_next(cfg.view, dir); break;
+		case S_VSYNC:  cfg.vsync = !cfg.vsync; break;
 		case S_COVERS:
 			cfg.cover3d = !cfg.cover3d;
 			covers_flush();

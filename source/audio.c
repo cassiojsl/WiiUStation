@@ -227,6 +227,18 @@ void audio_push(const int16_t *in, size_t count)
 {
 	double step = inRate / outRate;
 	if (!opened || !cfg.audio) return;
+	/* dynamic rate control: with vsync the screen sets the pace (60 Hz)
+	 * while the game makes sound for 59.94 frames a second; stretch or
+	 * squeeze the sound by up to 0.5% to keep the buffer level steady
+	 * (no crackles, not audible as pitch) */
+	{
+		double target = (double)audio_target_frames();
+		double fill = (double)(wpos - rpos);
+		double d = (target - fill) / target;
+		if (d > 1) d = 1;
+		if (d < -1) d = -1;
+		step *= 1.0 - 0.005 * d;
+	}
 	SDL_LockAudio();
 	while (resamplePos < (double)count) {
 		size_t i = (size_t)resamplePos;

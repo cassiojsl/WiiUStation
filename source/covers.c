@@ -247,7 +247,9 @@ static void show_key(const char *id, char *key, size_t n)
 	if (cfg.cover3d) {
 		snprintf(key, n, "%s#3", id);
 		int st = state_get(key);
-		if (st != ST_MISSING) return;          /* have it, or still trying */
+		/* have it, or still trying; when it is missing or its download
+		 * failed, show the 2D cover instead */
+		if (st != ST_MISSING && st != ST_FAILED) return;
 	}
 	snprintf(key, n, "%s", id);
 }

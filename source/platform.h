@@ -80,6 +80,7 @@ typedef struct {
 	int scanlines;
 	int crt;            /* CRT aperture-grille mask */
 	int fx;             /* FX_* */
+	int vsync;          /* wait for the screen refresh (no tearing) */
 	int widescreen;     /* 16:9 with the game's widescreen code (per game) */
 	int gyroaim;        /* light gun aimed by turning the GamePad */
 	int drc;            /* DRC_*: GamePad screen during a game */
@@ -146,6 +147,8 @@ void video_set_widescreen(int on);
 void video_set_crosshair(int on, int gx, int gy);   /* game coords -32767..32767 */
 void video_fade_in(void);
 void video_set_ingame(int ingame);
+void video_set_vsync(int on);
+void *video_preview(void);              /* SDL_Texture* of the game with the picture settings */
 void video_lang_changed(void);           /* drop cached translated labels */        /* screens follow cfg.drc only in a game */
 int  video_screen_modes_ok(void);         /* 0 if TV / GamePad can't be split */
 int  video_panel_hit(int x, int y);       /* control panel button at a touch, or -1 */

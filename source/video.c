@@ -82,7 +82,7 @@ int video_init(void)
 	window = SDL_CreateWindow("WiiUStation", SDL_WINDOWPOS_UNDEFINED,
 	                          SDL_WINDOWPOS_UNDEFINED, 1280, 720, 0);
 	if (!window) return -1;
-	renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+	renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
 	if (!renderer) return -1;
 	SDL_RenderSetLogicalSize(renderer, 1280, 720);
 	create_texture();
@@ -254,11 +254,16 @@ static void compute_dest(SDL_Rect *r, const SDL_Rect *src)
 		r->x = 0; r->y = 0; r->w = W; r->h = H;
 		break;
 	case WIIU_ASPECT_INTEGER: {
+		/* square pixels, the largest whole multiple that fits: for 320x240
+		 * games that is 960x720, the same as 4:3; other widths (256, 368,
+		 * 512...) keep their own shape instead of being stretched to 4:3 */
 		int baseH = frameH > 288 ? frameH / 2 : frameH;
+		int baseW = frameW >= 512 ? frameW / 2 : frameW;
 		int s = H / (baseH ? baseH : 240);
+		while (s > 1 && baseW * s > W) s--;
 		if (s < 1) s = 1;
 		r->h = baseH * s;
-		r->w = r->h * 4 / 3;
+		r->w = baseW * s;
 		r->x = (W - r->w) / 2;
 		r->y = (H - r->h) / 2;
 		break;
@@ -725,6 +730,7 @@ void video_draw_game(int dim)
 		fxTex = SDL_CreateTexture(renderer, native_format(), SDL_TEXTUREACCESS_TARGET, 1280, 720);
 		if (!fxTex) curve = 0;
 	}
+	SDL_Texture *curvePrev = SDL_GetRenderTarget(renderer);
 	if (curve) {
 		SDL_SetRenderTarget(renderer, fxTex);
 		SDL_RenderSetLogicalSize(renderer, 1280, 720);
@@ -768,7 +774,7 @@ void video_draw_game(int dim)
 	if (cfg.fx == FX_LCD) draw_lcd(&src, &dst);
 	if (cfg.fx == FX_GLOW) draw_glow(&src, &dst);
 	if (curve) {
-		SDL_SetRenderTarget(renderer, NULL);
+		SDL_SetRenderTarget(renderer, curvePrev);
 		SDL_RenderSetLogicalSize(renderer, 1280, 720);
 		draw_curved(&dst);
 	}
@@ -795,6 +801,28 @@ void video_draw_game(int dim)
 		SDL_SetRenderDrawColor(renderer, 0, 0, 0, 170);
 		SDL_RenderFillRect(renderer, NULL);
 	}
+}
+
+/* the game drawn with the current picture settings into a texture, for the
+ * live preview in the settings menu */
+static SDL_Texture *previewTex;
+
+void *video_preview(void)
+{
+	if (!haveFrame) return NULL;
+	if (!previewTex) {
+		previewTex = SDL_CreateTexture(renderer, native_format(), SDL_TEXTUREACCESS_TARGET, 1280, 720);
+		if (!previewTex) return NULL;
+		SDL_SetTextureScaleMode(previewTex, SDL_ScaleModeLinear);
+		SDL_SetTextureBlendMode(previewTex, SDL_BLENDMODE_NONE);
+	}
+	SDL_Texture *prev = SDL_GetRenderTarget(renderer);
+	SDL_SetRenderTarget(renderer, previewTex);
+	SDL_RenderSetLogicalSize(renderer, 1280, 720);
+	video_draw_game(0);
+	SDL_SetRenderTarget(renderer, prev);
+	SDL_RenderSetLogicalSize(renderer, 1280, 720);
+	return previewTex;
 }
 
 int video_save_frame(const char *path, int width)
@@ -860,6 +888,13 @@ int video_screen_modes_ok(void)
 		}
 	}
 	return winFlags != NULL;
+}
+
+/* vertical sync: wait for the screen's refresh (no tearing) */
+void video_set_vsync(int on)
+{
+	static int cur = -1;
+	if (on != cur) { SDL_RenderSetVSync(renderer, on); cur = on; }
 }
 
 void video_set_ingame(int on)

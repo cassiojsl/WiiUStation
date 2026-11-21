@@ -108,6 +108,7 @@ static struct { const char *key; int *val; int min, max; } OPTS[] = {
 	{ "aspect",     &cfg.aspect,     0, 3 },
 	{ "filter",     &cfg.filter,     0, 2 },
 	{ "fx",         &cfg.fx,         0, FX_COUNT - 1 },
+	{ "vsync",      &cfg.vsync,      0, 1 },
 	{ "drc",        &cfg.drc,        0, DRC_COUNT - 1 },
 	{ "widescreen", &cfg.widescreen, 0, 1 },
 	{ "gyroaim",    &cfg.gyroaim,    0, 1 },
@@ -329,6 +330,7 @@ static void settings_defaults(void)
 	cfg.view = 4;         /* carousel */
 	cfg.menusfx = 1;
 	cfg.lang = LANG_AUTO;  /* the Wii U's language */
+	cfg.vsync = 1;
 	cfg.autofix = 1;
 	for (int i = 0; i < NCOREOPT; i++) cfg.core[i] = COREOPT[i].def;
 	memcpy(cfg.hk, default_hotkeys, sizeof(cfg.hk));
@@ -1755,6 +1757,7 @@ static void run_game(void)
 	assign_pads();
 	wiiu_home_button_ingame(1);
 	video_set_ingame(1);
+	video_set_vsync(cfg.vsync);
 	audio_pause(!cfg.audio);
 	hotkey_pressed();   /* arm the latch */
 
@@ -1868,6 +1871,7 @@ static void run_game(void)
 	for (int i = 0; i < WIIU_MAX_PADS; i++) wiiu_input_rumble(i, 0);
 	wiiu_home_button_ingame(0);
 	video_set_ingame(0);
+	video_set_vsync(1);         /* the menu always waits for the refresh */
 	emu_save_memcards();
 	wiiu_input_reset_hotkey();
 }
