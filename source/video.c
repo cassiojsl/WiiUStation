@@ -583,6 +583,9 @@ static void draw_builtin_bezel(int b, const SDL_Rect *dst)
 	SDL_RenderCopy(renderer, t, NULL, &r);
 }
 
+static Uint32 native_format(void);
+static SDL_Texture *ambTex;   /* tiny copy of the picture for the Ambient border */
+
 static void draw_ambient(const SDL_Rect *src, const SDL_Rect *dst)
 {
 	/* The frame itself, blown up past the screen edges: the bilinear
@@ -591,7 +594,26 @@ static void draw_ambient(const SDL_Rect *src, const SDL_Rect *dst)
 	SDL_Rect s = { src->x + src->w / 8, src->y + src->h / 8, src->w * 3 / 4, src->h * 3 / 4 };
 	SDL_Rect full = { -160, -90, 1600, 900 };
 	SDL_SetTextureScaleMode(frameTex, SDL_ScaleModeLinear);
-	SDL_RenderCopy(renderer, frameTex, &s, &full);
+	/* a strong blur: shrink the picture to a few dozen pixels, then stretch
+	 * that back over the screen (linear filtering does the rest) */
+	if (!ambTex) {
+		ambTex = SDL_CreateTexture(renderer, native_format(), SDL_TEXTUREACCESS_TARGET, 64, 64);
+		if (ambTex) SDL_SetTextureScaleMode(ambTex, SDL_ScaleModeLinear);
+	}
+	if (ambTex) {
+		SDL_Texture *prev = SDL_GetRenderTarget(renderer);
+		SDL_Rect tiny = { 0, 0, 32, 24 };
+		SDL_SetRenderTarget(renderer, ambTex);
+		SDL_RenderSetLogicalSize(renderer, 0, 0);
+		SDL_RenderCopy(renderer, frameTex, &s, &tiny);
+		SDL_SetRenderTarget(renderer, prev);
+		SDL_RenderSetLogicalSize(renderer, 1280, 720);
+		SDL_Rect in = { 1, 1, 30, 22 };          /* away from the edge texels */
+		SDL_SetTextureBlendMode(ambTex, SDL_BLENDMODE_NONE);
+		SDL_RenderCopy(renderer, ambTex, &in, &full);
+	} else {
+		SDL_RenderCopy(renderer, frameTex, &s, &full);
+	}
 	lastFilter = -1;
 	SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
 	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 175);

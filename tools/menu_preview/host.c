@@ -188,6 +188,7 @@ int main(int argc, char **argv)
 	else if (!strcmp(mode, "colls")) { R = ren; menu_fonts(); entry_t e; memset(&e, 0, sizeof(e)); strcpy(e.name, "Metal Gear Solid (SLUS-00594).chd"); game_collections(&e, WIIU_ISO_DIR); }
 	else if (!strcmp(mode, "allcovers")) { R = ren; menu_fonts(); strcpy(cfg.games_dir, WIIU_ISO_DIR); all_covers(); }
 	else if (!strcmp(mode, "bios")) { R = ren; menu_fonts(); bios_screen(); }
+	else if (!strcmp(mode, "resume")) { loaded = 1; R = ren; menu_fonts(); ask_resume(); }
 	else if (!strcmp(mode, "gallery")) { R = ren; menu_fonts(); scriptBtn[8] = WIIU_BTN_RIGHT; gallery(); }
 	else if (!strcmp(mode, "options")) { R = ren; menu_fonts(); entry_t e; memset(&e, 0, sizeof(e)); strcpy(e.name, "Metal Gear Solid (SLUS-00594).chd"); strcpy(e.id, "SLUS-00594"); game_options(&e, WIIU_ISO_DIR); }
 	else if (!strcmp(mode, "settings")) { R = ren; menu_fonts(); settings(); }

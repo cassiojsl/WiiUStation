@@ -525,6 +525,33 @@ static int draw_header(const char *title, int showBack)
 	return showBack && tap_in(BACK_X, BACK_Y, BACK_W, BACK_H);
 }
 
+/* centred text broken into lines of at most maxw pixels (at spaces) */
+static void text_wrap(TTF_Font *f, int cx, int y, int maxw, const char *str, SDL_Color c)
+{
+	char buf[512], line[512];
+	snprintf(buf, sizeof(buf), "%s", tr(str));
+	const char *p = buf;
+	int lh = TTF_FontLineSkip(f);
+	while (*p) {
+		int best = 0, len = (int)strlen(p);
+		for (int i = 1; i <= len; i++) {
+			if (p[i] != ' ' && p[i] != 0) continue;
+			int w = 0;
+			snprintf(line, sizeof(line), "%.*s", i, p);
+			TTF_SizeUTF8(f, line, &w, NULL);
+			if (w > maxw && best) break;
+			best = i;
+			if (w > maxw) break;
+		}
+		if (!best) best = len;
+		snprintf(line, sizeof(line), "%.*s", best, p);
+		text(f, cx, y, line, c, 1);
+		y += lh;
+		p += best;
+		while (*p == ' ') p++;
+	}
+}
+
 /* a second line of information in the header, between the Back button and
  * the title (cut with "..." to fit), so it never sits under the list */
 static void header_sub(const char *title, const char *str, SDL_Color c)
@@ -2317,7 +2344,7 @@ static void bios_screen(void)
 		if (n) list_run(&L, labels, values, n, 0, NULL, NULL);
 		else {
 			text(fontItem, 640, 330, "The bios folder is empty.", GREY, 1);
-			text(fontSmall, 640, 380, "Put BIOS files (e.g. scph5501.bin) in WiiUStation/bios.", DIM, 1);
+			text_wrap(fontSmall, 640, 380, 1000, "Put BIOS files (e.g. scph5501.bin) in WiiUStation/bios.", DIM);
 		}
 		draw_footer("Put BIOS files (e.g. scph5501.bin) in WiiUStation/bios.");
 		present();
@@ -3075,7 +3102,7 @@ static void memcards(void)
 		if (n) { int t = list_run(&L, labels, values, n, 0, NULL, NULL); if (t >= 0) open = t; }
 		else {
 			text(fontItem, 640, 330, "No memory cards yet.", GREY, 1);
-			text(fontSmall, 640, 380, "Each game gets one in WiiUStation/saves. Cards from other emulators (.mcr, .mcd) can be copied there too.", DIM, 1);
+			text_wrap(fontSmall, 640, 380, 1000, "Each game gets one in WiiUStation/saves. Cards from other emulators (.mcr, .mcd) can be copied there too.", DIM);
 		}
 		draw_footer(n ? "Cards from other emulators (.mcr, .mcd) can be copied to WiiUStation/saves" : NULL);
 		present();
@@ -3161,7 +3188,7 @@ static void gallery(void)
 				cache[_o].idx = (i); cache[_o].used = ++clock; _t = cache[_o].t; } _t; })
 		if (!count) {
 			text(fontItem, 640, 330, "No screenshots yet.", GREY, 1);
-			text(fontSmall, 640, 380, "Take them from the menu during a game, or with a hotkey.", DIM, 1);
+			text_wrap(fontSmall, 640, 380, 1000, "Take them from the menu during a game, or with a hotkey.", DIM);
 		} else if (view) {
 			SDL_Texture *t = GAL_TEX(sel);
 			if (t) {
@@ -3421,8 +3448,8 @@ static void cheats_screen(void)
 			spinner(640, 420, 26, PS_BLUE);
 		} else if (!n) {
 			text(fontItem, 640, 330, "No cheats for this game.", GREY, 1);
-			text(fontSmall, 640, 380, "Copy a libretro .cht file to WiiUStation/cheats,", DIM, 1);
-			text(fontSmall, 640, 414, "named like the game file or its ID (e.g. SCUS-94244.cht).", DIM, 1);
+			text_wrap(fontSmall, 640, 380, 1000, "Copy a libretro .cht file to WiiUStation/cheats,", DIM);
+			text_wrap(fontSmall, 640, 414, 1000, "named like the game file or its ID (e.g. SCUS-94244.cht).", DIM);
 		} else {
 			int arrow = 0;
 			int t = list_run(&L, labels, values, n, 1, &arrow, NULL);
@@ -3443,25 +3470,36 @@ static void cheats_screen(void)
 static int ask_resume(void)
 {
 	int sel = 0;
-	SDL_Rect yes = { 400, 420, 220, 70 }, no = { 660, 420, 220, 70 };
 	poll_buttons();
 	T.down = T.tapped = 0;
 	for (int frames = 0;; frames++) {
+		/* buttons as wide as their (translated) text */
+		int w1 = 0, w2 = 0;
+		TTF_SizeUTF8(fontItem, tr("Continue"), &w1, NULL);
+		TTF_SizeUTF8(fontItem, tr("Start over"), &w2, NULL);
+		int bw = (w1 > w2 ? w1 : w2) + 64;
+		if (bw < 220) bw = 220;
+		if (bw > 320) bw = 320;
+		SDL_Rect yes = { 640 - 20 - bw, 420, bw, 70 }, no = { 640 + 20, 420, bw, 70 };
+		int cw = bw * 2 + 40 + 120 > 680 ? bw * 2 + 40 + 120 : 680;
 		poll_touch();
 		uint32_t b = poll_buttons();
 		if (b & (WIIU_BTN_LEFT | WIIU_BTN_RIGHT)) sel = !sel;
 		draw_background();
 		draw_header(NULL, 0);
 		SDL_Color card = { 14, 18, 40 }, hl = { 0, 140, 220 }, btn = { 40, 46, 74 };
-		rrect(300, 220, 680, 310, 26, card, 240);
+		rrect(640 - cw / 2, 220, cw, 310, 26, card, 240);
 		text(fontTitle, 640, 290, "Continue where you left off?", WHITE, 1);
 		char nm[80];
 		pretty_name(emu_game_name(), nm, sizeof(nm));
 		text(fontSmall, 640, 345, nm, GREY, 1);
 		rrect(yes.x, yes.y, yes.w, yes.h, 35, sel == 0 ? hl : btn, 255);
 		rrect(no.x, no.y, no.w, no.h, 35, sel == 1 ? hl : btn, 255);
-		text(fontItem, yes.x + yes.w / 2, yes.y + yes.h / 2, "Continue", WHITE, 1);
-		text(fontItem, no.x + no.w / 2, no.y + no.h / 2, "Start over", WHITE, 1);
+		char f1[64], f2[64];
+		fit_text(fontItem, tr("Continue"), bw - 24, f1, sizeof(f1));
+		fit_text(fontItem, tr("Start over"), bw - 24, f2, sizeof(f2));
+		text(fontItem, yes.x + yes.w / 2, yes.y + yes.h / 2, f1, WHITE, 1);
+		text(fontItem, no.x + no.w / 2, no.y + no.h / 2, f2, WHITE, 1);
 		present();
 		if (wiiu_quit) return 0;
 		if (tap_in(yes.x, yes.y, yes.w, yes.h)) return 1;
@@ -3684,7 +3722,7 @@ static void intro(void)
 			SDL_SetTextureAlphaMod(logoTex, 255);
 		}
 		if (t > 1.1f)
-			text(fontSmall, 640, 560, "PlayStation (PS1) emulator for the Wii U, based on PCSX-ReARMed", GREY, 1);
+			text_wrap(fontSmall, 640, 560, 1000, "PlayStation (PS1) emulator for the Wii U, based on PCSX-ReARMed", GREY);
 		/* fade out at the end */
 		if (now > LEN - 400) fill(0, 0, 1280, 720, (SDL_Color){ 0, 0, 0 }, (uint8_t)((now - (LEN - 400)) * 255 / 400));
 		SDL_RenderPresent(R);
@@ -3772,7 +3810,12 @@ int menu_run(void)
 		if (b & WIIU_BTN_A) activate = 1;
 		if ((b & WIIU_BTN_B) && loaded) return 1;
 		for (int i = 0; i < n; i++)
-			if (tap_in(it[i].r.x, it[i].r.y, it[i].r.w, it[i].r.h)) { sel = i; activate = 1; }
+			if (tap_in(it[i].r.x, it[i].r.y, it[i].r.w, it[i].r.h)) {
+				sel = i;
+				activate = 1;
+				/* the frame jumps there instead of sliding across the screen */
+				fx = it[i].r.x; fy = it[i].r.y; fw = it[i].r.w; fh = it[i].r.h;
+			}
 
 		/* ---- draw ---- */
 		draw_background();
@@ -3793,15 +3836,16 @@ int menu_run(void)
 			if (!nrec) {
 				rrect(50, 168, 1180, 170, 22, card, 200);
 				text(fontItem, 640, 230, "Tap Games to choose a game.", WHITE, 1);
-				text(fontSmall, 640, 280, "Put your games in sd:/wiiu/apps/WiiUStation/games", GREY, 1);
+				text_wrap(fontSmall, 640, 280, 1000, "Put your games in sd:/wiiu/apps/WiiUStation/games", GREY);
 			}
 		}
 
 		/* animated focus frame */
 		{
 			SDL_Rect r = it[sel].r;
+			/* the size changes at once; only the position glides */
 			fx += (r.x - fx) * 0.35f; fy += (r.y - fy) * 0.35f;
-			fw += (r.w - fw) * 0.35f; fh += (r.h - fh) * 0.35f;
+			fw = r.w; fh = r.h;
 			SDL_Color hl = { 0, 140, 220 };
 			int rad = it[sel].kind == H_RESUME ? (int)(fh / 2) : 18;
 			rrect((int)fx - 6, (int)fy - 6, (int)fw + 12, (int)fh + 12, rad + 6, hl, 255);

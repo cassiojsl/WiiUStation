@@ -999,9 +999,21 @@ int emu_load_game_disc(const char *m3u, int index, const char *disc_path)
 	return emu_load_game(m3u);
 }
 
-int emu_load_game(const char *path)
+int emu_load_game(const char *pathIn)
 {
 	struct retro_game_info gi;
+	char cue[512];
+	const char *path = pathIn;
+	/* a .bin / .img picked directly: use its .cue when there is one, or the
+	 * CD audio tracks (music, many sounds) are missing */
+	{
+		const char *dot = strrchr(pathIn, '.');
+		struct stat st;
+		if (dot && (!strcasecmp(dot, ".bin") || !strcasecmp(dot, ".img"))) {
+			snprintf(cue, sizeof(cue), "%.*s.cue", (int)(dot - pathIn), pathIn);
+			if (stat(cue, &st) == 0) path = cue;
+		}
+	}
 	const char *slash = strrchr(path, '/');
 
 	if (loaded) emu_unload_game();
@@ -1151,6 +1163,15 @@ static void playtime_add(long secs)
 static char recent[RECENT_MAX][512];
 static int nrecent = -1;
 
+/* "Crash (USA).cue" and ".../other/Crash (USA).bin" are the same game */
+static void recent_key(const char *path, char *out, size_t n)
+{
+	const char *sl = strrchr(path, '/');
+	snprintf(out, n, "%s", sl ? sl + 1 : path);
+	char *dot = strrchr(out, '.');
+	if (dot) *dot = 0;
+}
+
 static void recent_load(void)
 {
 	FILE *f;
@@ -1162,7 +1183,12 @@ static void recent_load(void)
 	while (nrecent < RECENT_MAX && fgets(line, sizeof(line), f)) {
 		line[strcspn(line, "\r\n")] = 0;
 		struct stat st;
-		if (line[0] && !stat(line, &st)) strcpy(recent[nrecent++], line);
+		if (!line[0] || stat(line, &st)) continue;
+		char k[256], k2[256];
+		int dup = 0;
+		recent_key(line, k, sizeof(k));
+		for (int j = 0; j < nrecent && !dup; j++) { recent_key(recent[j], k2, sizeof(k2)); dup = !strcmp(k, k2); }
+		if (!dup) strcpy(recent[nrecent++], line);
 	}
 	fclose(f);
 }
@@ -1171,7 +1197,9 @@ static void recent_add(const char *path)
 {
 	recent_load();
 	int i, n = nrecent;
-	for (i = 0; i < n; i++) if (!strcmp(recent[i], path)) break;
+	char k[256], k2[256];
+	recent_key(path, k, sizeof(k));
+	for (i = 0; i < n; i++) { recent_key(recent[i], k2, sizeof(k2)); if (!strcmp(k, k2)) break; }
 	if (i == n) { if (n < RECENT_MAX) n++; i = n - 1; }
 	for (; i > 0; i--) strcpy(recent[i], recent[i - 1]);
 	strncpy(recent[0], path, sizeof(recent[0]) - 1);
