@@ -464,3 +464,5 @@
 { "Downloaded.", "Gedownload." },
 { "Installed.", "Geïnstalleerd." },
 { "Press A to close WiiUStation, then open it again to use the new version.", "Druk op A om WiiUStation te sluiten en open het daarna opnieuw voor de nieuwe versie." },
+{ "Version %s is ready.", "Versie %s is klaar." },
+{ "Press A to restart WiiUStation with the new version.", "Druk op A om WiiUStation opnieuw te starten met de nieuwe versie." },

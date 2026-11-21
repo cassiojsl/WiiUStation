@@ -484,3 +484,5 @@
 497|Téléchargé.
 498|Installé.
 499|Appuyez sur A pour fermer WiiUStation, puis rouvrez-le pour utiliser la nouvelle version.
+500|La version %s est prête.
+501|Appuyez sur A pour redémarrer WiiUStation avec la nouvelle version.

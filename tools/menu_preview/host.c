@@ -113,6 +113,7 @@ void sfx_play(int id) { (void)id; }
 void sfx_prepare(void) {}
 void update_check_background(void) {}
 const char *update_error(void) { return ""; }
+void update_install_on_exit(void) {}
 const char *update_available(void) { return getenv("UPD"); }
 const char *app_version(void) { return "v1.0.0"; }
 int update_check(char *t, size_t tn, char *e, size_t en) { snprintf(t, tn, "v1.1.0"); (void)e; (void)en; return 1; }

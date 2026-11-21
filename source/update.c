@@ -13,6 +13,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <dirent.h>
+#include <strings.h>
 #include <unistd.h>
 
 #include "platform.h"
@@ -221,13 +223,12 @@ static int overwrite_file(const char *src, const char *dst)
 static int download_thread(void *ud)
 {
 	(void)ud;
-	char tmp[300], old[300];
+	char tmp[300];
 	long code = 0;
 	dlErr[0] = 0;
 	/* downloaded into the data folder first (a .bin, so the Wii U menu
 	 * doesn't list it as an app) */
 	snprintf(tmp, sizeof(tmp), "%s/update.bin", WIIU_APP_DIR);
-	snprintf(old, sizeof(old), "%s.old", WUHB_PATH);
 	wiiu_mkdirs(WIIU_APP_DIR);
 	remove(tmp);
 	FILE *f = fopen(tmp, "wb");
@@ -262,24 +263,8 @@ static int download_thread(void *ud)
 		dlState = -1;
 		return 0;
 	}
-	/* Replace the installed app; it takes effect the next time it starts.
-	 * The running app's file can't be deleted or renamed while it is open,
-	 * so the new version is written over it in place. */
-	if (remove(WUHB_PATH) == 0 || file_size(WUHB_PATH) < 0) {
-		if (rename(tmp, WUHB_PATH) == 0) { dlState = 2; return 0; }
-	}
-	if (overwrite_file(tmp, WUHB_PATH)) { remove(tmp); dlState = 2; return 0; }
-	char side[300];
-	snprintf(side, sizeof(side), "%s/wiiu/apps/WiiUStation-%s.wuhb", WIIU_SD_ROOT, latestTag);
-	remove(side);
-	if (rename(tmp, side) == 0) {
-		snprintf(dlErr, sizeof(dlErr), tr("Saved as sd:/wiiu/apps/WiiUStation-%s.wuhb: open that one, then delete the old WiiUStation.wuhb."), latestTag);
-		dlState = 3;
-		return 0;
-	}
-	remove(tmp);
-	snprintf(dlErr, sizeof(dlErr), "%s", tr("Could not replace WiiUStation.wuhb on the SD card."));
-	dlState = -1;
+	/* ready: the file is swapped when the app closes (update_finish) */
+	dlState = 2;
 	return 0;
 }
 
@@ -297,7 +282,7 @@ int update_start(void)
 	return 1;
 }
 
-/* state: 1 running, 2 done, 3 saved next to the old file, -1 failed; *frac = 0..1 */
+/* state: 1 running, 2 downloaded (installed when the app closes), -1 failed; *frac = 0..1 */
 int update_progress(float *frac)
 {
 	*frac = dlTotal > 0 ? (float)(dlNow / dlTotal) : 0;
@@ -333,4 +318,86 @@ void update_check_background(void)
 const char *update_available(void)
 {
 	return bgState == 2 ? bgTag : NULL;
+}
+
+/* ---- installing: the running app's file is locked while its bundle is
+ * mounted, so the swap happens as the app closes: the bundle is unmounted
+ * through Aroma's RPX loader, the new file takes the old one's place and
+ * the app is started again. ---- */
+#include <coreinit/dynload.h>
+#include <coreinit/title.h>
+
+static int installPending;
+void update_install_on_exit(void) { installPending = 1; }
+int update_pending(void) { return installPending; }
+
+typedef int (*rl_fn0)(void);
+typedef int (*rl_path)(const char *);
+typedef int (*rl_buf)(char *, uint32_t);
+typedef int (*rl_ver)(uint32_t *);
+static OSDynLoad_Module rlMod;
+
+static void *rl_find(const char *name)
+{
+	void *f = NULL;
+	if (!rlMod && OSDynLoad_Acquire("homebrew_rpx_loader", &rlMod) != OS_DYNLOAD_OK) { rlMod = NULL; return NULL; }
+	if (OSDynLoad_FindExport(rlMod, OS_DYNLOAD_EXPORT_FUNC, name, &f) != OS_DYNLOAD_OK) return NULL;
+	return f;
+}
+
+/* the running app's file, relative to the SD card ("wiiu/apps/...") */
+static int running_path(char *out, size_t n)
+{
+	rl_ver ver = (rl_ver)rl_find("RL_GetVersion");
+	rl_buf get = (rl_buf)rl_find("RL_GetPathOfRunningExecutable");
+	uint32_t v = 0;
+	if (!ver || ver(&v) != 0 || v < 2 || !get) return 0;
+	if (get(out, (uint32_t)n) != 0 || !out[0]) return 0;
+	while (out[0] == '/') memmove(out, out + 1, strlen(out));
+	size_t l = strlen(out);
+	return l > 5 && !strcasecmp(out + l - 5, ".wuhb");
+}
+
+/* 1 = the new version is in place and is being started */
+int update_finish(void)
+{
+	char staged[300], rel[256] = "", full[400];
+	if (!installPending) return 0;
+	installPending = 0;
+	snprintf(staged, sizeof(staged), "%s/update.bin", WIIU_APP_DIR);
+	if (file_size(staged) < 1024 * 1024) return 0;
+	if (!running_path(rel, sizeof(rel))) snprintf(rel, sizeof(rel), "wiiu/apps/WiiUStation.wuhb");
+	snprintf(full, sizeof(full), "%s/%s", WIIU_SD_ROOT, rel);
+	rl_fn0 unmount = (rl_fn0)rl_find("RL_UnmountCurrentRunningBundle");
+	if (unmount) unmount();                      /* frees the file */
+	int ok = 0;
+	if (remove(full) == 0 || file_size(full) < 0) ok = rename(staged, full) == 0;
+	if (!ok) ok = overwrite_file(staged, full) && remove(staged) == 0;
+	if (!ok) return 0;
+	rl_path launch = (rl_path)rl_find("RL_LaunchHomebrew");
+	return launch && launch(rel) == 0;
+}
+
+/* on start: leftovers of earlier update attempts */
+void update_cleanup(void)
+{
+	char rel[256] = "";
+	running_path(rel, sizeof(rel));
+	remove(WUHB_PATH ".old");
+	remove(WUHB_PATH ".part");
+	DIR *d = opendir(WIIU_SD_ROOT "/wiiu/apps");
+	if (!d) return;
+	struct dirent *e;
+	while ((e = readdir(d)) != NULL) {
+		/* WiiUStation-v1.2.3.wuhb saved next to the app by 1.0.1 - 1.0.3 */
+		if (strncmp(e->d_name, "WiiUStation-v", 13)) continue;
+		size_t l = strlen(e->d_name);
+		if (l < 6 || strcasecmp(e->d_name + l - 5, ".wuhb")) continue;
+		char p[400];
+		snprintf(p, sizeof(p), "wiiu/apps/%s", e->d_name);
+		if (!strcmp(p, rel)) continue;           /* the one running */
+		snprintf(p, sizeof(p), "%s/wiiu/apps/%s", WIIU_SD_ROOT, e->d_name);
+		remove(p);
+	}
+	closedir(d);
 }

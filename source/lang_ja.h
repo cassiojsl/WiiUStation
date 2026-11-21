@@ -485,3 +485,5 @@
 { "Downloaded.", "ダウンロードしました。" },
 { "Installed.", "インストールしました。" },
 { "Press A to close WiiUStation, then open it again to use the new version.", "Aを押してWiiUStationを終了し、もう一度開くと新しいバージョンになります。" },
+{ "Version %s is ready.", "バージョン %s の準備ができました。" },
+{ "Press A to restart WiiUStation with the new version.", "Aを押すと、新しいバージョンでWiiUStationを再起動します。" },

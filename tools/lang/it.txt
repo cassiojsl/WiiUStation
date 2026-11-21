@@ -484,3 +484,5 @@
 497|Scaricato.
 498|Installato.
 499|Premi A per chiudere WiiUStation, poi riaprilo per usare la nuova versione.
+500|La versione %s è pronta.
+501|Premi A per riavviare WiiUStation con la nuova versione.

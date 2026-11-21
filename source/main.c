@@ -1925,6 +1925,7 @@ int main(int argc, char **argv)
 
 	if (video_init() < 0) return -1;
 	app_folder_move();
+	update_cleanup();
 	wiiu_input_init();
 	wiiu_mkdirs(WIIU_ISO_DIR);
 	wiiu_mkdirs(WIIU_BIOS_DIR);
@@ -1956,7 +1957,9 @@ int main(int argc, char **argv)
 	wiiu_input_shutdown();
 
 	if (!wiiu_quit) {
-		SYSLaunchMenu();
+		/* a downloaded update is put in place now that nothing is open,
+		 * and the app starts again in the new version */
+		if (!update_finish()) SYSLaunchMenu();
 		while (pump_events()) SDL_Delay(10);
 	}
 	video_shutdown();

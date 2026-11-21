@@ -2630,7 +2630,6 @@ static void update_screen(void)
 			float f;
 			int st = update_progress(&f);
 			if (st == 2) { state = 5; sfx_play(SFX_OK); }
-			else if (st == 3) { state = 7; sfx_play(SFX_OK); }
 			else if (st == -1) { state = 6; sfx_play(SFX_ERROR); }
 			else {
 				SDL_Color bg = th(26, 32, 60), fg = th(0, 140, 220);
@@ -2646,11 +2645,10 @@ static void update_screen(void)
 		        snprintf(line2, sizeof(line2), tr("Version %s"), app_version()); break;
 		case 3: snprintf(line1, sizeof(line1), "%s", err); snprintf(line2, sizeof(line2), tr("Version %s"), app_version()); break;
 		case 4: snprintf(line1, sizeof(line1), tr("Downloading %s..."), tag); line2[0] = 0; break;
-		case 5: snprintf(line1, sizeof(line1), "%s", tr("Installed."));
-		        snprintf(line2, sizeof(line2), "%s", tr("Press A to close WiiUStation, then open it again to use the new version.")); break;
+		case 5: snprintf(line1, sizeof(line1), tr("Version %s is ready."), tag);
+		        snprintf(line2, sizeof(line2), "%s", tr("Press A to restart WiiUStation with the new version.")); break;
 		case 6: snprintf(line1, sizeof(line1), "%s", tr("The download failed. Nothing was changed."));
 		        snprintf(line2, sizeof(line2), "%s", update_error()); break;
-		case 7: snprintf(line1, sizeof(line1), "%s", tr("Downloaded.")); snprintf(line2, sizeof(line2), "%s", update_error()); break;
 		}
 		text(fontItem, 640, 300, line1, WHITE, 1);
 		if (line2[0]) text_wrap(fontSmall, 640, 345, 1100, line2, GREY);
@@ -2663,8 +2661,13 @@ static void update_screen(void)
 			continue;
 		}
 		if (state == 4) continue;          /* can't leave while writing the file */
-		if (state == 5) {                  /* installed: the app closes */
-			if ((b & (WIIU_BTN_A | WIIU_BTN_B)) || T.tapped || back || wiiu_quit) { quitAfterUpdate = 1; return; }
+		if (state == 5) {                  /* downloaded: A restarts in the new version */
+			if ((b & WIIU_BTN_A) || T.tapped) {
+				update_install_on_exit();
+				quitAfterUpdate = 1;
+				return;
+			}
+			if (back || (b & WIIU_BTN_B) || wiiu_quit) return;   /* not now: the download is kept until the next one */
 			continue;
 		}
 		if (back || (b & WIIU_BTN_B) || wiiu_quit) return;

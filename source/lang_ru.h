@@ -485,3 +485,5 @@
 { "Downloaded.", "Загружено." },
 { "Installed.", "Установлено." },
 { "Press A to close WiiUStation, then open it again to use the new version.", "Нажмите A, чтобы закрыть WiiUStation, затем откройте его снова для новой версии." },
+{ "Version %s is ready.", "Версия %s готова." },
+{ "Press A to restart WiiUStation with the new version.", "Нажмите A, чтобы перезапустить WiiUStation с новой версией." },
