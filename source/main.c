@@ -150,7 +150,8 @@ static struct retro_disk_control_callback disk;
 static struct retro_disk_control_ext_callback diskExt;
 static int haveDisk, haveDiskExt;
 static volatile int varsDirty = 1;
-static char gamePath[512], gameName[256];
+static char gamePath[512], gameName[256], gameId[16];
+extern char CdromId[];   /* PCSX-ReARMed: e.g. "SCUS94244" */
 static int loaded;
 
 static const char *core_var(const char *key)
@@ -443,6 +444,8 @@ int emu_load_game(const char *path)
 	emu_apply_settings();
 	load_memcard();
 	audio_init(av.timing.sample_rate);
+	covers_set_loaded_id(path, CdromId);
+	if (!covers_detect_id(path, gameId)) gameId[0] = 0;
 	return 0;
 }
 
@@ -457,6 +460,7 @@ void emu_unload_game(void)
 }
 
 int emu_game_loaded(void) { return loaded; }
+const char *emu_game_id(void) { return gameId; }
 const char *emu_game_name(void) { return gameName; }
 void emu_reset(void) { if (loaded) retro_reset(); }
 
@@ -639,6 +643,7 @@ int main(int argc, char **argv)
 
 	emu_unload_game();
 	retro_deinit();
+	covers_shutdown();
 	wiiu_input_shutdown();
 
 	if (!wiiu_quit) {

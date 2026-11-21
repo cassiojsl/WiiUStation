@@ -19,6 +19,7 @@ APP_AUTHOR	:= WiiUStation (PCSX-ReARMed core)
 APP_ICON	:= $(TOPDIR)/meta/icon.png
 APP_TV_SPLASH	:= $(TOPDIR)/meta/splash_tv.png
 APP_DRC_SPLASH	:= $(TOPDIR)/meta/splash_drc.png
+APP_CONTENT	:= $(TOPDIR)/content
 
 include $(DEVKITPRO)/wut/share/wut_rules
 
@@ -43,7 +44,8 @@ CFLAGS		:=	-std=gnu11 -O2 -Wall -Wno-unused -ffunction-sections -fdata-sections 
 CXXFLAGS	:=	$(CFLAGS)
 LDFLAGS		=	$(ARCH) $(RPXSPECS) $(MACHDEP) -Wl,--gc-sections -Wl,-Map,$(notdir $*.map)
 
-LIBS		:=	$(CORE_LIB) -lSDL2_ttf -lfreetype -lharfbuzz -lfreetype -lpng -lbz2 \
+LIBS		:=	$(CORE_LIB) -lSDL2_image -lwebpdemux -lwebp -lsharpyuv -ljpeg \
+			-lcurl -lmbedtls -lmbedx509 -lmbedcrypto -lSDL2_ttf -lfreetype -lharfbuzz -lfreetype -lpng -lbz2 \
 			-lbrotlidec -lbrotlicommon -lz -lSDL2 -lwut -lm
 LIBDIRS		:=	$(PORTLIBS) $(WUT_ROOT)
 

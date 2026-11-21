@@ -16,6 +16,23 @@ The menu, video, controllers and saves are WiiUStation's own.
 Memory cards are stored in `sd:/wiisxrx/saves/<game>.srm`, save states in
 `sd:/wiisxrx/savestates/`, and settings in `sd:/wiisxrx/wiiustation.cfg`.
 
+## Covers
+
+The game browser shows the cover of the selected game. The main menu shows
+the cover of the running game. The game ID (for example `SCUS-94244`) is
+found in one of these ways:
+- read from `SYSTEM.CNF` inside the disc image (`.bin`, `.iso`, `.img`,
+  `.cue`, `.m3u`);
+- read from the `DISC_ID` of a `.pbp`;
+- taken from the file name;
+- for `.chd`, reported by the emulator the first time the game is loaded.
+
+Covers are downloaded in the background over HTTPS from
+[xlenore/psx-covers](https://github.com/xlenore/psx-covers) (`covers/default`)
+and cached in `sd:/wiisxrx/covers/`. You can also put your own
+`<ID>.jpg` files there. Certificates are checked against Mozilla's root store
+(`content/cacert.pem`, taken from the certifi package).
+
 ## Controls
 
 GamePad, Pro Controller, Classic Controller and Wii Remote (sideways).

@@ -133,6 +133,14 @@ int  emu_disk_append(const char *path);
 void emu_apply_settings(void);
 void emu_save_memcards(void);
 
+/* ---- covers (covers.c) ---- */
+int   covers_detect_id(const char *path, char *out);   /* out: "SCUS-94244" */
+void  covers_set_loaded_id(const char *path, const char *cdromId);
+void  covers_request(const char *id);
+void *covers_texture(void *renderer, const char *id, int *w, int *h);
+void  covers_shutdown(void);
+const char *emu_game_id(void);
+
 /* ---- menu (menu.c) ---- */
 int  menu_run(void);   /* 1 = play, 0 = quit */
 

@@ -343,12 +343,41 @@ static void present(void)
 	SDL_Delay(1);
 }
 
+/* Cover art panel on the right side (PS1 jewel-case look). */
+#define COVER_X 860
+#define COVER_W 360
+static void draw_cover(const char *id, const char *caption)
+{
+	int w = 0, h = 0;
+	SDL_Texture *t = id && id[0] ? (SDL_Texture *)covers_texture(R, id, &w, &h) : NULL;
+	SDL_Color panel = { 10, 14, 34 };
+	int y = 128;
+	fill(COVER_X - 12, y - 8, COVER_W + 24, COVER_W + 80, panel, 170);
+	if (t && w > 0 && h > 0) {
+		int dw = COVER_W, dh = COVER_W * h / w;
+		if (dh > COVER_W) { dh = COVER_W; dw = COVER_W * w / h; }
+		SDL_Rect d = { COVER_X + (COVER_W - dw) / 2, y + (COVER_W - dh) / 2, dw, dh };
+		SDL_SetTextureBlendMode(t, SDL_BLENDMODE_NONE);
+		SDL_RenderCopy(R, t, NULL, &d);
+		outline(d.x - 2, d.y - 2, d.w + 4, d.h + 4, GREY, 160, 2);
+	} else {
+		/* placeholder: a CD with the PlayStation colours */
+		float cx = COVER_X + COVER_W / 2.0f, cy = y + COVER_W / 2.0f;
+		ring(cx, cy, 130, 100, (SDL_Color){ 60, 66, 92, 255 });
+		ring(cx, cy, 30, 6, GREY);
+		ring(cx, cy, 128, 4, PS_BLUE);
+		text(fontSmall, (int)cx, (int)cy + 160, id && id[0] ? "Downloading cover..." : "No cover", DIM, 1);
+	}
+	if (caption && caption[0]) text(fontSmall, COVER_X + COVER_W / 2, y + COVER_W + 40, caption, GREY, 1);
+}
+
 /* ------------------------------------------------------------------------ */
 /* list widget (touch-friendly)                                             */
 /* ------------------------------------------------------------------------ */
 #define LIST_X   110
 #define LIST_Y   128
-#define LIST_W   1060
+static int listW = 1060;
+#define LIST_W   listW
 #define ROW_H    64
 #define ROWS     8
 
@@ -453,7 +482,7 @@ static int list_run(list_t *L, const char **labels, const char **values, int cou
 /* ------------------------------------------------------------------------ */
 /* file browser                                                             */
 /* ------------------------------------------------------------------------ */
-typedef struct { char name[256]; int dir; } entry_t;
+typedef struct { char name[256]; int dir; int idTried; char id[16]; } entry_t;
 static char browsePath[512] = WIIU_ISO_DIR;
 
 static int is_game_file(const char *n)
@@ -483,6 +512,8 @@ static int scan_dir(const char *path, entry_t **out)
 	struct dirent *ent;
 	if (strcmp(path, WIIU_SD_ROOT) != 0) {
 		strcpy(list[n].name, "..");
+		list[n].idTried = 1;
+		list[n].id[0] = 0;
 		list[n++].dir = 1;
 	}
 	if (d) {
@@ -495,6 +526,8 @@ static int scan_dir(const char *path, entry_t **out)
 			strncpy(list[n].name, ent->d_name, sizeof(list[n].name) - 1);
 			list[n].name[sizeof(list[n].name) - 1] = 0;
 			list[n].dir = isdir;
+			list[n].idTried = 0;
+			list[n].id[0] = 0;
 			n++;
 		}
 		closedir(d);
@@ -547,10 +580,23 @@ static int browse(const char *title, char *out, size_t outsz)
 			text(fontSmall, LIST_X, 116, *p ? p : "/", DIM, 0);
 		}
 		int t = -1;
-		if (count == 0)
+		if (count == 0) {
 			text(fontItem, 640, 360, "No games here. Copy them to sd:/wiisxrx/isos", GREY, 1);
-		else
+		} else {
+			entry_t *e = &list[L.sel];
+			listW = 700;
 			t = list_run(&L, labels, NULL, count, 0, NULL, marks);
+			listW = 1060;
+			if (!e->dir) {
+				if (!e->idTried && !T.down) {
+					char full[768];
+					snprintf(full, sizeof(full), "%s/%s", browsePath, e->name);
+					e->idTried = 1;
+					if (!covers_detect_id(full, e->id)) e->id[0] = 0;
+				}
+				draw_cover(e->id, e->id[0] ? e->id : NULL);
+			}
+		}
 		if (t >= 0) activate = t;
 		draw_footer("L/R  Page    Drag to scroll");
 		present();
@@ -781,7 +827,10 @@ int menu_run(void)
 			text(fontSmall, LIST_X, 116, sub, GREY, 0);
 		}
 		int arrow = 0;
+		if (loaded) listW = 700;
 		int t = list_run(&L, labels, values, n, 0, &arrow, marks);
+		listW = 1060;
+		if (loaded) draw_cover(emu_game_id(), emu_game_id());
 		if (t >= 0) activate = 1;
 		/* touch on the slot / disc value cycles it */
 		draw_footer(loaded ? "HOME  Wii U HOME Menu    In game: HOME / touch / L3+R3 = menu" :

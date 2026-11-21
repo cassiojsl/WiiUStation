@@ -7,6 +7,7 @@
  */
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
+#include <SDL2/SDL_image.h>
 #include <coreinit/memory.h>
 #include <string.h>
 #include <stdio.h>
@@ -86,6 +87,7 @@ int video_init(void)
 	SDL_RenderSetLogicalSize(renderer, 1280, 720);
 	create_texture();
 	TTF_Init();
+	IMG_Init(IMG_INIT_JPG | IMG_INIT_PNG);
 	osdFont = video_open_font(26);
 	return 0;
 }
