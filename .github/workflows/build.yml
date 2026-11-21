@@ -9,6 +9,10 @@ on:
         description: "Publish a release with this version (e.g. v1.0.0); empty = only build"
         required: false
         default: ""
+      notes:
+        description: "Release text (Markdown); empty = the list of changes only"
+        required: false
+        default: ""
 
 permissions:
   contents: write   # to publish releases
@@ -50,4 +54,5 @@ jobs:
           name: WiiUStation ${{ github.event.inputs.version || github.ref_name }}
           target_commitish: ${{ github.sha }}
           files: WiiUStation.wuhb
+          body: ${{ github.event.inputs.notes }}
           generate_release_notes: true
