@@ -93,6 +93,23 @@ static int text(TTF_Font *f, int x, int yc, const char *s, SDL_Color c, int alig
 	return e->w;
 }
 
+/* copy s into out, cut with "..." so it is at most maxw pixels wide (UTF-8 safe) */
+static void fit_text(TTF_Font *f, const char *s, int maxw, char *out, size_t n)
+{
+	int w = 0;
+	snprintf(out, n, "%s", s);
+	if (!f || (TTF_SizeUTF8(f, out, &w, NULL) == 0 && w <= maxw)) return;
+	size_t len = strlen(out);
+	while (len > 0) {
+		do len--; while (len > 0 && ((unsigned char)out[len] & 0xC0) == 0x80);
+		while (len > 0 && out[len - 1] == ' ') len--;
+		if (len + 4 > n) continue;
+		memcpy(out + len, "...", 4);
+		if (TTF_SizeUTF8(f, out, &w, NULL) == 0 && w <= maxw) return;
+	}
+	snprintf(out, n, "...");
+}
+
 static void fill(int x, int y, int w, int h, SDL_Color c, uint8_t a)
 {
 	SDL_Rect rc = { x, y, w, h };
@@ -809,13 +826,14 @@ static int scan_dir(const char *path, entry_t **out)
 /* ------------------------------------------------------------------------ */
 /* cfg.view: the first two keep their old numbers in settings.cfg */
 enum { VIEW_GRID = 0, VIEW_LIST, VIEW_COMPACT, VIEW_SHELF, VIEW_CAROUSEL, VIEW_COUNT };
-static const int viewOrder[VIEW_COUNT] = { VIEW_GRID, VIEW_COMPACT, VIEW_SHELF, VIEW_CAROUSEL, VIEW_LIST };
+/* VIEW_SHELF was removed; its number is kept so old settings files still load */
+static const int viewOrder[] = { VIEW_CAROUSEL, VIEW_GRID, VIEW_COMPACT, VIEW_LIST };
+#define NVIEWS (int)(sizeof(viewOrder) / sizeof(viewOrder[0]))
 static const char *view_name(int v)
 {
 	switch (v) {
 	case VIEW_LIST:     return "List";
 	case VIEW_COMPACT:  return "Compact grid";
-	case VIEW_SHELF:    return "Shelf";
 	case VIEW_CAROUSEL: return "Carousel";
 	default:            return "Grid";
 	}
@@ -823,9 +841,9 @@ static const char *view_name(int v)
 static int view_next(int v, int dir)
 {
 	int i = 0;
-	while (i < VIEW_COUNT && viewOrder[i] != v) i++;
-	if (i == VIEW_COUNT) i = 0;
-	return viewOrder[(i + VIEW_COUNT + dir) % VIEW_COUNT];
+	while (i < NVIEWS && viewOrder[i] != v) i++;
+	if (i == NVIEWS) i = 0;
+	return viewOrder[(i + NVIEWS + dir) % NVIEWS];
 }
 
 #define GRID_X     64
@@ -833,17 +851,15 @@ static int view_next(int v, int dir)
 #define GRID_BOTTOM 664
 
 typedef struct {
-	int cols, cellW, cellH, cover, rowsVis, names, shelf;
+	int cols, cellW, cellH, cover, rowsVis, names;
 } gstyle_t;
 
-static const gstyle_t STYLE_GRID    = { 5, 230, 268, 190, 2, 1, 0 };
-static const gstyle_t STYLE_COMPACT = { 8, 144, 172, 128, 3, 0, 0 };
-static const gstyle_t STYLE_SHELF   = { 6, 192, 262, 164, 2, 0, 1 };
+static const gstyle_t STYLE_GRID    = { 5, 230, 268, 190, 2, 1 };
+static const gstyle_t STYLE_COMPACT = { 8, 144, 172, 128, 3, 0 };
 
 static const gstyle_t *grid_style(void)
 {
-	return cfg.view == VIEW_COMPACT ? &STYLE_COMPACT :
-	       cfg.view == VIEW_SHELF ? &STYLE_SHELF : &STYLE_GRID;
+	return cfg.view == VIEW_COMPACT ? &STYLE_COMPACT : &STYLE_GRID;
 }
 
 typedef struct {
@@ -864,7 +880,7 @@ static SDL_Rect cover_or_disc_r(const char *id, int x, int y, int sz, int bottom
 		int dw = sz, dh = sz * h / w;
 		if (dh > sz) { dh = sz; dw = sz * w / h; }
 		d.x = x + (sz - dw) / 2;
-		d.y = bottom ? y + sz - dh : y + (sz - dh) / 2;   /* shelf: stand on the board */
+		d.y = bottom ? y + sz - dh : y + (sz - dh) / 2;   /* carousel: stand on the floor */
 		d.w = dw; d.h = dh;
 		SDL_SetTextureBlendMode(t, SDL_BLENDMODE_BLEND);   /* 3D boxes have transparency */
 		SDL_RenderCopy(R, t, NULL, &d);
@@ -885,7 +901,7 @@ static void cover_or_disc(const char *id, int x, int y, int sz)
 	cover_or_disc_r(id, x, y, sz, 0);
 }
 
-/* mirrored, faded copy of the cover under it (shelf and carousel) */
+/* mirrored, faded copy of the cover under it (carousel) */
 static void cover_reflection(const char *id, SDL_Rect d, int depth, uint8_t alpha)
 {
 	int w = 0, h = 0;
@@ -945,7 +961,7 @@ static void disc_badge(entry_t *e, int x, int y, int sz)
 	}
 }
 
-/* Grid, compact grid and shelf. Returns the tapped entry or -1.
+/* Grid and compact grid. Returns the tapped entry or -1.
  * Detects the game ID of at most one visible entry per frame. */
 static int grid_run(grid_t *G, entry_t *list, const char **labels, int count, const char *dir)
 {
@@ -986,14 +1002,6 @@ static int grid_run(grid_t *G, entry_t *list, const char **labels, int count, co
 	int firstRow = (int)G->scroll;
 	for (int r = firstRow; r <= firstRow + S->rowsVis && r < rows; r++) {
 		int y = GRID_Y + (int)((r - G->scroll) * S->cellH);
-		if (S->shelf) {
-			/* glass shelf board under the row */
-			int by = y + 10 + S->cover + 6;
-			SDL_Color top = { 120, 170, 230 }, front = { 40, 60, 110 };
-			fill(gx - 20, by, S->cols * S->cellW + 28, 4, top, 200);
-			fill(gx - 20, by + 4, S->cols * S->cellW + 28, 14, front, 170);
-			fill(gx - 20, by + 18, S->cols * S->cellW + 28, 10, (SDL_Color){ 0, 0, 0 }, 90);
-		}
 		for (int c = 0; c < S->cols; c++) {
 			int i = r * S->cols + c;
 			if (i >= count) break;
@@ -1003,14 +1011,13 @@ static int grid_run(grid_t *G, entry_t *list, const char **labels, int count, co
 			if (!e->dir && !e->idTried && !detected && !T.down) { detect_entry(e, dir); detected = 1; }
 			if (e->dir) folder_icon(cx, y + 10, S->cover);
 			else {
-				cover_or_disc_r(e->id, cx, y + 10, S->cover, S->shelf);
+				cover_or_disc_r(e->id, cx, y + 10, S->cover, 0);
 				disc_badge(e, cx, y + 10, S->cover);
 			}
 			if (S->names) {
-				char full[272], nm[40];
+				char full[272], nm[96];
 				entry_name(e, labels[i], full, sizeof(full));
-				if (strlen(full) > 21) snprintf(nm, sizeof(nm), "%.19s...", full);
-				else snprintf(nm, sizeof(nm), "%s", full);
+				fit_text(fontSmall, full, S->cellW - 24, nm, sizeof(nm));
 				text(fontSmall, x + (S->cellW - 12) / 2, y + S->cover + 36, nm, i == G->sel ? WHITE : GREY, 1);
 			}
 			if (T.tapped && T.tx >= x && T.tx < x + S->cellW - 12 && T.ty >= y && T.ty < y + S->cellH - 10 &&
@@ -1029,8 +1036,7 @@ static int grid_run(grid_t *G, entry_t *list, const char **labels, int count, co
 	if (!S->names && G->sel < count) {
 		char full[272], nm[64];
 		entry_name(&list[G->sel], labels[G->sel], full, sizeof(full));
-		if (strlen(full) > 48) snprintf(nm, sizeof(nm), "%.46s...", full);
-		else snprintf(nm, sizeof(nm), "%s", full);
+		fit_text(fontSmall, full, 640, nm, sizeof(nm));
 		text(fontSmall, 1240, 116, nm, WHITE, 2);
 	}
 	if (tapped >= 0) G->sel = tapped;
@@ -1107,8 +1113,7 @@ static int carousel_run(grid_t *G, entry_t *list, const char **labels, int count
 		char full[272], nm[64], info[64];
 		entry_t *e = &list[G->sel];
 		entry_name(e, labels[G->sel], full, sizeof(full));
-		if (strlen(full) > 44) snprintf(nm, sizeof(nm), "%.42s...", full);
-		else snprintf(nm, sizeof(nm), "%s", full);
+		fit_text(fontTitle, full, 1160, nm, sizeof(nm));
 		text(fontTitle, CX, 590, nm, WHITE, 1);
 		if (e->dir) snprintf(info, sizeof(info), "Folder");
 		else if (e->discs > 1) snprintf(info, sizeof(info), "%s%s%d discs   %d / %d", e->id, e->id[0] ? "   " : "", e->discs, G->sel + 1, count);
@@ -1439,6 +1444,7 @@ rescan:
 	}
 
 	for (;;) {
+		if (cfg.view == VIEW_SHELF) cfg.view = VIEW_CAROUSEL;
 		int useCar  = !pickDir && cfg.view == VIEW_CAROUSEL;
 		int useGrid = !pickDir && cfg.view != VIEW_LIST && !useCar;
 		int cols = grid_style()->cols;
@@ -2521,11 +2527,11 @@ int menu_run(void)
 			}
 			case H_RECENT: {
 				const char *p = emu_recent(it[i].arg);
-				char id[16] = "", nm[48], sh[32];
+				char id[16] = "", nm[96], sh[96];
 				covers_detect_id(p, id);
 				cover_or_disc(id, r.x, r.y, r.w);
 				pretty_name(p, nm, sizeof(nm));
-				if (strlen(nm) > 16) snprintf(sh, sizeof(sh), "%.14s...", nm); else snprintf(sh, sizeof(sh), "%s", nm);
+				fit_text(fontSmall, nm, r.w + 12, sh, sizeof(sh));
 				text(fontSmall, r.x + r.w / 2, r.y + r.h + 26, sh, f ? WHITE : GREY, 1);
 				break;
 			}

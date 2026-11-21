@@ -131,7 +131,7 @@ int main(int argc, char **argv)
 	else if (!strcmp(mode, "ingame")) { loaded = 1; menu_run(); }
 	else if (!strcmp(mode, "grid")) { char o[512]; cfg.view = 0; R = ren; menu_fonts(); scriptBtn[10] = WIIU_BTN_RIGHT; scriptBtn[14] = WIIU_BTN_DOWN; browse("Load game", o, sizeof(o), 0); }
 	else if (!strcmp(mode, "compact")) { char o[512]; cfg.view = 2; R = ren; menu_fonts(); scriptBtn[10] = WIIU_BTN_RIGHT; browse("Load game", o, sizeof(o), 0); }
-	else if (!strcmp(mode, "shelf")) { char o[512]; cfg.view = 3; cfg.cover3d = 1; R = ren; menu_fonts(); scriptBtn[10] = WIIU_BTN_RIGHT; browse("Load game", o, sizeof(o), 0); }
+	else if (!strcmp(mode, "shelf")) { char o[512]; cfg.view = 0; cfg.cover3d = 0; R = ren; menu_fonts(); scriptBtn[10] = WIIU_BTN_RIGHT; browse("Load game", o, sizeof(o), 0); }
 	else if (!strcmp(mode, "carousel")) { char o[512]; cfg.view = 4; cfg.cover3d = 1; R = ren; menu_fonts(); scriptBtn[10] = WIIU_BTN_RIGHT; scriptBtn[20] = WIIU_BTN_RIGHT; shotAt = 90; quitAt = 92; browse("Load game", o, sizeof(o), 0); }
 	else if (!strcmp(mode, "list")) { char o[512]; cfg.view = 1; R = ren; menu_fonts(); browse("Load game", o, sizeof(o), 0); }
 	else if (!strcmp(mode, "list2")) { char o[512]; cfg.view = 1; R = ren; menu_fonts(); browse("Load game", o, sizeof(o), 0); }

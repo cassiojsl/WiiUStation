@@ -203,7 +203,7 @@ static void settings_defaults(void)
 	cfg.rumble = 1;
 	cfg.audio = 1;
 	cfg.bezel = BEZEL_AMBIENT;
-	cfg.view = 0;
+	cfg.view = 4;         /* carousel */
 	for (int i = 0; i < NCOREOPT; i++) cfg.core[i] = COREOPT[i].def;
 	strcpy(cfg.games_dir, WIIU_ISO_DIR);
 	memcpy(cfg.map, default_map, sizeof(cfg.map));
@@ -254,6 +254,8 @@ static int settings_parse(const char *path, int isGame)
 			continue;
 		if (version < 4 && !strcmp(k, "aspect"))     /* Auto zoom became the default */
 			continue;
+		if (version < 5 && !strcmp(k, "view"))       /* the carousel became the default */
+			continue;
 		for (unsigned i = 0; i < sizeof(OPTS) / sizeof(OPTS[0]); i++)
 			if (!strcmp(OPTS[i].key, k) && v >= OPTS[i].min && v <= OPTS[i].max)
 				*OPTS[i].val = v;
@@ -266,7 +268,7 @@ static int settings_write(const char *path, int isGame)
 {
 	FILE *f = fopen(path, "w");
 	if (!f) return 0;
-	fprintf(f, "# WiiUStation %s\nversion = 4\n", isGame ? "per-game settings" : "settings");
+	fprintf(f, "# WiiUStation %s\nversion = 5\n", isGame ? "per-game settings" : "settings");
 	for (unsigned i = 0; i < sizeof(OPTS) / sizeof(OPTS[0]); i++)
 		if (!isGame || !global_only(OPTS[i].key))
 			fprintf(f, "%s = %d\n", OPTS[i].key, *OPTS[i].val);
