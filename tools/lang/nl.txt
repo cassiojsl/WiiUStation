@@ -475,3 +475,10 @@
 488|Dit is een game. Kies [ Deze map gebruiken ] om de map te gebruiken waarin hij staat.
 489|Kies de map met je games om te beginnen.
 490|Gamemap kiezen
+491|Kon niet naar de SD-kaart schrijven.
+492|Downloadfout %d: %s
+493|De server antwoordde %ld.
+494|Het gedownloade bestand is onvolledig (%ld bytes).
+495|Opgeslagen als sd:/wiiu/apps/WiiUStation-%s.wuhb: open die en verwijder daarna de oude WiiUStation.wuhb.
+496|Kon WiiUStation.wuhb op de SD-kaart niet vervangen.
+497|Gedownload.

@@ -475,3 +475,10 @@
 488|C'est un jeu. Choisissez [ Utiliser ce dossier ] pour utiliser son dossier.
 489|Choisissez le dossier de vos jeux pour commencer.
 490|Choisir le dossier des jeux
+491|Impossible d'écrire sur la carte SD.
+492|Erreur de téléchargement %d : %s
+493|Le serveur a répondu %ld.
+494|Le fichier téléchargé est incomplet (%ld octets).
+495|Enregistré sous sd:/wiiu/apps/WiiUStation-%s.wuhb : ouvrez-le, puis supprimez l'ancien WiiUStation.wuhb.
+496|Impossible de remplacer WiiUStation.wuhb sur la carte SD.
+497|Téléchargé.

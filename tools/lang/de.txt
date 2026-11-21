@@ -475,3 +475,10 @@
 488|Das ist ein Spiel. Wähle [ Diesen Ordner verwenden ], um seinen Ordner zu nutzen.
 489|Wähle zum Start den Ordner mit deinen Spielen.
 490|Spieleordner wählen
+491|Konnte nicht auf die SD-Karte schreiben.
+492|Download-Fehler %d: %s
+493|Der Server antwortete %ld.
+494|Die heruntergeladene Datei ist unvollständig (%ld Bytes).
+495|Gespeichert als sd:/wiiu/apps/WiiUStation-%s.wuhb: diese öffnen und danach die alte WiiUStation.wuhb löschen.
+496|WiiUStation.wuhb auf der SD-Karte konnte nicht ersetzt werden.
+497|Heruntergeladen.

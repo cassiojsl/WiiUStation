@@ -2614,7 +2614,7 @@ static void bios_screen(void)
 /* ------------------------------------------------------------------------ */
 static void update_screen(void)
 {
-	char tag[32] = "", err[128] = "", line1[160], line2[160];
+	char tag[32] = "", err[128] = "", line1[256], line2[256];
 	int state = 0;      /* 0 checking, 1 newer, 2 current, 3 error, 4 downloading, 5 installed, 6 failed */
 	int checked = 0;
 	transition();
@@ -2627,6 +2627,7 @@ static void update_screen(void)
 			float f;
 			int st = update_progress(&f);
 			if (st == 2) { state = 5; sfx_play(SFX_OK); }
+			else if (st == 3) { state = 7; sfx_play(SFX_OK); }
 			else if (st == -1) { state = 6; sfx_play(SFX_ERROR); }
 			else {
 				SDL_Color bg = th(26, 32, 60), fg = th(0, 140, 220);
@@ -2644,10 +2645,12 @@ static void update_screen(void)
 		case 4: snprintf(line1, sizeof(line1), tr("Downloading %s..."), tag); line2[0] = 0; break;
 		case 5: snprintf(line1, sizeof(line1), "%s", tr("Installed. Close WiiUStation and open it again to use the new version."));
 		        line2[0] = 0; break;
-		case 6: snprintf(line1, sizeof(line1), "%s", tr("The download failed. Nothing was changed.")); line2[0] = 0; break;
+		case 6: snprintf(line1, sizeof(line1), "%s", tr("The download failed. Nothing was changed."));
+		        snprintf(line2, sizeof(line2), "%s", update_error()); break;
+		case 7: snprintf(line1, sizeof(line1), "%s", tr("Downloaded.")); snprintf(line2, sizeof(line2), "%s", update_error()); break;
 		}
 		text(fontItem, 640, 300, line1, WHITE, 1);
-		if (line2[0]) text(fontSmall, 640, 345, line2, GREY, 1);
+		if (line2[0]) text_wrap(fontSmall, 640, 345, 1100, line2, GREY);
 		draw_footer(state == 1 ? "A: download and install" : NULL);
 		present();
 		if (!checked) {     /* the check blocks for a moment: after the first frame */

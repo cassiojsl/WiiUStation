@@ -475,3 +475,10 @@
 488|Questo è un gioco. Scegli [ Usa questa cartella ] per usare la cartella in cui si trova.
 489|Scegli la cartella con i tuoi giochi per iniziare.
 490|Scegli cartella giochi
+491|Impossibile scrivere sulla scheda SD.
+492|Errore di download %d: %s
+493|Il server ha risposto %ld.
+494|Il file scaricato è incompleto (%ld byte).
+495|Salvato come sd:/wiiu/apps/WiiUStation-%s.wuhb: apri quello, poi elimina il vecchio WiiUStation.wuhb.
+496|Impossibile sostituire WiiUStation.wuhb sulla scheda SD.
+497|Scaricato.

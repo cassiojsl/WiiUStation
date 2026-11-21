@@ -277,6 +277,7 @@ void emu_save_memcards(void);
 const char *app_version(void);
 int  net_download(const char *url, const char *path);   /* 1 ok, -1 404, 0 failed */
 void update_check_background(void);
+const char *update_error(void);
 const char *update_available(void);
 int  update_check(char *tag, size_t tn, char *err, size_t en);   /* 1 newer, 0 current, -1 error */
 int  update_start(void);

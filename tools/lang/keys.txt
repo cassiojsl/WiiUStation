@@ -489,3 +489,10 @@ Graphite
 This is a game. Choose [ Use this folder ] to use the folder it is in.
 Choose the folder with your games to start.
 Choose games folder
+Could not write to the SD card.
+Download error %d: %s
+The server answered %ld.
+The downloaded file is incomplete (%ld bytes).
+Saved as sd:/wiiu/apps/WiiUStation-%s.wuhb: open that one, then delete the old WiiUStation.wuhb.
+Could not replace WiiUStation.wuhb on the SD card.
+Downloaded.
