@@ -98,6 +98,8 @@ void covers_remember_id(const char *p, const char *i) { (void)p; (void)i; }
 long emu_playtime(const char *k, long long *l) { if (l) *l = 0; return strlen(k) * 977; }
 void emu_playtime_reset(const char *k) { (void)k; }
 int wiiu_battery(void) { return 4; }
+void emu_cheats_poll(void) {}
+int emu_cheats_downloading(void) { return 0; }
 int covers_have(const char *i) { return i[3] == 'S'; }
 int covers_missing(const char *i) { return i[5] == 9 && i[6] == 4 && i[7] == 3; }
 int emu_coll_count(void) { return 2; }
