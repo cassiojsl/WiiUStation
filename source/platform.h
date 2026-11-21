@@ -63,8 +63,10 @@ const char *pad_type_name(int t);
 int  emu_touch_is_input(void);           /* 1: GamePad touch is the gun / mouse */
 
 /* interface language */
-enum { LANG_EN = 0, LANG_PT, LANG_ES, LANG_FR, LANG_DE, LANG_IT, LANG_NL, LANG_RU, LANG_JA, LANG_COUNT };
+enum { LANG_AUTO = -1, LANG_EN = 0, LANG_PT, LANG_ES, LANG_FR, LANG_DE, LANG_IT, LANG_NL, LANG_RU, LANG_JA, LANG_COUNT };
 const char *lang_name(int lang);        /* in its own language */
+int  lang_system(void);                  /* the Wii U's language */
+int  lang_current(void);                 /* the one in use */
 const char *tr(const char *en);          /* translated text (lang.c) */
 
 typedef struct {
@@ -96,7 +98,7 @@ typedef struct {
 	int rumble;
 	int audio;
 	int bezel;          /* BEZEL_* */
-	int lang;           /* LANG_* */
+	int lang;           /* LANG_*, LANG_AUTO = follow the Wii U */
 	int sort;           /* game list: 0 name, 1 last played, 2 most played */
 	int regionf;        /* game list: 0 all, 1 USA, 2 Europe, 3 Japan, 4 favourites, 5+ a collection */
 	int menusfx;        /* menu sounds and the opening */

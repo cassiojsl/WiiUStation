@@ -400,3 +400,4 @@
 { "Information...", "Información..." },
 { "Collections...", "Colecciones..." },
 { "Automatic fix for this game: %s", "Corrección automática para este juego: %s" },
+{ "System (%s)", "Sistema (%s)" },

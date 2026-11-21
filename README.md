@@ -91,7 +91,8 @@ controllers.
 - **GamePad screen**: same as the TV, GamePad only, TV only, or a control
   panel (game on the TV, touch buttons on the GamePad).
 - **Language**: English, Português, Español, Français, Deutsch, Italiano,
-  Nederlands, Русский or 日本語 (Settings → Language).
+  Nederlands, Русский or 日本語. It follows the Wii U's language unless you
+  choose one in Settings → Language.
 - **Game browser**: ZL sorts by name, last played or most played; ZR shows
   all games, favourites, or one region (USA, Europe, Japan). − opens the
   game's options: type its game ID, pick a cover from a screenshot or from an

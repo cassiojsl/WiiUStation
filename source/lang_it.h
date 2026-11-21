@@ -396,3 +396,4 @@
 { "Information...", "Informazioni..." },
 { "Collections...", "Raccolte..." },
 { "Automatic fix for this game: %s", "Correzione automatica per questo gioco: %s" },
+{ "System (%s)", "Sistema (%s)" },

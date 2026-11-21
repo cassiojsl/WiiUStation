@@ -405,3 +405,4 @@
 { "Information...", "Информация..." },
 { "Collections...", "Коллекции..." },
 { "Automatic fix for this game: %s", "Автоисправление для этой игры: %s" },
+{ "System (%s)", "Системный (%s)" },

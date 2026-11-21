@@ -2044,7 +2044,7 @@ static void settings(void)
 			status(cfg.autofix ? "Known games get the fixes they need. Applies the next time a game is loaded."
 			                   : "Applies the next time a game is loaded.");
 			break;
-		case S_LANG:     cfg.lang = (cfg.lang + LANG_COUNT + dir) % LANG_COUNT; video_lang_changed(); break;
+		case S_LANG:     cfg.lang = (cfg.lang + 1 + LANG_COUNT + 1 + dir) % (LANG_COUNT + 1) - 1; video_lang_changed(); break;
 		case S_RUMBLE: cfg.rumble = !cfg.rumble; break;
 		case S_REGION: cfg.region = (cfg.region + 3 + dir) % 3; status("Applies the next time a game is loaded."); break;
 		case S_BIOS:   cfg.bios_hle = !cfg.bios_hle; status("Applies the next time a game is loaded."); break;

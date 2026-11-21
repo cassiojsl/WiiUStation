@@ -134,7 +134,7 @@ static struct { const char *key; int *val; int min, max; } OPTS[] = {
 	{ "menusfx",    &cfg.menusfx,    0, 1 },
 	{ "autostart",  &cfg.autostart,  0, 1 },
 	{ "autofix",    &cfg.autofix,    0, 1 },
-	{ "lang",       &cfg.lang,       0, LANG_COUNT - 1 },
+	{ "lang",       &cfg.lang,       -1, LANG_COUNT - 1 },
 	{ "hk0", &cfg.hk[0], -1, 15 }, { "hk1", &cfg.hk[1], -1, 15 }, { "hk2", &cfg.hk[2], -1, 15 },
 	{ "hk3", &cfg.hk[3], -1, 15 }, { "hk4", &cfg.hk[4], -1, 15 }, { "hk5", &cfg.hk[5], -1, 15 },
 	{ "hk6", &cfg.hk[6], -1, 15 }, { "hk7", &cfg.hk[7], -1, 15 }, { "hk8", &cfg.hk[8], -1, 15 },
@@ -326,6 +326,7 @@ static void settings_defaults(void)
 	cfg.bezel = BEZEL_AMBIENT;
 	cfg.view = 4;         /* carousel */
 	cfg.menusfx = 1;
+	cfg.lang = LANG_AUTO;  /* the Wii U's language */
 	cfg.autofix = 1;
 	for (int i = 0; i < NCOREOPT; i++) cfg.core[i] = COREOPT[i].def;
 	memcpy(cfg.hk, default_hotkeys, sizeof(cfg.hk));
@@ -380,6 +381,8 @@ static int settings_parse(const char *path, int isGame)
 			continue;
 		if (version < 5 && !strcmp(k, "view"))       /* the carousel became the default */
 			continue;
+		if (version < 6 && !strcmp(k, "lang"))       /* following the system became the default */
+			continue;
 		for (unsigned i = 0; i < sizeof(OPTS) / sizeof(OPTS[0]); i++)
 			if (!strcmp(OPTS[i].key, k) && v >= OPTS[i].min && v <= OPTS[i].max)
 				*OPTS[i].val = v;
@@ -392,7 +395,7 @@ static int settings_write(const char *path, int isGame)
 {
 	FILE *f = fopen(path, "w");
 	if (!f) return 0;
-	fprintf(f, "# WiiUStation %s\nversion = 5\n", isGame ? "per-game settings" : "settings");
+	fprintf(f, "# WiiUStation %s\nversion = 6\n", isGame ? "per-game settings" : "settings");
 	for (unsigned i = 0; i < sizeof(OPTS) / sizeof(OPTS[0]); i++)
 		if (!isGame || !global_only(OPTS[i].key))
 			fprintf(f, "%s = %d\n", OPTS[i].key, *OPTS[i].val);

@@ -354,6 +354,7 @@
 { "Square lets the stick reach the corners, like some games expect.", "Quadrado deixa o analógico chegar aos cantos, como alguns jogos esperam." },
 { "Start over", "Começar de novo" },
 { "Stretch", "Esticar" },
+{ "System (%s)", "Sistema (%s)" },
 { "TV only", "Só na TV" },
 { "Take them from the menu during a game, or with a hotkey.", "Tire pelo menu durante um jogo ou com um atalho." },
 { "Tap Games to choose a game.", "Toque em Jogos para escolher um jogo." },

@@ -388,3 +388,4 @@
 { "Information...", "Informatie..." },
 { "Collections...", "Collecties..." },
 { "Automatic fix for this game: %s", "Automatische correctie voor deze game: %s" },
+{ "System (%s)", "Systeem (%s)" },

@@ -392,3 +392,4 @@
 { "None yet", "Aucune pour l'instant" },
 { "Information...", "Informations..." },
 { "Automatic fix for this game: %s", "Correction automatique pour ce jeu : %s" },
+{ "System (%s)", "Système (%s)" },

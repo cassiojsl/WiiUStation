@@ -8,7 +8,11 @@
  */
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include "platform.h"
+#ifdef __WIIU__
+#include <coreinit/userconfig.h>
+#endif
 
 typedef struct { const char *en, *tx; } tr_t;
 
@@ -48,9 +52,45 @@ static struct { const tr_t *t; size_t n; const tr_t **sorted; } LANGS[LANG_COUNT
 	[LANG_JA] = { JA, sizeof(JA) / sizeof(JA[0]), NULL },
 };
 
-/* each language's name, written in that language */
+/* the Wii U's own language (System Settings), as one of ours; read once */
+int lang_system(void)
+{
+	static int sys = -2;
+	if (sys != -2) return sys;
+	sys = LANG_EN;
+#ifdef __WIIU__
+	uint32_t v = 1;
+	UCHandle h = UCOpen();
+	if (h >= 0) {
+		UCSysConfig c;
+		memset(&c, 0, sizeof(c));
+		strcpy(c.name, "cafe.language");
+		c.dataType = UC_DATATYPE_UNSIGNED_INT;
+		c.dataSize = sizeof(v);
+		c.data = &v;
+		if (UCReadSysConfig(h, 1, &c) == UC_ERROR_OK) {
+			/* 0 ja 1 en 2 fr 3 de 4 it 5 es 6 zh 7 ko 8 nl 9 pt 10 ru 11 zh-TW */
+			static const int map[12] = { LANG_JA, LANG_EN, LANG_FR, LANG_DE, LANG_IT, LANG_ES,
+			                             LANG_EN, LANG_EN, LANG_NL, LANG_PT, LANG_RU, LANG_EN };
+			if (v < 12) sys = map[v];
+		}
+		UCClose(h);
+	}
+#endif
+	return sys;
+}
+
+/* the language in use: the chosen one, or the system's */
+int lang_current(void) { return cfg.lang < 0 ? lang_system() : cfg.lang; }
+
+/* each language's name, written in that language; LANG_AUTO = "System (...)" */
 const char *lang_name(int l)
 {
+	if (l < 0) {
+		static char buf[96];
+		snprintf(buf, sizeof(buf), tr("System (%s)"), lang_name(lang_system()));
+		return buf;
+	}
 	static const char *n[LANG_COUNT] = { "English", "Portugu\xc3\xaas", "Espa\xc3\xb1ol",
 		"Fran\xc3\xa7" "ais", "Deutsch", "Italiano", "Nederlands",
 		"\xd0\xa0\xd1\x83\xd1\x81\xd1\x81\xd0\xba\xd0\xb8\xd0\xb9",      /* Russkiy */
@@ -70,7 +110,7 @@ static int cmp_key(const void *k, const void *e)
 
 const char *tr(const char *en)
 {
-	int l = cfg.lang;
+	int l = lang_current();
 	if (!en || !*en || l <= LANG_EN || l >= LANG_COUNT || !LANGS[l].t) return en;
 	if (!LANGS[l].sorted) {
 		const tr_t **v = malloc(LANGS[l].n * sizeof(*v));
