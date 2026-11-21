@@ -63,7 +63,7 @@ const char *pad_type_name(int t);
 int  emu_touch_is_input(void);           /* 1: GamePad touch is the gun / mouse */
 
 /* interface language */
-enum { LANG_EN = 0, LANG_PT, LANG_ES, LANG_FR, LANG_DE, LANG_IT, LANG_COUNT };
+enum { LANG_EN = 0, LANG_PT, LANG_ES, LANG_FR, LANG_DE, LANG_IT, LANG_NL, LANG_RU, LANG_JA, LANG_COUNT };
 const char *lang_name(int lang);        /* in its own language */
 const char *tr(const char *en);          /* translated text (lang.c) */
 

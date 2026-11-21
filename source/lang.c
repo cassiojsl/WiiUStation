@@ -27,6 +27,15 @@ static const tr_t DE[] = {
 static const tr_t IT[] = {
 #include "lang_it.h"
 };
+static const tr_t NL[] = {
+#include "lang_nl.h"
+};
+static const tr_t RU[] = {
+#include "lang_ru.h"
+};
+static const tr_t JA[] = {
+#include "lang_ja.h"
+};
 
 static struct { const tr_t *t; size_t n; const tr_t **sorted; } LANGS[LANG_COUNT] = {
 	[LANG_PT] = { PT, sizeof(PT) / sizeof(PT[0]), NULL },
@@ -34,13 +43,18 @@ static struct { const tr_t *t; size_t n; const tr_t **sorted; } LANGS[LANG_COUNT
 	[LANG_FR] = { FR, sizeof(FR) / sizeof(FR[0]), NULL },
 	[LANG_DE] = { DE, sizeof(DE) / sizeof(DE[0]), NULL },
 	[LANG_IT] = { IT, sizeof(IT) / sizeof(IT[0]), NULL },
+	[LANG_NL] = { NL, sizeof(NL) / sizeof(NL[0]), NULL },
+	[LANG_RU] = { RU, sizeof(RU) / sizeof(RU[0]), NULL },
+	[LANG_JA] = { JA, sizeof(JA) / sizeof(JA[0]), NULL },
 };
 
 /* each language's name, written in that language */
 const char *lang_name(int l)
 {
 	static const char *n[LANG_COUNT] = { "English", "Portugu\xc3\xaas", "Espa\xc3\xb1ol",
-		"Fran\xc3\xa7" "ais", "Deutsch", "Italiano" };
+		"Fran\xc3\xa7" "ais", "Deutsch", "Italiano", "Nederlands",
+		"\xd0\xa0\xd1\x83\xd1\x81\xd1\x81\xd0\xba\xd0\xb8\xd0\xb9",      /* Russkiy */
+		"\xe6\x97\xa5\xe6\x9c\xac\xe8\xaa\x9e" };                        /* Nihongo */
 	return l >= 0 && l < LANG_COUNT ? n[l] : n[0];
 }
 

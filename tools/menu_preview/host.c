@@ -39,7 +39,7 @@ static void host_present(SDL_Renderer *r)
 
 /* platform stubs */
 void *video_renderer(void) { return ren; }
-void *video_open_font(int size) { return TTF_OpenFont("/usr/share/fonts/opentype/inter/Inter-SemiBold.otf", size * 0.82); }
+void *video_open_font(int size) { return getenv("CJK") ? TTF_OpenFont("/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc", size * 0.82) : TTF_OpenFont("/usr/share/fonts/opentype/inter/Inter-SemiBold.otf", size * 0.82); }
 void video_draw_game(int dim) { (void)dim; SDL_SetRenderDrawColor(ren, 0, 0, 0, 255); SDL_RenderClear(ren); }
 void video_fade_in(void) {}
 void video_set_game_id(const char *id) { (void)id; }

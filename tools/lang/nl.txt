@@ -1,0 +1,406 @@
+0|   Zoeken: \"
+1|   \xe2\x98\x85 Favorieten
+2|#Inhoud
+3|#Emulatorkern
+4|#Bibliotheken
+5|#Licentie
+6|#Geluidseffecten
+7|#Processorkernen
+8|%d cd's
+9|%d discs
+10|%d spelers
+11|%s%s  (%d discs)
+12|%s%s%d discs
+13|+ (Plus)
+14|- (Min)
+15|.. (omhoog)
+16|1 speler
+17|3D-doosje
+18|3D-doosjes worden gedownload terwijl je bladert. Zonder doosje zie je de 2D-hoes.
+19|4:3 Automatisch zoomen
+20|>> Vooruitspoelen
+21|Iets sneller. Kan de timing van sommige games verstoren.
+22|A: dit slot laden
+23|A: dit slot overschrijven
+24|A: hier opslaan
+25|Toegevoegd aan favorieten.
+26|Geavanceerd
+27|Geavanceerd...
+28|Alle games
+29|Omgeving
+30|Dode zone analoge stick
+31|Bereik analoge stick
+32|Geldt vanaf de volgende game die je laadt.
+34|Vragen
+35|Terug
+36|Rand
+37|Randloos
+38|Randloos haalt de zijranden weg die sommige games tekenen.
+39|Ingebouwd
+40|Knoppen toewijzen...
+41|Knoppen die de analoge modus van de DualShock schakelen, zoals de ANALOG-knop.
+42|Audiotracks van de cd
+43|CPU-kern
+44|CRT-kromming
+45|CRT-masker
+46|Carbon
+47|Carrousel
+48|Disc wisselen
+49|Wijzigingen gelden alleen voor deze game
+50|Cheat %d
+51|Cheats
+52|Cheats worden per game bewaard
+53|Kies een disc
+54|Kies je gamemap in Instellingen.
+55|Cirkel
+56|Klassieke tv
+57|Game sluiten
+58|Compact raster
+59|Compatibiliteit
+60|Gecomprimeerde muziek en stemmen. Uit bespaart CPU, maar ze zijn dan stil.
+61|Doorgaan
+62|Verdergaan waar je was
+63|Verdergaan waar je was?
+64|Bedieningspaneel
+65|Controller
+66|Besturing
+67|Kopieer een libretro .cht-bestand naar WiiUStation/cheats,
+68|Kan niet verdergaan: de opgeslagen status is onleesbaar.
+69|Kan de game niet laden (beschadigde image of ontbrekende BIOS?).
+70|Kan de schermafbeelding niet opslaan.
+71|Kan niet opslaan in slot %d.
+72|Hoesjes
+73|Credits
+74|Snijdt de zwarte randen van de game weg en vult de hoogte.
+75|Kruis
+76|Kubisch
+77|Eigen afbeelding
+78|Pijltjestoets omlaag
+79|Pijltjestoets links
+80|Pijltjestoets rechts
+81|Pijltjestoets omhoog
+82|Standaardindeling hersteld.
+83|Digitaal/analoog-combinatie
+84|Coördinatencontrole uitschakelen
+85|Disc %d
+86|Disc %d geplaatst.
+87|Disc %d van %d
+88|Disc wisselen mislukt.
+89|Dithering
+90|Omlaag
+91|Sleep om te scrollen
+92|Vierhoeken als driehoeken tekenen
+93|Tekent het beeld op een andere CPU-kern. Sneller. Geldt vanaf de volgende game.
+94|DualShock: sommige oudere games werken alleen met Digitaal.
+95|Echo-effect van de originele console. Uit is iets sneller.
+96|Leeg
+97|Leeg slot
+98|Emuleert het bezet-signaal van de GPU. Lost sommige games op, iets trager.
+99|Emulatie van excepties
+100|Afsluiten
+101|Schermbreedte vergroten
+102|BESTAND
+103|GPU-bezetstatus nabootsen
+104|Snel laden van cd
+105|Vooruitspoelen
+106|Vooruitspoelen aan/uit
+107|Snelheid vooruitspoelen
+108|Lost zwarte schermen op in Lunar: Silver Star Story.
+109|Lost vervormde schaduwen op, met iets slechtere textures.
+110|Lost knipperende tekstvakken op in Dragon Warrior VII en Pandemonium 2.
+111|Lost de graphics van Star Wars: Dark Forces op.
+112|Lost vastlopers op in games zoals Chrono Cross.
+113|Map
+114|Map 
+115|Voor 2D-vechtgames van Capcom: toont de hele achtergrond.
+116|Voor de PlayStation-muis: hoe snel de aanwijzer beweegt.
+117|Voor de neGcon: hoe ver de stick beweegt voordat er gestuurd wordt.
+118|Forceren
+119|Frames overslaan
+120|GPL-2.0 of later. De broncode staat op GitHub.
+121|GPU-correcties
+122|GPU-weergave op kern 2
+123|Game
+125|Gamelijst
+126|Game op de tv, aanraakknoppen op de GamePad (opslaan, laden, pauze...).
+127|Game-instellingen
+128|Alleen GamePad
+129|GamePad-scherm
+130|Games
+131|Gamemap
+132|Gamemap opgeslagen.
+133|Gaussiaans
+134|Gaussiaans klinkt als de originele console. Uit is het snelst.
+135|Gloed
+136|Grijze console
+137|Raster
+138|Hoger haalt vertragingen van de originele console weg. Auto is het veiligst.
+139|R3 vasthouden
+140|ZL+ZR vasthouden
+141|Sneltoetsknop (vasthouden)
+142|Sneltoetsen
+143|Sneltoetsen staan uit. Kies een sneltoetsknop om ze te gebruiken.
+144|Sneltoetsen...
+145|Helderheidskleur negeren
+146|In de game: HOME / aanraken / L3+R3 = dit menu
+147|In de game: houd %s vast en druk op de knop van een actie
+148|Instructiecache
+149|Geheeltallig
+150|Interpreter
+151|Klik linkerstick
+152|Lcd-raster
+153|Taal
+154|Luie schermupdate
+155|Links
+156|Lichtpistool: raak het GamePad-scherm aan om te schieten, buiten het beeld om te herladen.
+158|Lightrec niet beschikbaar: geen JIT-gebied (codegen) voor deze titel.
+159|Lijst
+160|Game openen
+161|Status laden
+162|Slot %d geladen.
+163|Hoes laden
+164|Laden...
+165|Mengt het geluid op een andere CPU-kern. Zet uit als er geen geluid is.
+166|Muissnelheid
+167|Muis: sleep op de GamePad of gebruik de rechterstick. ZR = linkerknop, ZL = rechterknop.
+169|Multitap (tot 5 spelers)
+170|Muziek van de audiotracks van de disc.
+171|NU AAN HET SPELEN
+172|Nodig voor enkele games (bv. Formula One 2001). Alleen interpreter.
+173|Nodig voor enkele games die vastlopen of kapotte graphics tonen.
+174|Volgend slot
+175|Geen cheats voor deze game.
+176|Geen hoes
+177|Geen games in deze map.
+178|Geen games gevonden.
+179|Geen afbeelding voor dit slot
+180|Geen
+181|Niet beschikbaar met deze SDL-versie.
+182|Je bewerkt nu de eigen instellingen van deze game.
+183|Even/oneven-bit-truc
+184|Uit
+185|Oude compatibiliteitsmodus. Alleen als een game verkeerd tekent.
+186|Aan
+189|CPU-klok van de PS1
+190|Pauze
+191|Gepauzeerd
+192|Kies de map met je games
+193|Beeld
+194|Pixelkasteel
+195|Pixelstad
+196|Pixellucht
+197|Speel op de GamePad: de tv blijft zwart. HOME of L3+R3 opent het menu.
+198|Opstartlogo van PlayStation
+199|PlayStation-emulator (PS1) voor de Wii U, gebaseerd op PCSX-ReARMed
+200|PlayStation is een handelsmerk van Sony Interactive Entertainment.
+201|Controller van speler 1
+202|Controller van spelers 2+
+203|Spelers 1-4 op poort 1, speler 5 op poort 2. Geldt bij hervatten.
+204|Druk op - of + om het filter te wijzigen.
+205|R3 indrukken (schakelen)
+206|Vorig slot
+207|Zet 1280x720-PNG's in WiiUStation/bezels: default.png of <GAME-ID>.png
+208|Zet je games in sd:/wiiu/apps/WiiUStation/games
+209|Kwadratisch
+210|Kwadratisch en Kubisch geven fijnere controle rond het midden.
+211|Snel slot: %d
+212|Klik rechterstick
+213|Zelden nodig. Alleen interpreter.
+214|Onlangs gespeeld
+215|Regio
+216|Verwijderd uit favorieten.
+217|Herhaalde platte driehoeken
+218|Herstarten
+219|Standaard herstellen
+220|Hervatten
+221|Retro-tv
+222|Rechts
+225|Zelfde als tv
+226|Dezelfde indeling voor elke controller
+227|Status opslaan
+228|Opgeslagen in slot %d.
+229|Scanlijnen
+230|Scherm
+231|Scherm centreren
+232|Schermeffect
+233|Schermafbeelding
+234|Schermafbeelding opgeslagen in WiiUStation/screenshots.
+235|Games zoeken
+236|Instellingen
+237|Instellingen voor
+238|Scherp zacht
+239|Kortere laadschermen. Zet uit als een game vastloopt bij het laden.
+240|FPS tonen
+241|Overscan tonen
+242|Alle games worden getoond.
+243|Alleen favorieten worden getoond.
+244|Toont het randgebied dat oude tv's verborgen.
+245|Eenvoudig
+246|CPU-wachttijden overslaan
+247|Slot %d (leeg)
+248|Slot %d is leeg.
+249|Trage verwerking van GPU-lijsten
+250|Zacht
+251|Geluid
+252|Geluidsinterpolatie
+253|Geluid mengen op kern 0
+254|Galm
+255|Ruimte
+256|Snelheid
+257|Vierkant
+258|Vierkant laat de stick de hoeken bereiken, zoals sommige games verwachten.
+259|Opnieuw beginnen
+260|Uitrekken
+261|Alleen tv
+262|Tik op Games om een game te kiezen.
+263|Tik op de pijlen om te wijzigen
+264|Het GamePad-scherm blijft zwart. HOME of L3+R3 opent het menu.
+265|Alleen deze game
+266|Deze game gebruikt weer de algemene instellingen.
+267|Dit slot is leeg
+268|Driehoek
+269|Beeldbuis-tv
+270|Zet ze alleen uit als een game fouten toont.
+271|Twee spelers.
+272|Typ een naam...
+273|Omhoog
+274|Gebruik het toetsenbord van de GamePad
+275|Trillen
+276|Weergave: %s
+277|Welkom
+278|Wit
+279|Wii U is een handelsmerk van Nintendo. Dit project is niet verbonden met
+280|Hout
+281|X  Weergave wijzigen   Y Favoriet   - Alleen favorieten   + Zoeken
+282|XA-audio (muziek, stemmen)
+283|[ Deze map gebruiken ]
+289|met de naam van het gamebestand of de ID (bv. SCUS-94244.cht).
+290|Stuurreactie van de neGcon
+291|Dode zone draaien van de neGcon
+292|neGcon: linkerstick stuurt, ZR / rechterstick omhoog = I, ZL / omlaag = II.
+293|of goedgekeurd door Sony of Nintendo.
+295|Laatst gespeeld
+296|Meest gespeeld
+297|Naam
+298|VS
+299|Europa
+300|Japan
+301|Favorieten
+302|minder dan 1 min
+303|%ld min
+304|%ld u %ld min
+305|%s%sGespeeld: %s
+306|Gesorteerd op: %s
+307|Getoond: %s
+308|Druk op + of ZR om het filter te wijzigen.
+309|X  Weergave   Y Favoriet   - Opties   + Zoeken   ZL Sorteren   ZR Filter
+310|Menugeluiden
+311|Breedbeeld (16:9)
+312|Richten door de GamePad te bewegen
+313|Naar updates zoeken
+314|Gebruikt de breedbeeldcode uit het .cht-bestand van de game (een cheat met de naam widescreen of 16:9).
+315|GunCon / Justifier: draai de GamePad om te richten, L centreert, ZR schiet.
+316|Versie %s
+317|GitHub controleren...
+318|Versie %s is beschikbaar.
+319|Je hebt %s. Druk op A om hem te downloaden.
+320|WiiUStation is up-to-date.
+321|%s downloaden...
+322|Geïnstalleerd. Sluit WiiUStation en open het opnieuw om de nieuwe versie te gebruiken.
+323|Het downloaden is mislukt. Er is niets gewijzigd.
+324|A: downloaden en installeren
+325|Hier zijn geen afbeeldingen.
+326|Game-ID typen...
+327|Hoes uit een schermafbeelding...
+328|Hoes uit een afbeelding in covers/import...
+329|Eigen hoes verwijderen
+330|Speeltijd op nul zetten
+331|Hoesjes die je hier kiest vervangen de gedownloade
+332|Game-ID (bv. SLUS-00594)
+333|Game-ID opgeslagen. De hoes wordt op de achtergrond gedownload.
+334|Dat is geen game-ID (die lijkt op SLUS-00594).
+335|Schermafbeeldingen
+336|Hoes gewijzigd.
+337|Kan de afbeelding niet kopiëren.
+338|Eigen hoes verwijderd.
+339|Speeltijd op nul gezet.
+340|Geen andere geheugenkaarten.
+341|%d blokken
+342|%d blok
+343|%d van 15 blokken vrij
+344|Deze geheugenkaart is leeg.
+345|Deze kaart hoort bij de game die draait: sluit de game om hem te wijzigen
+346|Y: verwijderen   X: naar andere kaart kopiëren
+347|Opslagbestand verwijderd.
+348|Kan de geheugenkaart niet schrijven.
+349|Druk nog eens op Y om dit opslagbestand te verwijderen.
+350|Naar welke kaart kopiëren?
+351|Die kaart hoort bij de game die draait.
+352|Kan die geheugenkaart niet lezen.
+353|Niet genoeg vrije blokken op die kaart.
+354|Die kaart heeft dit opslagbestand al.
+355|Opslagbestand gekopieerd.
+356|%d / 15 gebruikt
+357|Geheugenkaarten
+358|Nog geen geheugenkaarten.
+359|Elke game krijgt er een in WiiUStation/saves. Kaarten van andere emulators (.mcr, .mcd) kun je daar ook naartoe kopiëren.
+360|Kaarten van andere emulators (.mcr, .mcd) kun je naar WiiUStation/saves kopiëren
+361|Schermafbeelding verwijderd.
+362|Druk nog eens op Y om deze schermafbeelding te verwijderen.
+363|Galerij
+364|Nog geen schermafbeeldingen.
+365|Maak ze tijdens een game via het menu of met een sneltoets.
+366|Links / Rechts: vorige / volgende   Y: verwijderen
+367|A: bekijken   Y: verwijderen
+368|Geen breedbeeldcode voor deze game: voeg er een toe aan het .cht-bestand.
+369|Vertaalpatch toegepast.
+370|Geen internetverbinding.
+371|Kan het downloaden niet starten.
+372|Er is nog geen versie gepubliceerd.
+373|Kan GitHub niet bereiken.
+374|De nieuwste versie heeft geen .wuhb-bestand.
+375|Kan het versienummer niet lezen.
+376|Laatste game openen bij het starten
+377|Alle hoesjes downloaden...
+378|BIOS-bestanden controleren...
+379|Automatische gamecorrecties
+380|De laatste game opent als WiiUStation start. Houd B ingedrukt tijdens de intro om naar het menu te gaan.
+381|Bekende games krijgen de correcties die ze nodig hebben. Geldt vanaf de volgende game.
+382|Andere
+383|Onbekende versie (werkt misschien toch)
+384|Geen BIOS-bestand
+385|Geen bekende BIOS: games gebruiken de ingebouwde (HLE), die de meeste games draait.
+386|Ontbreekt voor: %s (die games gebruiken de ingebouwde BIOS)
+387|Je hebt een BIOS voor elke regio.
+388|BIOS-bestanden
+389|De bios-map is leeg.
+390|Zet BIOS-bestanden (bv. scph5501.bin) in WiiUStation/bios.
+391|Alle hoesjes downloaden
+392|Games zoeken...
+393|Klaar: %d games
+394|Game %d van %d
+395|Gedownload %d   Al aanwezig %d   Niet in de repository %d
+396|Zonder game-ID %d   Mislukt %d
+397|B: stoppen
+398|Ja
+399|Nee
+400|Nieuwe collectie...
+401|Collecties
+402|A: aan de collectie toevoegen / eruit halen
+403|Naam van de collectie
+404|Aan de collectie toegevoegd.
+405|Game-ID
+406|Discs
+407|Grootte
+408|Speeltijd
+409|Opgeslagen statussen
+410|Geheugenkaart
+411|Vertaalpatch
+412|Eigen instellingen
+413|Onbekend
+414|Nooit gespeeld
+415|%d van 10 slots
+416|Nog geen
+417|Informatie...
+418|Collecties...
+419|Automatische correctie voor deze game: %s
