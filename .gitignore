@@ -2,3 +2,6 @@ build/
 *.rpx
 *.wuhb
 *.elf
+tools/menu_preview/sd/
+tools/menu_preview/out/
+tools/menu_preview/host

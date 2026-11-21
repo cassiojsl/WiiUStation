@@ -89,6 +89,16 @@ const char *button_name(int b) { (void)b; return "R"; }
 const int default_hotkeys[HK_COUNT];
 
 void video_lang_changed(void) {}
+int covers_custom_id(const char *k, char *o) { (void)k; o[0] = 0; return 0; }
+int covers_set_custom(const char *k, const char *i) { (void)k; (void)i; return 1; }
+void covers_remove_custom(const char *k) { (void)k; }
+int covers_normalise_id(const char *i, char *o) { snprintf(o, 16, "%s", i); return 1; }
+void covers_remember_id(const char *p, const char *i) { (void)p; (void)i; }
+long emu_playtime(const char *k, long long *l) { if (l) *l = 0; return strlen(k) * 977; }
+void emu_playtime_reset(const char *k) { (void)k; }
+int wiiu_battery(void) { return 4; }
+int wiiu_mkdirs(const char *p) { (void)p; return 0; }
+void covers_request(const char *i) { (void)i; }
 long long emu_state_time(int s) { return emu_state_exists(s) ? 1795000000LL + s * 86400LL : 0; }
 void emu_state_thumb(int s, char *o, size_t n) { snprintf(o, n, "%s/states/thumb%d.png", WIIU_APP_DIR, s); }
 int emu_screenshot(void) { return 1; }
@@ -151,6 +161,8 @@ int main(int argc, char **argv)
 	else if (!strcmp(mode, "gamesettings")) { loaded = 1; R = ren; menu_fonts(); settings(); }
 	else if (!strcmp(mode, "controls")) { R = ren; menu_fonts(); controls(); }
 	else if (!strcmp(mode, "advanced")) { R = ren; menu_fonts(); scriptBtn[8] = WIIU_BTN_DOWN; scriptBtn[12] = WIIU_BTN_DOWN; scriptBtn[16] = WIIU_BTN_DOWN; scriptBtn[20] = WIIU_BTN_DOWN; advanced(); }
+	else if (!strcmp(mode, "gallery")) { R = ren; menu_fonts(); scriptBtn[8] = WIIU_BTN_RIGHT; gallery(); }
+	else if (!strcmp(mode, "options")) { R = ren; menu_fonts(); entry_t e; memset(&e, 0, sizeof(e)); strcpy(e.name, "Metal Gear Solid (SLUS-00594).chd"); strcpy(e.id, "SLUS-00594"); game_options(&e, WIIU_ISO_DIR); }
 	else if (!strcmp(mode, "settings")) { R = ren; menu_fonts(); settings(); }
 	else if (!strcmp(mode, "credits")) { R = ren; menu_fonts(); shotAt = 200; quitAt = 202; credits(); }
 	else if (!strcmp(mode, "loading")) { R = ren; menu_fonts(); loading_screen(WIIU_ISO_DIR "/Crash Bandicoot 3 (SCUS-94244).chd");

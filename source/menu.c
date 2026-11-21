@@ -773,10 +773,13 @@ static int text_prompt(const char *title, const char *initial, char *out, size_t
 /* ------------------------------------------------------------------------ */
 /* file browser                                                             */
 /* ------------------------------------------------------------------------ */
-typedef struct { char name[256]; int dir; int idTried; char id[16]; int fav; int discs; long secs; long long last; } entry_t;
+typedef struct { char name[256]; int dir; int idTried; char id[16]; int fav; int discs; long secs; long long last;
+                 char cover[16]; int coverChecked, hasCustom; } entry_t;
 static int disc_tag(const char *name, char *base, size_t n);
 static char browsePath[512];
 static int favOnly;            /* show favourites only */
+static void game_options(entry_t *e, const char *dir);
+static void memcards(void);
 
 /* play-time key of a list entry: file name without extension; for a
  * multi-disc game, the shared name (the .m3u written for it has it too) */
@@ -807,7 +810,10 @@ static int entry_region(const char *name, const char *id)
 }
 
 static const char *sort_name(int v) { return v == 1 ? "Last played" : v == 2 ? "Most played" : "Name"; }
-static const char *regionf_name(int v) { return v == 1 ? "USA" : v == 2 ? "Europe" : v == 3 ? "Japan" : "All regions"; }
+static const char *regionf_name(int v)
+{
+	return v == 1 ? "USA" : v == 2 ? "Europe" : v == 3 ? "Japan" : v == 4 ? "Favourites" : "All games";
+}
 
 static int cmp_last(const void *a, const void *b)
 {
@@ -821,6 +827,19 @@ static int cmp_most(const void *a, const void *b)
 	const entry_t *x = a, *y = b;
 	if (x->dir != y->dir) return y->dir - x->dir;
 	return x->secs < y->secs ? 1 : x->secs > y->secs ? -1 : strcasecmp(x->name, y->name);
+}
+
+/* the cover to draw for an entry: a custom one chosen in its options, or
+ * the one of its game ID */
+static const char *ecover(entry_t *e)
+{
+	if (!e->coverChecked) {
+		char key[256];
+		entry_key(e->name, e->discs, key, sizeof(key));
+		e->hasCustom = covers_custom_id(key, e->cover);
+		e->coverChecked = 1;
+	}
+	return e->hasCustom ? e->cover : e->id;
 }
 
 /* "12 h 30 min" */
@@ -1076,7 +1095,7 @@ static int grid_run(grid_t *G, entry_t *list, const char **labels, int count, co
 			if (!e->dir && !e->idTried && !detected && !T.down) { detect_entry(e, dir); detected = 1; }
 			if (e->dir) folder_icon(cx, y + 10, S->cover);
 			else {
-				cover_or_disc_r(e->id, cx, y + 10, S->cover, 0);
+				cover_or_disc_r(ecover(e), cx, y + 10, S->cover, 0);
 				disc_badge(e, cx, y + 10, S->cover);
 			}
 			if (S->names) {
@@ -1155,8 +1174,8 @@ static int carousel_run(grid_t *G, entry_t *list, const char **labels, int count
 			SDL_Rect d2;
 			if (e->dir) { folder_icon(x, y, sz); d2 = (SDL_Rect){ x, y, sz, sz }; }
 			else {
-				d2 = cover_or_disc_r(e->id, x, y, sz, 1);
-				cover_reflection(e->id, d2, sz / 4, (uint8_t)(ad < 1 ? 110 - ad * 60 : 50));
+				d2 = cover_or_disc_r(ecover(e), x, y, sz, 1);
+				cover_reflection(ecover(e), d2, sz / 4, (uint8_t)(ad < 1 ? 110 - ad * 60 : 50));
 				disc_badge(e, x, y, sz);
 			}
 			if (ad > 0.05f) {   /* dim the side covers */
@@ -1463,12 +1482,12 @@ rescan:
 			char full[768], nm[272];
 			snprintf(full, sizeof(full), "%s/%s", browsePath, list[i].name);
 			list[i].fav = !list[i].dir && emu_fav_is(full);
-			if (!list[i].dir && favOnly && !list[i].fav) continue;
+			if (!list[i].dir && (favOnly || cfg.regionf == 4) && !list[i].fav) continue;
 			if (!list[i].dir && searchText[0]) {
 				pretty_name(list[i].name, nm, sizeof(nm));
 				if (!contains_ci(nm, searchText)) continue;
 			}
-			if (!list[i].dir && cfg.regionf) {
+			if (!list[i].dir && cfg.regionf >= 1 && cfg.regionf <= 3) {
 				/* the ID is read once and remembered (covers/ids.txt) */
 				if (!list[i].idTried) {
 					list[i].idTried = 1;
@@ -1595,16 +1614,19 @@ rescan:
 		}
 		if (!pickDir && (b & WIIU_BTN_ZR)) {
 			char m[96];
-			cfg.regionf = (cfg.regionf + 1) % 4;
+			cfg.regionf = (cfg.regionf + 1) % 5;
 			settings_save();
-			snprintf(m, sizeof(m), tr("Region: %s"), tr(regionf_name(cfg.regionf)));
+			snprintf(m, sizeof(m), tr("Showing: %s"), tr(regionf_name(cfg.regionf)));
 			status(m);
 			goto rescan;
 		}
-		if (!pickDir && (b & WIIU_BTN_MINUS)) {
-			favOnly = !favOnly;
-			status(favOnly ? "Showing favourites only." : "Showing all games.");
-			goto rescan;
+		if (!pickDir && count && (b & WIIU_BTN_MINUS)) {   /* - : this game's options */
+			int i = (useGrid || useCar) ? G.sel : L.sel;
+			if (i >= 0 && i < count && !list[i].dir) {
+				game_options(&list[i], browsePath);
+				transition();
+				goto rescan_keep;
+			}
 		}
 		if (!pickDir && (b & WIIU_BTN_PLUS)) {
 			char q[64];
@@ -1638,7 +1660,7 @@ rescan:
 		int t = -1;
 		if (count == 0) {
 			text(fontItem, 640, 360, favOnly || searchText[0] || cfg.regionf ? "No games match." : "No games in this folder.", GREY, 1);
-			text(fontSmall, 640, 410, favOnly || searchText[0] || cfg.regionf ? "Press -, + or ZR to change the filter."
+			text(fontSmall, 640, 410, favOnly || searchText[0] || cfg.regionf ? "Press + or ZR to change the filter."
 			                                                    : "Choose your games folder in Settings.", DIM, 1);
 		} else if (pickDir) {
 			t = list_run(&L, labels, NULL, count, 0, NULL, NULL);
@@ -1658,12 +1680,12 @@ rescan:
 					e->idTried = 1;
 					if (!covers_detect_id(full, e->id)) e->id[0] = 0;
 				}
-				draw_cover(e->id, e->id[0] ? e->id : NULL);
+				draw_cover(ecover(e), e->id[0] ? e->id : NULL);
 			}
 		}
 		if (t >= 0) activate = t;
 		draw_footer(pickDir ? "Pick the folder with your games" :
-		            "X  View   Y Favourite   - Favourites   + Search   ZL Sort   ZR Region");
+		            "X  View   Y Favourite   - Options   + Search   ZL Sort   ZR Filter");
 		present();
 
 		if (back) break;                                      /* leave now */
@@ -2229,10 +2251,281 @@ static void controls(void)
 }
 
 /* ------------------------------------------------------------------------ */
+/* image picker (custom covers)                                             */
+/* ------------------------------------------------------------------------ */
+static int has_image_ext(const char *n)
+{
+	const char *d = strrchr(n, '.');
+	return d && (!strcasecmp(d, ".png") || !strcasecmp(d, ".jpg") || !strcasecmp(d, ".jpeg"));
+}
+
+static int cmp_name_desc(const void *a, const void *b) { return strcmp((const char *)b, (const char *)a); }
+
+/* lists the images in dir whose name starts with prefix (may be ""),
+ * newest first; returns 1 with the chosen path */
+static int pick_image(const char *title, const char *dir, const char *prefix, char *out, size_t n)
+{
+	enum { MAXI = 200 };
+	static char names[MAXI][256];
+	const char *labels[MAXI];
+	int count = 0;
+	DIR *d = opendir(dir);
+	if (d) {
+		struct dirent *e;
+		size_t pl = strlen(prefix);
+		while ((e = readdir(d)) && count < MAXI)
+			if (e->d_name[0] != '.' && has_image_ext(e->d_name) && !strncmp(e->d_name, prefix, pl))
+				snprintf(names[count++], 256, "%s", e->d_name);
+		closedir(d);
+	}
+	qsort(names, count, sizeof(names[0]), cmp_name_desc);
+	for (int i = 0; i < count; i++) labels[i] = names[i];
+	list_t L = { 0, 0 };
+	SDL_Texture *prev = NULL;
+	int prevFor = -1;
+	transition();
+	for (;;) {
+		poll_touch();
+		uint32_t b = poll_buttons();
+		int pick = -1;
+		if (count) {
+			if (b & WIIU_BTN_UP)   L.sel = L.sel > 0 ? L.sel - 1 : count - 1;
+			if (b & WIIU_BTN_DOWN) L.sel = L.sel < count - 1 ? L.sel + 1 : 0;
+			if (b & WIIU_BTN_A) pick = L.sel;
+		}
+		draw_background();
+		int back = draw_header(title, 1);
+		if (!count) {
+			text(fontItem, 640, 330, "No images here.", GREY, 1);
+			text(fontSmall, 640, 380, dir + strlen(WIIU_SD_ROOT), DIM, 1);
+		} else {
+			listW = 640;
+			int t = list_run(&L, labels, NULL, count, 0, NULL, NULL);
+			listW = 1060;
+			if (t >= 0) pick = t;
+			/* preview of the selected image */
+			if (prevFor != L.sel) {
+				char p[768];
+				if (prev) SDL_DestroyTexture(prev);
+				prev = NULL;
+				snprintf(p, sizeof(p), "%s/%s", dir, names[L.sel]);
+				SDL_Surface *sf = IMG_Load(p);
+				if (sf) { prev = SDL_CreateTextureFromSurface(R, sf); SDL_FreeSurface(sf); }
+				prevFor = L.sel;
+			}
+			if (prev) {
+				int w, h;
+				SDL_QueryTexture(prev, NULL, NULL, &w, &h);
+				int bw = 400, bh = h * bw / (w ? w : 1);
+				if (bh > 400) { bh = 400; bw = w * bh / (h ? h : 1); }
+				SDL_Rect r = { 790 + (420 - bw) / 2, 140 + (420 - bh) / 2, bw, bh };
+				SDL_RenderCopy(R, prev, NULL, &r);
+			}
+		}
+		draw_footer(NULL);
+		present();
+		if (back || (b & WIIU_BTN_B) || wiiu_quit) { if (prev) SDL_DestroyTexture(prev); return 0; }
+		if (pick >= 0) {
+			snprintf(out, n, "%s/%s", dir, names[pick]);
+			if (prev) SDL_DestroyTexture(prev);
+			return 1;
+		}
+	}
+}
+
+/* ------------------------------------------------------------------------ */
+/* game options (- in the game browser)                                     */
+/* ------------------------------------------------------------------------ */
+static void game_options(entry_t *e, const char *dir)
+{
+	enum { O_ID, O_SHOT, O_IMAGE, O_REMOVE, O_RESETTIME, O_COUNT };
+	const char *labels[O_COUNT] = { "Type the game ID...", "Cover from a screenshot...",
+		"Cover from an image in covers/import...", "Remove custom cover", "Reset play time" };
+	const char *values[O_COUNT] = { 0 };
+	char key[256], full[768], title[96], img[768], pt[48];
+	entry_key(e->name, e->discs, key, sizeof(key));
+	snprintf(full, sizeof(full), "%s/%s", dir, e->name);
+	pretty_name(key, title, sizeof(title));
+	list_t L = { 0, 0 };
+	wiiu_mkdirs(WIIU_COVER_DIR "/import");
+	transition();
+	for (;;) {
+		long long last = 0;
+		long secs = emu_playtime(key, &last);
+		values[O_ID] = e->id[0] ? e->id : "?";
+		fmt_playtime(secs, pt, sizeof(pt));
+		values[O_RESETTIME] = secs ? pt : NULL;
+		values[O_REMOVE] = NULL;
+		poll_touch();
+		uint32_t b = poll_buttons();
+		int act = -1;
+		if (b & WIIU_BTN_UP)   L.sel = L.sel > 0 ? L.sel - 1 : O_COUNT - 1;
+		if (b & WIIU_BTN_DOWN) L.sel = L.sel < O_COUNT - 1 ? L.sel + 1 : 0;
+		if (b & WIIU_BTN_A) act = L.sel;
+		draw_background();
+		int back = draw_header(title, 1);
+		int t = list_run(&L, labels, values, O_COUNT, 0, NULL, NULL);
+		if (t >= 0) act = t;
+		draw_footer("Covers you choose here replace the downloaded ones");
+		present();
+		if (back || (b & WIIU_BTN_B) || wiiu_quit) return;
+		switch (act) {
+		case O_ID: {
+			char in[32], id[16];
+			if (text_prompt("Game ID (e.g. SLUS-00594)", e->id, in, sizeof(in))) {
+				if (covers_normalise_id(in, id)) {
+					covers_remember_id(full, id);
+					snprintf(e->id, sizeof(e->id), "%s", id);
+					e->idTried = 1;
+					covers_request(id);
+					status("Game ID saved. The cover is downloaded in the background.");
+				} else status("That is not a game ID (it looks like SLUS-00594).");
+			}
+			transition();
+			break;
+		}
+		case O_SHOT:
+		case O_IMAGE: {
+			char prefix[260];
+			snprintf(prefix, sizeof(prefix), "%s-", key);
+			int ok = act == O_SHOT ? pick_image("Screenshots", WIIU_APP_DIR "/screenshots", prefix, img, sizeof(img))
+			                       : pick_image("covers/import", WIIU_COVER_DIR "/import", "", img, sizeof(img));
+			if (ok) {
+				status(covers_set_custom(key, img) ? "Cover changed." : "Could not copy the image.");
+				e->coverChecked = 0;
+			}
+			transition();
+			break;
+		}
+		case O_REMOVE:
+			covers_remove_custom(key);
+			e->coverChecked = 0;
+			status("Custom cover removed.");
+			break;
+		case O_RESETTIME:
+			emu_playtime_reset(key);
+			status("Play time reset.");
+			break;
+		}
+	}
+}
+
+/* ------------------------------------------------------------------------ */
+/* screenshot gallery                                                       */
+/* ------------------------------------------------------------------------ */
+static void memcards(void) { status("Memory cards: coming in the next step."); }
+/* ------------------------------------------------------------------------ */
+/* ------------------------------------------------------------------------ */
+static void gallery(void)
+{
+	enum { MAXG = 400, COLS = 4, TW = 276, TH = 207, GX = 64, GY = 130, CW = 292, CH = 250, VIS = 2 };
+	static char names[MAXG][256];
+	const char *dir = WIIU_APP_DIR "/screenshots";
+	int count = 0, sel = 0, view = 0;
+	float scroll = 0;
+	struct { int idx; SDL_Texture *t; uint32_t used; } cache[16];
+	uint32_t clock = 0, delArm = 0;
+	memset(cache, 0, sizeof(cache));
+	for (int i = 0; i < 16; i++) cache[i].idx = -1;
+
+	DIR *d = opendir(dir);
+	if (d) {
+		struct dirent *e;
+		while ((e = readdir(d)) && count < MAXG)
+			if (e->d_name[0] != '.' && has_image_ext(e->d_name)) snprintf(names[count++], 256, "%s", e->d_name);
+		closedir(d);
+	}
+	qsort(names, count, sizeof(names[0]), cmp_name_desc);    /* newest first */
+
+	transition();
+	for (;;) {
+		poll_touch();
+		uint32_t b = poll_buttons();
+		if (count) {
+			int cols = view ? 1 : COLS;
+			if (b & WIIU_BTN_LEFT)  sel = sel > 0 ? sel - 1 : 0;
+			if (b & WIIU_BTN_RIGHT) sel = sel < count - 1 ? sel + 1 : sel;
+			if (!view && (b & WIIU_BTN_UP))   sel = sel >= cols ? sel - cols : sel;
+			if (!view && (b & WIIU_BTN_DOWN)) sel = sel + cols < count ? sel + cols : sel;
+			if (b & WIIU_BTN_A) view = !view;
+			if (b & WIIU_BTN_Y) {
+				if (delArm && SDL_GetTicks() - delArm < 3000) {
+					char p[768];
+					snprintf(p, sizeof(p), "%s/%s", dir, names[sel]);
+					remove(p);
+					memmove(names[sel], names[sel + 1], (count - sel - 1) * sizeof(names[0]));
+					count--;
+					for (int i = 0; i < 16; i++) { if (cache[i].t) SDL_DestroyTexture(cache[i].t); cache[i].t = NULL; cache[i].idx = -1; }
+					if (sel >= count) sel = count - 1;
+					if (sel < 0) sel = 0;
+					if (!count) view = 0;
+					delArm = 0;
+					status("Screenshot deleted.");
+				} else {
+					delArm = SDL_GetTicks();
+					status("Press Y again to delete this screenshot.");
+				}
+			}
+		}
+		if (view && T.tapped) view = 0;
+		if ((b & WIIU_BTN_B) && view) { view = 0; b &= ~WIIU_BTN_B; }
+
+		draw_background();
+		int back = draw_header("Gallery", 1);
+		/* textures: a small cache, loaded on demand */
+		#define GAL_TEX(i) ({ SDL_Texture *_t = NULL; int _v = 0; \
+			for (int _k = 0; _k < 16; _k++) if (cache[_k].idx == (i)) { _t = cache[_k].t; cache[_k].used = ++clock; _v = 1; break; } \
+			if (!_v) { int _o = 0; for (int _k = 1; _k < 16; _k++) if (cache[_k].used < cache[_o].used) _o = _k; \
+				char _p[768]; snprintf(_p, sizeof(_p), "%s/%s", dir, names[i]); \
+				SDL_Surface *_s = IMG_Load(_p); if (cache[_o].t) SDL_DestroyTexture(cache[_o].t); \
+				cache[_o].t = _s ? SDL_CreateTextureFromSurface(R, _s) : NULL; if (_s) SDL_FreeSurface(_s); \
+				cache[_o].idx = (i); cache[_o].used = ++clock; _t = cache[_o].t; } _t; })
+		if (!count) {
+			text(fontItem, 640, 330, "No screenshots yet.", GREY, 1);
+			text(fontSmall, 640, 380, "Take them from the menu during a game, or with a hotkey.", DIM, 1);
+		} else if (view) {
+			SDL_Texture *t = GAL_TEX(sel);
+			if (t) {
+				SDL_Rect r = { 1280 / 2 - 336, 110, 672, 504 };
+				SDL_RenderCopy(R, t, NULL, &r);
+			}
+			char m[300];
+			snprintf(m, sizeof(m), "%d / %d   %s", sel + 1, count, names[sel]);
+			text(fontSmall, 640, 640, m, GREY, 1);
+		} else {
+			int rows = (count + COLS - 1) / COLS, selRow = sel / COLS;
+			float target = scroll;
+			if (selRow < target) target = selRow;
+			if (selRow >= target + VIS) target = selRow - VIS + 1;
+			scroll += (target - scroll) * 0.3f;
+			SDL_RenderSetClipRect(R, &(SDL_Rect){ 0, GY - 8, 1280, 664 - GY + 8 });
+			for (int r = (int)scroll; r <= (int)scroll + VIS && r < rows; r++)
+				for (int c = 0; c < COLS; c++) {
+					int i = r * COLS + c;
+					if (i >= count) break;
+					int x = GX + c * CW, y = GY + (int)((r - scroll) * CH);
+					if (i == sel) rrect(x - 6, y - 6, TW + 12, TH + 12, 12, (SDL_Color){ 0, 140, 220 }, 255);
+					SDL_Texture *t = GAL_TEX(i);
+					SDL_Rect dr = { x, y, TW, TH };
+					if (t) SDL_RenderCopy(R, t, NULL, &dr);
+					else fill(x, y, TW, TH, (SDL_Color){ 26, 32, 60 }, 255);
+					if (tap_in(x, y, TW, TH)) { if (sel == i) view = 1; sel = i; }
+				}
+			SDL_RenderSetClipRect(R, NULL);
+		}
+		#undef GAL_TEX
+		draw_footer(count ? (view ? "Left / Right: previous / next   Y: delete" : "A: view   Y: delete") : NULL);
+		present();
+		if (back || (b & WIIU_BTN_B) || wiiu_quit) break;
+	}
+	for (int i = 0; i < 16; i++) if (cache[i].t) SDL_DestroyTexture(cache[i].t);
+}
+
+/* ------------------------------------------------------------------------ */
 /* home screen                                                              */
 /* ------------------------------------------------------------------------ */
 enum { H_RESUME, H_SAVE, H_LOAD, H_CHEATS, H_SHOT, H_RESET, H_DISC, H_RECENT,
-       H_GAMES, H_SETTINGS, H_CREDITS, H_EXIT };
+       H_GAMES, H_SETTINGS, H_CREDITS, H_EXIT, H_GALLERY, H_CARDS };
 typedef struct { SDL_Rect r; int kind, arg; } hitem_t;
 
 static void icon(int kind, float cx, float cy, float s, SDL_Color c)
@@ -2256,6 +2549,22 @@ static void icon(int kind, float cx, float cy, float s, SDL_Color c)
 		rrect((int)(cx - s * 0.06f), (int)(cy - s * 0.08f), (int)(s * 0.12f), (int)(s * 0.36f), 3, c, 255);
 		rrect((int)(cx - s * 0.06f), (int)(cy - s * 0.28f), (int)(s * 0.12f), (int)(s * 0.12f), 6, c, 255);
 		break;
+	case H_GALLERY:   /* picture: frame, sun, mountain */
+		rframe((int)(cx - s * 0.5f), (int)(cy - s * 0.4f), (int)s, (int)(s * 0.8f), (int)(s * 0.1f), (int)(s * 0.08f), c, 255);
+		{
+			float m[6] = { cx - s * 0.36f, cy + s * 0.28f, cx - s * 0.06f, cy - s * 0.08f, cx + s * 0.2f, cy + s * 0.28f };
+			poly(m, 3, c, 255);
+			ring(cx + s * 0.2f, cy - s * 0.14f, s * 0.09f, s * 0.09f, c);
+		}
+		break;
+	case H_CARDS: {   /* memory card: body with a notch and two stripes */
+		float w = s * 0.62f, h = s * 0.86f, x0 = cx - w / 2, y0 = cy - h / 2;
+		float q[10] = { x0, y0, x0 + w * 0.72f, y0, x0 + w, y0 + h * 0.2f, x0 + w, y0 + h, x0, y0 + h };
+		poly(q, 5, c, 255);
+		for (int i = 0; i < 2; i++)
+			rrect((int)(x0 + w * 0.16f), (int)(y0 + h * (0.52f + i * 0.2f)), (int)(w * 0.68f), (int)(h * 0.08f), 2, (SDL_Color){ 30, 36, 64 }, 255);
+		break;
+	}
 	case H_EXIT: {    /* power symbol */
 		const int N = 20;
 		for (int i = 2; i < N - 2; i++) {
@@ -2648,15 +2957,15 @@ int menu_run(void)
 				it[n++] = (hitem_t){ { rx, 168, 170, 170 }, H_RECENT, i };
 				rx += 196;
 			}
-			tileY = 436; tileH = 190; ntiles = 4;
+			tileY = 436; tileH = 190; ntiles = 6;
 		}
 		{
 			/* in game: Games, Settings, Close game (no Credits) */
-			static const int full[4] = { H_GAMES, H_SETTINGS, H_CREDITS, H_EXIT };
+			static const int full[6] = { H_GAMES, H_CARDS, H_GALLERY, H_SETTINGS, H_CREDITS, H_EXIT };
 			static const int game[3] = { H_GAMES, H_SETTINGS, H_EXIT };
-			int w = ntiles == 4 ? 275 : 380, gap = ntiles == 4 ? 20 : 20;
+			int w = ntiles == 6 ? 178 : 380, gap = ntiles == 6 ? 18 : 20;
 			for (int i = 0; i < ntiles; i++)
-				it[n++] = (hitem_t){ { 60 + i * (w + gap), tileY, w, tileH }, ntiles == 4 ? full[i] : game[i], 0 };
+				it[n++] = (hitem_t){ { 60 + i * (w + gap), tileY, w, tileH }, ntiles == 6 ? full[i] : game[i], 0 };
 		}
 		if (sel < 0 || sel >= n) {
 			sel = 0;
@@ -2742,8 +3051,11 @@ int menu_run(void)
 			}
 			case H_RECENT: {
 				const char *p = emu_recent(it[i].arg);
-				char id[16] = "", nm[96], sh[96];
-				covers_detect_id(p, id);
+				char id[16] = "", nm[96], sh[96], key[256];
+				const char *sl = strrchr(p, '/');
+				snprintf(key, sizeof(key), "%s", sl ? sl + 1 : p);
+				if (strrchr(key, '.')) *strrchr(key, '.') = 0;
+				if (!covers_custom_id(key, id)) covers_detect_id(p, id);
 				cover_or_disc(id, r.x, r.y, r.w);
 				pretty_name(p, nm, sizeof(nm));
 				fit_text(fontSmall, nm, r.w - 4, sh, sizeof(sh));
@@ -2752,11 +3064,17 @@ int menu_run(void)
 			}
 			default: {
 				const char *tl = it[i].kind == H_GAMES ? "Games" : it[i].kind == H_SETTINGS ? "Settings" :
-				                 it[i].kind == H_CREDITS ? "Credits" : loaded ? "Close game" : "Exit";
+				                 it[i].kind == H_CREDITS ? "Credits" : it[i].kind == H_GALLERY ? "Gallery" :
+				                 it[i].kind == H_CARDS ? "Memory cards" : loaded ? "Close game" : "Exit";
 				rrect(r.x, r.y, r.w, r.h, 18, card, 220);
 				if (r.h > 150) {
+					char fl[96];
 					icon(it[i].kind, r.x + r.w / 2.0f, r.y + r.h / 2.0f - 22, 64, WHITE);
-					text(fontItem, r.x + r.w / 2, r.y + r.h - 34, tl, WHITE, 1);
+					int tw = 0;
+					TTF_Font *tf = fontItem;
+					if (TTF_SizeUTF8(fontItem, tr(tl), &tw, NULL) == 0 && tw > r.w - 16) tf = fontSmall;
+					fit_text(tf, tr(tl), r.w - 12, fl, sizeof(fl));
+					text(tf, r.x + r.w / 2, r.y + r.h - 34, fl, WHITE, 1);
 				} else {
 					icon(it[i].kind, r.x + 64, r.y + r.h / 2.0f, 48, WHITE);
 					text(fontItem, r.x + 116, r.y + r.h / 2, tl, WHITE, 0);
@@ -2810,6 +3128,14 @@ int menu_run(void)
 			break;
 		case H_CREDITS:
 			credits();
+			transition();
+			break;
+		case H_GALLERY:
+			gallery();
+			transition();
+			break;
+		case H_CARDS:
+			memcards();
 			transition();
 			break;
 		case H_EXIT:

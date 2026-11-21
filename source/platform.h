@@ -257,6 +257,12 @@ int   covers_status(const char *id);   /* 2 have, 1 downloading, 0 none */
 void *covers_texture(void *renderer, const char *id, int *w, int *h);
 void  covers_shutdown(void);
 void  covers_flush(void);              /* after changing 2D / 3D */
+/* custom covers, by game key (file name without extension / disc tag) */
+int   covers_custom_id(const char *gameKey, char *out);   /* 1 if there is one; out = "@..." */
+int   covers_set_custom(const char *gameKey, const char *image);
+void  covers_remove_custom(const char *gameKey);
+int   covers_normalise_id(const char *in, char *out);
+void  covers_remember_id(const char *path, const char *id);
 const char *emu_game_id(void);
 
 /* ---- menu (menu.c) ---- */

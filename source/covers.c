@@ -252,10 +252,62 @@ static void show_key(const char *id, char *key, size_t n)
 	snprintf(key, n, "%s", id);
 }
 
+/* ---- custom covers chosen in the game options: covers/custom/<hash>.png,
+ * shown through the id "@<hash>" (hash of the game's file name) ---- */
+#define CUSTOM_DIR COVER_DIR "/custom"
+
+static unsigned fnv(const char *s)
+{
+	unsigned h = 2166136261u;
+	while (*s) { h ^= (unsigned char)*s++; h *= 16777619u; }
+	return h;
+}
+
+static void custom_path(const char *id, char *out, size_t n)
+{
+	snprintf(out, n, "%s/%s.png", CUSTOM_DIR, id + 1);
+}
+
+int covers_custom_id(const char *gameKey, char *out)
+{
+	char p[256];
+	snprintf(out, 16, "@%08X", fnv(gameKey));
+	custom_path(out, p, sizeof(p));
+	return file_exists(p);
+}
+
+int covers_set_custom(const char *gameKey, const char *image)
+{
+	char id[16], p[256], buf[8192];
+	size_t n;
+	int ok = 1;
+	covers_custom_id(gameKey, id);
+	custom_path(id, p, sizeof(p));
+	wiiu_mkdirs(CUSTOM_DIR);
+	FILE *in = fopen(image, "rb"), *out = in ? fopen(p, "wb") : NULL;
+	if (!in || !out) ok = 0;
+	while (ok && (n = fread(buf, 1, sizeof(buf), in)) > 0)
+		if (fwrite(buf, 1, n, out) != n) ok = 0;
+	if (in) fclose(in);
+	if (out) fclose(out);
+	if (!ok) remove(p);
+	covers_flush();
+	return ok;
+}
+
+void covers_remove_custom(const char *gameKey)
+{
+	char id[16], p[256];
+	covers_custom_id(gameKey, id);
+	custom_path(id, p, sizeof(p));
+	remove(p);
+	covers_flush();
+}
+
 void covers_request(const char *id)
 {
 	char key[16];
-	if (!id || !id[0]) return;
+	if (!id || !id[0] || id[0] == '@') return;
 	show_key(id, key, sizeof(key));
 	request_key(key);
 }
@@ -265,6 +317,7 @@ int covers_status(const char *id)
 {
 	char key[16];
 	if (!id || !id[0]) return 0;
+	if (id[0] == '@') { char p[256]; custom_path(id, p, sizeof(p)); return file_exists(p) ? 2 : 0; }
 	show_key(id, key, sizeof(key));
 	int st = state_get(key);
 	return st == ST_DONE ? 2 : st == ST_PENDING ? 1 : 0;
@@ -304,7 +357,8 @@ void *covers_texture(void *renderer, const char *gameId, int *w, int *h)
 	SDL_Surface *s;
 	int victim = 0;
 	if (!gameId || !gameId[0]) return NULL;
-	show_key(gameId, id, sizeof(id));
+	if (gameId[0] == '@') snprintf(id, sizeof(id), "%s", gameId);
+	else show_key(gameId, id, sizeof(id));
 	for (int i = 0; i < TEXN; i++) {
 		if (texc[i].t && !strcmp(texc[i].id, id)) {
 			texc[i].used = ++texclock;
@@ -316,13 +370,19 @@ void *covers_texture(void *renderer, const char *gameId, int *w, int *h)
 	}
 	/* Only touch the SD card when the state is unknown or freshly
 	 * downloaded; pending / missing / failed covers cost nothing. */
-	int st = state_get(id);
-	if (st == ST_PENDING || st == ST_MISSING || st == ST_FAILED) return NULL;
-	cover_path(id, path, sizeof(path));
-	if (!file_exists(path)) { request_key(id); return NULL; }
-	s = IMG_Load(path);
-	if (!s) { state_set(id, ST_FAILED); return NULL; }   /* unreadable file */
-	state_set(id, ST_DONE);
+	if (id[0] == '@') {
+		custom_path(id, path, sizeof(path));
+		s = file_exists(path) ? IMG_Load(path) : NULL;
+		if (!s) return NULL;
+	} else {
+		int st = state_get(id);
+		if (st == ST_PENDING || st == ST_MISSING || st == ST_FAILED) return NULL;
+		cover_path(id, path, sizeof(path));
+		if (!file_exists(path)) { request_key(id); return NULL; }
+		s = IMG_Load(path);
+		if (!s) { state_set(id, ST_FAILED); return NULL; }   /* unreadable file */
+		state_set(id, ST_DONE);
+	}
 	if (texc[victim].t) SDL_DestroyTexture(texc[victim].t);
 	texc[victim].t = SDL_CreateTextureFromSurface((SDL_Renderer *)renderer, s);
 	if (texc[victim].t) SDL_SetTextureBlendMode(texc[victim].t, SDL_BLENDMODE_BLEND);
