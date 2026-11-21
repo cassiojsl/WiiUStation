@@ -267,9 +267,19 @@ static int fpsTexW, fpsTexH;
 
 void video_set_fps(int fps, int target) { fpsValue = fps; fpsTarget = target > 0 ? target : 60; }
 
+static int wideOn;
+void video_set_widescreen(int on) { wideOn = on; }
+
+static int crossOn, crossX, crossY;
+void video_set_crosshair(int on, int gx, int gy) { crossOn = on; crossX = gx; crossY = gy; }
+
 static void compute_dest(SDL_Rect *r, const SDL_Rect *src)
 {
 	const int W = 1280, H = 720;
+	if (wideOn) {           /* the game draws 16:9 itself (widescreen code) */
+		r->x = 0; r->y = 0; r->w = W; r->h = H;
+		return;
+	}
 	switch (cfg.aspect) {
 	case WIIU_ASPECT_ZOOM: {
 		/* the full frame is 4:3; the cropped part keeps the same pixel shape
@@ -784,6 +794,18 @@ void video_draw_game(int dim)
 		SDL_SetRenderTarget(renderer, NULL);
 		SDL_RenderSetLogicalSize(renderer, 1280, 720);
 		draw_curved(&dst);
+	}
+	if (crossOn && dst.w > 0) {
+		/* light-gun crosshair (aiming by motion) */
+		float fx = (crossX + 32767.0f) / 65534.0f * frameW, fy = (crossY + 32767.0f) / 65534.0f * frameH;
+		int sx = dst.x + (int)((fx - src.x) * dst.w / src.w), sy = dst.y + (int)((fy - src.y) * dst.h / src.h);
+		SDL_Rect hl[4] = { { sx - 18, sy - 2, 12, 4 }, { sx + 6, sy - 2, 12, 4 },
+		                   { sx - 2, sy - 18, 4, 12 }, { sx - 2, sy + 6, 4, 12 } };
+		SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+		SDL_SetRenderDrawColor(renderer, 0, 0, 0, 160);
+		for (int i = 0; i < 4; i++) { SDL_Rect o = { hl[i].x - 1, hl[i].y - 1, hl[i].w + 2, hl[i].h + 2 }; SDL_RenderFillRect(renderer, &o); }
+		SDL_SetRenderDrawColor(renderer, 255, 60, 60, 255);
+		SDL_RenderFillRects(renderer, hl, 4);
 	}
 	if (cfg.bezel == BEZEL_CUSTOM) {
 		SDL_Texture *b = custom_bezel();

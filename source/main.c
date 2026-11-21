@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include <math.h>
 #include <strings.h>
 #include <stdarg.h>
@@ -27,6 +28,10 @@ wiiu_settings cfg;
 extern const int default_map[16];
 static void recent_add(const char *path);
 static void cheats_load(void);
+static void cheats_apply(void);
+static void cheats_clear(void);
+static int wsActive;   /* widescreen on and the game has a code for it */
+static int cheatsReady; /* the loaded game's cheats are read */
 
 /* ------------------------------------------------------------------------ */
 /* helpers                                                                  */
@@ -103,6 +108,8 @@ static struct { const char *key; int *val; int min, max; } OPTS[] = {
 	{ "filter",     &cfg.filter,     0, 3 },
 	{ "fx",         &cfg.fx,         0, FX_COUNT - 1 },
 	{ "drc",        &cfg.drc,        0, DRC_COUNT - 1 },
+	{ "widescreen", &cfg.widescreen, 0, 1 },
+	{ "gyroaim",    &cfg.gyroaim,    0, 1 },
 	{ "scanlines",  &cfg.scanlines,  0, 1 },
 	{ "crt",        &cfg.crt,        0, 1 },
 	{ "reverb",     &cfg.reverb,     0, 1 },
@@ -448,6 +455,7 @@ static const char *core_var(const char *key)
 	if (!strcmp(key, "pcsx_rearmed_vibration")) return cfg.rumble ? "enabled" : "disabled";
 	if (!strcmp(key, "pcsx_rearmed_display_fps_v2")) return "disabled";
 	if (!strcmp(key, "pcsx_rearmed_rgb32_output")) return "disabled"; /* RGB565: cheapest upload */
+	if (!strcmp(key, "pcsx_rearmed_show_overscan") && emu_widescreen_active()) return "hack";
 	if (!strncmp(key, "pcsx_rearmed_", 13))
 		for (int i = 0; i < NCOREOPT; i++)
 			if (!strcmp(key + 13, COREOPT[i].key)) {
@@ -653,6 +661,26 @@ static void touch_update(void)
 		if (touch.inside) { touch.gx = gx; touch.gy = gy; }   /* the aim stays when released */
 	}
 	touch.down = down;
+
+	/* aim by turning the GamePad: integrate the turn speed; L re-centres */
+	if (cfg.gyroaim && (cfg.analog == PAD_GUNCON || cfg.analog == PAD_JUSTIFIER) && gp->connected) {
+		static float ax, ay;
+		const float span = 30.0f / 360.0f;        /* 30 degrees = the whole picture */
+		ax -= gp->gyro_y / 60.0f / span * 2.0f;
+		ay -= gp->gyro_x / 60.0f / span * 2.0f * 4.0f / 3.0f;
+		if (gp->held & WIIU_BTN_L) ax = ay = 0;
+		if (ax < -1) ax = -1;
+		if (ax > 1) ax = 1;
+		if (ay < -1) ay = -1;
+		if (ay > 1) ay = 1;
+		if (!down) {           /* touching still wins */
+			touch.gx = (int)(ax * 32767);
+			touch.gy = (int)(ay * 32767);
+		}
+		video_set_crosshair(1, touch.gx, touch.gy);
+	} else {
+		video_set_crosshair(0, 0, 0);
+	}
 }
 
 /* radial dead zone, then rescaled so full tilt still reaches 1 */
@@ -833,6 +861,13 @@ void emu_apply_settings(void)
 {
 	varsDirty = 1;
 	if (loaded) {
+		static int lastWs = -1;
+		if (cheatsReady) {
+			cheats_apply();
+			if (cfg.widescreen && !wsActive && lastWs != 0)
+				video_osd(tr("No widescreen code for this game: add one to its .cht file."));
+			lastWs = cfg.widescreen ? wsActive : -1;
+		}
 		for (int port = 0; port < NPORTS; port++) {
 			retro_set_controller_port_device(port, port_device(port));
 		}
@@ -934,6 +969,10 @@ void emu_unload_game(void)
 	retro_unload_game();
 	audio_shutdown();
 	loaded = 0;
+	cheats_clear();
+	cheatsReady = 0;
+	wsActive = 0;
+	video_set_widescreen(0);
 	gameName[0] = 0;
 	settings_leave_game();
 }
@@ -1084,6 +1123,7 @@ int emu_screenshot(void)
 #define MAX_CHEATS 128
 static struct { char desc[96]; char code[512]; int on; } cheats[MAX_CHEATS];
 static int ncheats;
+static void cheats_clear(void) { ncheats = 0; }
 static char chtPath[512];
 
 static char *cht_value(char *v)
@@ -1094,11 +1134,30 @@ static char *cht_value(char *v)
 	return v;
 }
 
+
+static int is_widescreen_cheat(const char *d)
+{
+	char l[96];
+	int i;
+	for (i = 0; d[i] && i < 95; i++) l[i] = (char)tolower((unsigned char)d[i]);
+	l[i] = 0;
+	return strstr(l, "widescreen") || strstr(l, "wide screen") || strstr(l, "16:9") || strstr(l, "16x9");
+}
+
+int emu_widescreen_active(void) { return wsActive; }
+
 static void cheats_apply(void)
 {
+	int ws = 0;
 	retro_cheat_reset();
-	for (int i = 0; i < ncheats; i++)
-		if (cheats[i].on) retro_cheat_set(i, true, cheats[i].code);
+	for (int i = 0; i < ncheats; i++) {
+		int on = cheats[i].on;
+		if (cfg.widescreen && is_widescreen_cheat(cheats[i].desc)) { on = 1; ws = 1; }
+		if (on) retro_cheat_set(i, true, cheats[i].code);
+	}
+	if (wsActive != ws) varsDirty = 1;   /* overscan "hack" follows it */
+	wsActive = ws;
+	video_set_widescreen(ws);
 }
 
 static void cheats_load(void)
@@ -1134,6 +1193,9 @@ static void cheats_load(void)
 	for (int i = 0; i < ncheats; i++)
 		if (!cheats[i].desc[0]) snprintf(cheats[i].desc, sizeof(cheats[i].desc), "Cheat %d", i + 1);
 	cheats_apply();
+	cheatsReady = 1;
+	if (cfg.widescreen && !wsActive)
+		video_osd(tr("No widescreen code for this game: add one to its .cht file."));
 }
 
 static void cheats_save(void)

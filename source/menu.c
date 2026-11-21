@@ -1617,12 +1617,12 @@ static void hotkeys(void);
 static void settings(void)
 {
 	enum { S_SCOPE, S_LANG, S_GAMES, S_VIEW, S_COVERS, S_RESUME, S_CORE, S_SKIP, S_FFWD, S_FFSPEED, S_FPS, S_AUDIO,
-	       S_ASPECT, S_FILTER, S_BEZEL, S_SCAN, S_CRT, S_FX, S_DRC, S_DITHER, S_PAD, S_PAD2, S_DEADZONE, S_MTAP,
+	       S_ASPECT, S_FILTER, S_BEZEL, S_WIDE, S_SCAN, S_CRT, S_FX, S_DRC, S_DITHER, S_PAD, S_GYRO, S_PAD2, S_DEADZONE, S_MTAP,
 	       S_CONTROLS, S_HOTKEYS, S_RUMBLE, S_REGION, S_BIOS, S_LOGO, S_ADV, S_COUNT };
 	static const char *allLabels[S_COUNT] = {
 		"Settings for", "Language", "Games folder", "Game list", "Covers", "Continue where you left off", "CPU core",
 		"Frame skip", "Fast forward", "Fast forward speed", "Show FPS", "Sound", "Screen",
-		"Picture", "Border", "Scanlines", "CRT mask", "Screen effect", "GamePad screen", "Dithering", "Player 1 controller",
+		"Picture", "Border", "Widescreen (16:9)", "Scanlines", "CRT mask", "Screen effect", "GamePad screen", "Dithering", "Player 1 controller", "Aim with GamePad motion",
 		"Player 2+ controller", "Analog dead zone", "Multitap (up to 5 players)", "Button mapping...", "Hotkeys...", "Vibration",
 		"Region", "BIOS", "PlayStation boot logo", "Advanced..."
 	};
@@ -1695,6 +1695,8 @@ static void settings(void)
 			case S_DITHER: values[k] = cfg.dithering == 0 ? "Off" : cfg.dithering == 1 ? "On" : "Force"; break;
 			case S_PAD:    values[k] = pad_type_name(cfg.analog); break;
 			case S_PAD2:   values[k] = pad_type_name(cfg.analog2); break;
+			case S_WIDE:   values[k] = cfg.widescreen ? "On" : "Off"; break;
+			case S_GYRO:   values[k] = cfg.gyroaim ? "On" : "Off"; break;
 			case S_DEADZONE: snprintf(dzs, sizeof(dzs), "%d%%", cfg.deadzone * 5); values[k] = dzs; break;
 			case S_MTAP:   values[k] = cfg.multitap ? "On" : "Off"; break;
 			case S_RUMBLE: values[k] = cfg.rumble ? "On" : "Off"; break;
@@ -1806,6 +1808,14 @@ static void settings(void)
 			}
 			break;
 		case S_PAD2:   cfg.analog2 = (cfg.analog2 + PAD_NEGCON + 1 + dir) % (PAD_NEGCON + 1); break;
+		case S_WIDE:
+			cfg.widescreen = !cfg.widescreen;
+			if (cfg.widescreen) status("Uses the game's widescreen code from its .cht file (a cheat named widescreen or 16:9).");
+			break;
+		case S_GYRO:
+			cfg.gyroaim = !cfg.gyroaim;
+			if (cfg.gyroaim) status("GunCon / Justifier: turn the GamePad to aim, L re-centres, ZR shoots.");
+			break;
 		case S_DEADZONE: cfg.deadzone = (cfg.deadzone + 7 + dir) % 7; break;
 		case S_MTAP:   cfg.multitap = !cfg.multitap;
 		               status(cfg.multitap ? "Players 1-4 on port 1, player 5 on port 2. Applies on resume."

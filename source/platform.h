@@ -78,6 +78,8 @@ typedef struct {
 	int scanlines;
 	int crt;            /* CRT aperture-grille mask */
 	int fx;             /* FX_* */
+	int widescreen;     /* 16:9 with the game's widescreen code (per game) */
+	int gyroaim;        /* light gun aimed by turning the GamePad */
 	int drc;            /* DRC_*: GamePad screen during a game */
 	int reverb;         /* SPU reverb (costs CPU) */
 	int dithering;      /* 0 off, 1 on, 2 force */
@@ -133,6 +135,8 @@ void video_set_fps(int fps, int target);  /* shown when Show FPS is on */
 void video_set_game_id(const char *id);
 /* screen point (1280x720) -> game frame, -32767..32767; 0 when outside the picture */
 int  video_screen_to_game(int sx, int sy, int *gx, int *gy);
+void video_set_widescreen(int on);
+void video_set_crosshair(int on, int gx, int gy);   /* game coords -32767..32767 */
 void video_fade_in(void);
 void video_set_ingame(int ingame);
 void video_lang_changed(void);           /* drop cached translated labels */        /* screens follow cfg.drc only in a game */
@@ -188,6 +192,8 @@ typedef struct {
 	uint32_t pressed;
 	float lx, ly, rx, ry;    /* -1..1, +y = up */
 	int touch_x, touch_y;
+	float gyro_x, gyro_y;     /* GamePad turn speed, 1.0 = 360 degrees per second */
+	int battery;              /* GamePad battery as reported by VPAD (0..6) */
 } wiiu_pad_state;
 
 #define WIIU_MAX_PADS 5          /* 0 = GamePad, 1..4 = Pro/Classic/Remote */
@@ -208,6 +214,8 @@ int  jit_available(void);
 int  emu_load_game(const char *path);
 void emu_background_save(void);          /* before the HOME Menu */
 int  emu_ppf_active(void);
+int  emu_widescreen_active(void);
+int  wiiu_battery(void);                 /* GamePad battery 0..6, -1 unknown */
 int  emu_load_game_disc(const char *m3u, int index, const char *disc_path);
 void emu_unload_game(void);
 int  emu_game_loaded(void);

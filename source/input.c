@@ -128,6 +128,9 @@ static void update_now(void)
 		pads[0].ly = clampf(vs.leftStick.y);
 		pads[0].rx = clampf(vs.rightStick.x);
 		pads[0].ry = clampf(vs.rightStick.y);
+		pads[0].gyro_x = vs.gyro.x;
+		pads[0].gyro_y = vs.gyro.y;
+		pads[0].battery = vs.battery;
 		VPADTouchData tp;
 		VPADGetTPCalibratedPoint(VPAD_CHAN_0, &tp, &vs.tpNormal);
 		if (tp.touched && tp.validity == VPAD_VALID) {
@@ -248,6 +251,11 @@ void wiiu_input_rumble(int idx, int on)
 	} else {
 		WPADControlMotor((WPADChan)(idx - 1), on ? 1 : 0);
 	}
+}
+
+int wiiu_battery(void)
+{
+	return pads[0].connected ? pads[0].battery : -1;
 }
 
 void wiiu_home_button_ingame(int ingame)
