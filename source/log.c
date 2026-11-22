@@ -78,11 +78,15 @@ void wlog_init(void)
 			fclose(rf);
 		}
 	}
-	char lastpc[200] = "";
+	char lastpc[12][200] = {{0}};
+	int nlast = 0;
 	if (crashed) {
 		FILE *pf = fopen(PC_FLAG, "r");
 		if (pf) {
-			if (fgets(lastpc, sizeof(lastpc), pf)) lastpc[strcspn(lastpc, "\r\n")] = 0;
+			while (nlast < 12 && fgets(lastpc[nlast], sizeof(lastpc[0]), pf)) {
+				lastpc[nlast][strcspn(lastpc[nlast], "\r\n")] = 0;
+				nlast++;
+			}
 			fclose(pf);
 		}
 	}
@@ -101,7 +105,7 @@ void wlog_init(void)
 			wlog("(that was the last state it saved: the freeze or crash came right after it)");
 		}
 		else wlog("the previous run did not end normally (crash or power off)");
-		if (lastpc[0]) wlog("last position seen by the watchdog: %s", lastpc);
+		for (int i = 0; i < nlast; i++) wlog("watchdog sample %d/%d before the end: %s", i + 1, nlast, lastpc[i]);
 	}
 	FILE *f = fopen(RUN_FLAG, "w");
 	if (f) { fputs("running\n", f); fclose(f); }
@@ -119,9 +123,14 @@ void wlog_activity(const char *what)
 
 void wlog_lastpc(const char *what)
 {
+	/* the last 12 samples, oldest first: the trend before a freeze (a stuck loop, memory growing...) */
+	static char ring[12][200];
+	static int n;
+	if (n == 12) { memmove(ring[0], ring[1], sizeof(ring[0]) * 11); n = 11; }
+	snprintf(ring[n++], sizeof(ring[0]), "%s", what);
 	FILE *f = fopen(PC_FLAG, "w");
 	if (!f) return;
-	fprintf(f, "%s\n", what);
+	for (int i = 0; i < n; i++) fprintf(f, "%s\n", ring[i]);
 	fclose(f);
 }
 
