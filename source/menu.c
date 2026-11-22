@@ -362,6 +362,35 @@ static void bg_quad(float x0, float y0, float x1, float y1, float x2, float y2, 
 	bgNV += 4; bgNI += 6;
 }
 
+/* a soft round light: alpha is aMax in the middle and fades smoothly to 0 at
+ * the radius (per-vertex colours, so the GPU interpolates: no visible rings) */
+static void bg_glow(float cx, float cy, float r, SDL_Color c, float aMax)
+{
+	enum { RINGS = 12, SEG = 48 };
+	if (r < 1 || bgNV + (RINGS + 1) * SEG > BG_MAXV - 8) return;
+	int base = bgNV;
+	for (int i = 0; i <= RINGS; i++) {
+		float t = (float)i / RINGS, sm = 1 - t;
+		float a = aMax * sm * sm * (3 - 2 * sm);
+		for (int k = 0; k < SEG; k++) {
+			float an = k * 6.2831853f / SEG;
+			SDL_Vertex *v = &bgV[bgNV++];
+			v->position.x = cx + cosf(an) * r * t;
+			v->position.y = cy + sinf(an) * r * t;
+			v->color = (SDL_Color){ c.r, c.g, c.b, (Uint8)(a > 255 ? 255 : a) };
+			v->tex_coord.x = v->tex_coord.y = 0;
+		}
+	}
+	for (int i = 0; i < RINGS; i++)
+		for (int k = 0; k < SEG; k++) {
+			int k1 = (k + 1) % SEG;
+			int a0 = base + i * SEG + k, a1 = base + i * SEG + k1;
+			int b0 = base + (i + 1) * SEG + k, b1 = base + (i + 1) * SEG + k1;
+			bgIdx[bgNI++] = a0; bgIdx[bgNI++] = b0; bgIdx[bgNI++] = b1;
+			bgIdx[bgNI++] = a0; bgIdx[bgNI++] = b1; bgIdx[bgNI++] = a1;
+		}
+}
+
 /* outline of a regular polygon (n corners), stroke width w, rotated by a */
 static void bg_ngon(float cx, float cy, float r, int n, float w, float a, SDL_Color c)
 {
@@ -2566,15 +2595,10 @@ static void loading_screen(const char *path)
 			fill(0, y, 1280, 6, c, 255);
 		}
 		/* glow behind the cover */
-		for (int i = 4; i >= 1; i--) {
-			bgNV = bgNI = 0;
-			float r = (120 + i * 40) * e;
-			SDL_Color g = th(30, 90, 200);
-			g.a = (Uint8)(22 * e);
-			bg_ngon(640, 300, r, 40, r, 0, g);
-			SDL_SetRenderDrawBlendMode(R, SDL_BLENDMODE_BLEND);
-			SDL_RenderGeometry(R, NULL, bgV, bgNV, bgIdx, bgNI);
-		}
+		bgNV = bgNI = 0;
+		bg_glow(640, 300, 280 * e, th(30, 90, 200), 90 * e);
+		SDL_SetRenderDrawBlendMode(R, SDL_BLENDMODE_BLEND);
+		SDL_RenderGeometry(R, NULL, bgV, bgNV, bgIdx, bgNI);
 		/* the cover grows from 70% with a fade */
 		int sz = (int)(300 * (0.7f + 0.3f * e));
 		cover_or_disc(id, 640 - sz / 2, 300 - sz / 2, sz);
@@ -4068,13 +4092,10 @@ static void intro(void)
 		SDL_RenderClear(R);
 		/* soft light growing behind the logo */
 		float glow = t < 1.0f ? t : 1.0f;
-		for (int i = 6; i >= 1; i--) {
-			SDL_Color c = { 20, 60, 140, 255 };
-			bgNV = bgNI = 0;
-			bg_ngon(640, 330, 60 + i * 50 * glow, 40, 60 + i * 50 * glow, 0, (SDL_Color){ c.r, c.g, c.b, (Uint8)(26 * glow) });
-			SDL_SetRenderDrawBlendMode(R, SDL_BLENDMODE_BLEND);
-			SDL_RenderGeometry(R, NULL, bgV, bgNV, bgIdx, bgNI);
-		}
+		bgNV = bgNI = 0;
+		bg_glow(640, 330, 60 + 300 * glow, (SDL_Color){ 20, 60, 140, 255 }, 150 * glow);
+		SDL_SetRenderDrawBlendMode(R, SDL_BLENDMODE_BLEND);
+		SDL_RenderGeometry(R, NULL, bgV, bgNV, bgIdx, bgNI);
 		/* the shapes: from the corners to their place on a circle, turning */
 		bgNV = bgNI = 0;
 		float k = t < 1.1f ? t / 1.1f : 1.0f;
