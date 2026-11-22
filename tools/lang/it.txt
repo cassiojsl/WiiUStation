@@ -549,3 +549,71 @@
 562|Cartella dei giochi su SD
 563|Solo SD
 564|Solo USB
+565|Data di uscita
+566|Genere
+567|Sviluppatore
+568|Editore
+569|Giocatori
+570|Descrizione
+571|Mostra...
+572|Dettagli del gioco
+573|Scarica (6,7 MB)
+574|Download dei dettagli dei giochi...
+575|Dettagli dei giochi scaricati.
+576|Impossibile scaricare i dettagli dei giochi.
+577|Nessuna descrizione.
+578|Azione
+579|Avventura
+580|GDR (RPG)
+581|Sport
+582|Corse
+583|Simulazione
+584|Picchiaduro
+585|Strategia
+586|Puzzle
+587|Piattaforme
+588|Sparatutto
+589|Gioco d'azzardo
+590|Mahjong
+591|Gioco da tavolo
+592|Pallacanestro
+593|Minigiochi
+594|Caccia e pesca
+595|Quiz
+596|Musica
+597|Survival horror
+598|Wrestling
+599|Ballo
+600|Educativo
+601|Pistola
+602|Calcio
+603|Carte
+604|Pugilato
+605|Shogi
+606|Flipper
+607|Tennis
+608|Fumetto interattivo
+609|Film interattivo
+610|Dati
+611|Immagini
+193|Immagine
+612|Video
+613|Video
+614|Breakout
+615|Scacchi
+616|Party
+617|Picchiaduro a scorrimento
+618|Sound novel
+619|Libro da colorare
+620|Gioco da colorare
+621|Cucina
+622|Simulatore di volo
+623|Visual novel
+624|Appuntamenti
+625|Go
+626|Allevamento
+627|Arcade
+628|Costruzione
+629|Costruzione
+630|Tarocchi
+631|Utilità

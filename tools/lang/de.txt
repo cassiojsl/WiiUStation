@@ -549,3 +549,71 @@
 562|Spieleordner auf SD
 563|Nur SD
 564|Nur USB
+565|Erscheinungsdatum
+566|Genre
+567|Entwickler
+568|Publisher
+569|Spieler
+570|Beschreibung
+571|Anzeigen...
+572|Spieldetails
+573|Herunterladen (6,7 MB)
+574|Spieldetails werden geladen...
+575|Spieldetails geladen.
+576|Die Spieldetails konnten nicht geladen werden.
+577|Keine Beschreibung.
+578|Action
+579|Abenteuer
+580|Rollenspiel (RPG)
+581|Sport
+582|Rennspiel
+583|Simulation
+584|Kampfspiel
+585|Strategie
+586|Puzzle
+587|Jump 'n' Run
+588|Shooter
+589|Glücksspiel
+590|Mahjong
+591|Brettspiel
+592|Basketball
+593|Minispiele
+594|Jagen und Angeln
+595|Quiz
+596|Musik
+597|Survival Horror
+598|Wrestling
+599|Tanzen
+600|Lernspiel
+601|Lichtpistole
+602|Fußball
+603|Kartenspiel
+604|Boxen
+605|Shogi
+606|Flipper
+607|Tennis
+608|Interaktiver Comic
+609|Interaktiver Film
+610|Daten
+611|Bilder
+193|Bild
+612|Videos
+613|Video
+614|Breakout
+615|Schach
+616|Party
+617|Beat'em Up
+618|Sound Novel
+619|Malbuch
+620|Malspiel
+621|Kochen
+622|Flugsimulator
+623|Visual Novel
+624|Dating
+625|Go
+626|Zucht
+627|Arcade
+628|Bauen
+629|Bauen
+630|Tarot
+631|Hilfsprogramm

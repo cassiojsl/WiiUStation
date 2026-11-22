@@ -549,3 +549,71 @@
 562|Dossier des jeux sur SD
 563|SD uniquement
 564|USB uniquement
+565|Date de sortie
+566|Genre
+567|Développeur
+568|Éditeur
+569|Joueurs
+570|Description
+571|Afficher...
+572|Détails du jeu
+573|Télécharger (6,7 Mo)
+574|Téléchargement des détails des jeux...
+575|Détails des jeux téléchargés.
+576|Impossible de télécharger les détails des jeux.
+577|Pas de description.
+578|Action
+579|Aventure
+580|RPG
+581|Sports
+582|Course
+583|Simulation
+584|Combat
+585|Stratégie
+586|Puzzle
+587|Plateforme
+588|Tir
+589|Jeux d'argent
+590|Mahjong
+591|Jeu de plateau
+592|Basket-ball
+593|Mini-jeux
+594|Chasse et pêche
+595|Quiz
+596|Musique
+597|Survival horror
+598|Catch
+599|Danse
+600|Éducatif
+601|Pistolet
+602|Football
+603|Cartes
+604|Boxe
+605|Shogi
+606|Flipper
+607|Tennis
+608|BD interactive
+609|Film interactif
+610|Données
+611|Images
+193|Image
+612|Vidéos
+613|Vidéo
+614|Breakout
+615|Échecs
+616|Fête
+617|Beat'em up
+618|Sound novel
+619|Livre de coloriage
+620|Jeu de coloriage
+621|Cuisine
+622|Simulateur de vol
+623|Visual novel
+624|Rencontres
+625|Go
+626|Élevage
+627|Arcade
+628|Construction
+629|Construction
+630|Tarot
+631|Utilitaire

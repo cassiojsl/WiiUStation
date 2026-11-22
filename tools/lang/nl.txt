@@ -549,3 +549,71 @@
 562|Spellenmap op SD
 563|Alleen SD
 564|Alleen USB
+565|Releasedatum
+566|Genre
+567|Ontwikkelaar
+568|Uitgever
+569|Spelers
+570|Beschrijving
+571|Tonen...
+572|Spelgegevens
+573|Downloaden (6,7 MB)
+574|Spelgegevens downloaden...
+575|Spelgegevens gedownload.
+576|Kon de spelgegevens niet downloaden.
+577|Geen beschrijving.
+578|Actie
+579|Avontuur
+580|Rollenspel (RPG)
+581|Sport
+582|Race
+583|Simulatie
+584|Vechtspel
+585|Strategie
+586|Puzzel
+587|Platformgame
+588|Shooter
+589|Gokken
+590|Mahjong
+591|Bordspel
+592|Basketbal
+593|Minigames
+594|Jagen en vissen
+595|Quiz
+596|Muziek
+597|Survival horror
+598|Worstelen
+599|Dansen
+600|Educatief
+601|Lichtpistool
+602|Voetbal
+603|Kaartspel
+604|Boksen
+605|Shogi
+606|Flipperkast
+607|Tennis
+608|Interactieve strip
+609|Interactieve film
+610|Gegevens
+611|Afbeeldingen
+193|Afbeelding
+612|Video's
+613|Video
+614|Breakout
+615|Schaken
+616|Party
+617|Beat'em up
+618|Sound novel
+619|Kleurboek
+620|Kleurspel
+621|Koken
+622|Vluchtsimulator
+623|Visual novel
+624|Daten
+625|Go
+626|Fokken
+627|Arcade
+628|Bouwen
+629|Bouwen
+630|Tarot
+631|Hulpprogramma
