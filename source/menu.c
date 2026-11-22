@@ -866,52 +866,77 @@ static void transition(void) { fadeStart = SDL_GetTicks(); }
 
 /* the Wii Remote pointer: a hand with a grey edge and a soft white-to-grey
  * fill, in three poses: pointing (over something to choose), open (idle)
- * and a fist (A held). The fingertip of the pointing hand is the point. */
+ * and a fist (A held). The fingertip of the pointing hand is the point.
+ * The hands are built from capsules (fingers) and ellipses (palm), so the
+ * shapes are round and organic. */
 enum { HAND_POINT, HAND_OPEN, HAND_FIST };
+typedef struct { char t; float a, b, c, d, r; } hprim_t;      /* 'c': capsule a,b -> c,d radius r; 'e': ellipse centre a,b radii c,d */
+static const hprim_t H_POINT[] = {
+	{ 'c', 0, 6, 0, 34, 6.0f }, { 'e', 8, 47, 20, 15, 0 }, { 'c', -10, 48, -22, 38, 5.4f },
+	{ 'c', 9, 36, 9, 38, 5.8f }, { 'c', 18, 38, 18, 40, 5.8f }, { 'c', 27, 42, 27, 44, 5.2f },
+};
+static const hprim_t H_OPEN[] = {
+	{ 'c', -15, 16, -15, 38, 5.2f }, { 'c', -5, 8, -5, 38, 5.2f }, { 'c', 5, 10, 5, 38, 5.2f }, { 'c', 15, 18, 15, 38, 4.8f },
+	{ 'e', 0, 48, 20, 13, 0 }, { 'c', -14, 50, -28, 35, 5.6f },
+};
+static const hprim_t H_FIST[] = {
+	{ 'e', 4, 43, 22, 15, 0 },
+	{ 'c', -10, 31, -10, 33, 5.8f }, { 'c', 0, 28, 0, 30, 6.0f }, { 'c', 10, 28, 10, 30, 6.0f }, { 'c', 19, 31, 19, 33, 5.4f },
+	{ 'c', -14, 47, -27, 38, 5.4f },
+};
+
+static void hand_prim(const hprim_t *p, float ox, float oy, float k, float grow, SDL_Color c, uint8_t a)
+{
+	float xy[2 * 32];
+	int n = 0;
+	if (p->t == 'e') {
+		for (int i = 0; i < 24; i++) {
+			float an = i * 0.2617994f;
+			xy[n++] = ox + (p->a + cosf(an) * (p->c + grow)) * k;
+			xy[n++] = oy + (p->b + sinf(an) * (p->d + grow)) * k;
+		}
+		poly(xy, 24, c, a);
+		return;
+	}
+	/* capsule: a half circle round each end, as one convex polygon */
+	float r = p->r + grow, ang = atan2f(p->d - p->b, p->c - p->a);
+	for (int i = 0; i <= 8; i++) {                       /* end 1, from ang-90 to ang+90 */
+		float an = ang - 1.5707963f + i * 0.3926991f;
+		xy[n++] = ox + (p->c + cosf(an) * r) * k;
+		xy[n++] = oy + (p->d + sinf(an) * r) * k;
+	}
+	for (int i = 0; i <= 8; i++) {                       /* end 0, from ang+90 to ang+270 */
+		float an = ang + 1.5707963f + i * 0.3926991f;
+		xy[n++] = ox + (p->a + cosf(an) * r) * k;
+		xy[n++] = oy + (p->b + sinf(an) * r) * k;
+	}
+	poly(xy, n / 2, c, a);
+}
+
 static void draw_hand(float hx, float hy, int pose)
 {
-	/* (x, y, w, h, radius) from the fingertip, in pixels */
-	static const int point[][5] = {
-		{ -5, 24, 38, 30, 12 },                                   /* hand */
-		{ -4, 0, 9, 36, 4 },                                      /* index finger */
-		{ 5, 24, 9, 14, 4 }, { 14, 26, 9, 14, 4 }, { 23, 30, 9, 12, 4 },   /* curled fingers */
-		{ -19, 36, 18, 11, 5 },                                   /* thumb */
-	};
-	static const int open[][5] = {
-		{ -5, 18, 38, 30, 12 },
-		{ -4, 0, 9, 30, 4 }, { 5, 2, 9, 28, 4 }, { 14, 5, 9, 25, 4 }, { 23, 10, 9, 20, 4 },
-		{ -19, 26, 18, 11, 5 },
-	};
-	static const int fist[][5] = {
-		{ -5, 12, 38, 34, 12 },
-		{ -4, 4, 9, 16, 4 }, { 5, 3, 9, 17, 4 }, { 14, 4, 9, 16, 4 }, { 23, 6, 9, 14, 4 },
-		{ -19, 22, 18, 11, 5 },
-	};
-	const int (*r)[5] = pose == HAND_POINT ? point : pose == HAND_OPEN ? open : fist;
-	const int top = -4, bottom = 60, bands = 8;
-	/* soft shadow, grey edge, then the fill in horizontal bands going from white to light grey */
-	for (int pass = 0; pass < 2; pass++) {
-		int g = pass == 0 ? 6 : 3;
-		SDL_Color c = pass == 0 ? (SDL_Color){ 0, 0, 0, 255 } : (SDL_Color){ 98, 100, 108, 255 };
-		for (int i = 0; i < 6; i++)
-			rrect((int)hx + r[i][0] - g, (int)hy + r[i][1] - g + (pass == 0 ? 2 : 0), r[i][2] + 2 * g, r[i][3] + 2 * g, r[i][4] + g, c, pass == 0 ? 70 : 255);
-	}
-	for (int k = 0; k < bands; k++) {
-		int y0 = (int)hy + top + (bottom - top) * k / bands, y1 = (int)hy + top + (bottom - top) * (k + 1) / bands;
-		uint8_t v = (uint8_t)(255 - 52 * k / (bands - 1));
-		SDL_RenderSetClipRect(R, &(SDL_Rect){ 0, y0, 1280, y1 - y0 });
-		for (int i = 0; i < 6; i++)
-			rrect((int)hx + r[i][0], (int)hy + r[i][1], r[i][2], r[i][3], r[i][4], (SDL_Color){ v, v, (uint8_t)(v + 2 > 255 ? 255 : v + 2), 255 }, 255);
+	const hprim_t *h = pose == HAND_POINT ? H_POINT : pose == HAND_OPEN ? H_OPEN : H_FIST;
+	const int cnt = 6;
+	const float k = 0.85f;
+	float oy = hy + (pose == HAND_POINT ? 0 : -20 * k);        /* the open hand and the fist are centred on the point */
+	float ox = hx + (pose == HAND_POINT ? 0 : 0);
+	/* soft shadow, grey edge */
+	for (int i = 0; i < cnt; i++) hand_prim(&h[i], ox, oy + 3, k, 5, (SDL_Color){ 0, 0, 0, 255 }, 70);
+	for (int i = 0; i < cnt; i++) hand_prim(&h[i], ox, oy, k, 3, (SDL_Color){ 98, 100, 108, 255 }, 255);
+	/* fill in horizontal bands, white at the top to light grey at the bottom */
+	const int bands = 8, top = -8, bottom = 66;
+	for (int b = 0; b < bands; b++) {
+		int y0 = (int)(oy + (top + (bottom - top) * b / bands) * k), y1 = (int)(oy + (top + (bottom - top) * (b + 1) / bands) * k);
+		uint8_t v = (uint8_t)(255 - 52 * b / (bands - 1));
+		SDL_RenderSetClipRect(R, &(SDL_Rect){ 0, y0, 1280, y1 - y0 + 1 });
+		for (int i = 0; i < cnt; i++) hand_prim(&h[i], ox, oy, k, 0, (SDL_Color){ v, v, (uint8_t)(v > 253 ? 255 : v + 2), 255 }, 255);
 	}
 	SDL_RenderSetClipRect(R, NULL);
-	/* lines between the fingers */
-	static const int sepOpen[][4] = { { 4, 6, 2, 24 }, { 13, 9, 2, 21 }, { 22, 14, 2, 16 } };
-	static const int sepPoint[][4] = { { 13, 26, 2, 10 }, { 22, 30, 2, 8 } };
-	static const int sepFist[][4] = { { 4, 6, 2, 12 }, { 13, 6, 2, 12 }, { 22, 8, 2, 10 } };
-	const int (*sp)[4] = pose == HAND_OPEN ? sepOpen : pose == HAND_POINT ? sepPoint : sepFist;
-	int ns = pose == HAND_OPEN ? 3 : pose == HAND_POINT ? 2 : 3;
-	for (int i = 0; i < ns; i++)
-		fill((int)hx + sp[i][0], (int)hy + sp[i][1], sp[i][2], sp[i][3], (SDL_Color){ 98, 100, 108, 255 }, 230);
+	if (pose == HAND_OPEN) {                                      /* lines between the fingers */
+		static const float sep[3][2] = { { -10, 22 }, { 0, 17 }, { 10, 19 } };
+		for (int i = 0; i < 3; i++)
+			fill((int)(ox + (sep[i][0] - 0.8f) * k), (int)(oy + sep[i][1] * k), 2, (int)((40 - sep[i][1]) * k), (SDL_Color){ 98, 100, 108, 255 }, 255);
+	}
 }
 
 static void draw_pointers(void)
