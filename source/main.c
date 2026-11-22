@@ -14,6 +14,9 @@
 #include <malloc.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <coreinit/exception.h>
+#include <coreinit/core.h>
+#include <coreinit/context.h>
 #include <string.h>
 #include <ctype.h>
 #include <math.h>
@@ -2060,6 +2063,27 @@ static volatile unsigned wdFrames;
 static volatile int wdActive, wdQuit;
 static const char *volatile wdStage = "";
 
+/* A crash inside the app (a bad access, a jump to garbage...) normally ends in the system's error screen or in a
+ * frozen picture.  These callbacks keep what the CPU says about it for the watchdog thread to write to the log. */
+static volatile int excSeen;
+static struct { int type, core; unsigned srr0, dar, dsisr, lr, sp, r3, r4, r5; } excInfo;
+
+static BOOL on_exception(OSContext *c, int type)
+{
+	if (!excSeen) {
+		excInfo.type = type; excInfo.core = (int)OSGetCoreId();
+		excInfo.srr0 = c->srr0; excInfo.dar = c->dar; excInfo.dsisr = c->dsisr;
+		excInfo.lr = c->lr; excInfo.sp = c->gpr[1]; excInfo.r3 = c->gpr[3]; excInfo.r4 = c->gpr[4]; excInfo.r5 = c->gpr[5];
+		excSeen = 1;
+	}
+	for (;;) OSSleepTicks(OSMillisecondsToTicks(100));   /* this thread stops here; the watchdog reports and leaves */
+	return FALSE;
+}
+static BOOL on_dsi(OSContext *c) { return on_exception(c, 2); }
+static BOOL on_isi(OSContext *c) { return on_exception(c, 3); }
+static BOOL on_align(OSContext *c) { return on_exception(c, 5); }
+static BOOL on_prog(OSContext *c) { return on_exception(c, 6); }
+
 static int watchdog_thread(void *ud)
 {
 	(void)ud;
@@ -2067,7 +2091,19 @@ static int watchdog_thread(void *ud)
 	uint32_t lastChange = SDL_GetTicks();
 	int reports = 0;
 	while (!wdQuit) {
-		SDL_Delay(1000);
+		for (int w = 0; w < 10 && !excSeen; w++) SDL_Delay(100);
+		if (excSeen) {
+			extern uint32_t wiiustation_jit_size; extern void *wiiustation_jit_base(void);
+			static const char *const names[] = { [2] = "DSI (bad data access)", [3] = "ISI (bad instruction fetch)", [5] = "alignment", [6] = "program (illegal instruction)" };
+			wlog("CRASH INSIDE THE APP: %s on core %d: at %08x (called from %08x), address %08x, dsisr %08x, sp %08x, r3 %08x r4 %08x r5 %08x; Lightrec code area %08x +%x; PS1 pc=%08x",
+			     names[excInfo.type], excInfo.core, excInfo.srr0, excInfo.lr, excInfo.dar, excInfo.dsisr, excInfo.sp,
+			     excInfo.r3, excInfo.r4, excInfo.r5, (unsigned)(uintptr_t)wiiustation_jit_base(), wiiustation_jit_size,
+			     wiiustation_ps1_state(&(unsigned){0}));
+			wlog_exit();
+			SYSLaunchMenu();
+			SDL_Delay(4000);
+			_Exit(1);
+		}
 		uint32_t now = SDL_GetTicks();
 		if (wdActive) {          /* where the emulated CPU is, for after a freeze of the whole console */
 			char pos[160];
@@ -2394,6 +2430,10 @@ int main(int argc, char **argv)
 	update_cleanup();
 	wlog_init();
 	{
+		OSSetExceptionCallbackEx(OS_EXCEPTION_MODE_THREAD_ALL_CORES, OS_EXCEPTION_TYPE_DSI, on_dsi);
+		OSSetExceptionCallbackEx(OS_EXCEPTION_MODE_THREAD_ALL_CORES, OS_EXCEPTION_TYPE_ISI, on_isi);
+		OSSetExceptionCallbackEx(OS_EXCEPTION_MODE_THREAD_ALL_CORES, OS_EXCEPTION_TYPE_ALIGNMENT, on_align);
+		OSSetExceptionCallbackEx(OS_EXCEPTION_MODE_THREAD_ALL_CORES, OS_EXCEPTION_TYPE_PROGRAM, on_prog);
 		SDL_Thread *wd = SDL_CreateThreadWithStackSize(watchdog_thread, "watchdog", 64 * 1024, NULL);
 		if (wd) SDL_DetachThread(wd);
 	}
