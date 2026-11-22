@@ -491,3 +491,21 @@
 504|Pulsa Y otra vez para borrar la tarjeta entera.
 505|Tarjeta de memoria borrada.
 506|No se pudo borrar la tarjeta de memoria.
+507|Quién es el jugador 1
+508|Puntero del Wii Remote
+509|Con el GamePad encendido, es el jugador 1. Elige los mandos de Wii para que el Pro Controller o el Wii Remote sea el jugador 1.
+510|Apunta el Wii Remote a la pantalla para usar el menú. Necesita una barra sensora: la del GamePad o la del televisor.
+511|Mandos de Wii
+512|Barra sensora del GamePad
+513|Barra sensora del televisor
+514|Apunta el Wii Remote al GamePad. Su barra sensora solo está encendida mientras haya un Wii Remote conectado.
+515|Apunta el Wii Remote al televisor. Necesita la barra sensora del televisor.
+516|Wii Remote + Nunchuk
+517|GamePad, Pro, Classic
+518|C (Nunchuk)
+519|Z (Nunchuk)
+520|Nunchuk: palanca arriba
+521|Nunchuk: palanca abajo
+522|Nunchuk: palanca izquierda
+523|Nunchuk: palanca derecha
+524|Wii Remote en horizontal, o en vertical con un Nunchuk (su palanca es la izquierda)

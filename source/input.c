@@ -107,8 +107,37 @@ void wiiu_input_init(void)
 	memset(pads, 0, sizeof(pads));
 }
 
+static int pointerMenu = 1;
+
+/* the pointer is for the menu: in a game it must not click, and the
+ * GamePad's sensor bar is switched off */
+void wiiu_input_pointer_menu(int on)
+{
+	pointerMenu = on;
+	if (!on) wiiu_input_sensor_bar(0);
+	else {
+		int remote = 0;
+		for (int i = 1; i < WIIU_MAX_PADS; i++)
+			if (pads[i].connected && pads[i].kind >= PADKIND_REMOTE) remote = 1;
+		/* the GamePad's bar only while a Wii Remote is there to use it */
+		wiiu_input_sensor_bar(cfg.pointer == 1 && !remote ? 0 : cfg.pointer);
+	}
+}
+
+/* where the Wii Remote's pointer finds its sensor bar: 0 none (the GamePad's
+ * bar is switched off to save its battery), 1 the GamePad's, 2 the TV's */
+void wiiu_input_sensor_bar(int mode)
+{
+	static int cur = -1;
+	if (mode == cur) return;
+	cur = mode;
+	VPADSetSensorBar(VPAD_CHAN_0, mode == 1);
+	if (mode == 2) WPADSetSensorBarPosition(WPAD_SENSOR_BAR_POS_BELOW);
+}
+
 void wiiu_input_shutdown(void)
 {
+	wiiu_input_sensor_bar(0);
 	for (int i = 0; i < WIIU_MAX_PADS; i++) wiiu_input_rumble(i, 0);
 	KPADShutdown();
 }
@@ -123,6 +152,7 @@ static void update_now(void)
 	prev = pads[0].held;
 	if (VPADRead(VPAD_CHAN_0, &vs, 1, &verr) > 0 && verr == VPAD_READ_SUCCESS) {
 		pads[0].connected = 1;
+		pads[0].kind = PADKIND_GAMEPAD;
 		pads[0].held = map_vpad(vs.hold);
 		pads[0].lx = clampf(vs.leftStick.x);
 		pads[0].ly = clampf(vs.leftStick.y);
@@ -162,6 +192,8 @@ static void update_now(void)
 		if (KPADReadEx((KPADChan)ch, &ks, 1, &kerr) > 0 && kerr == KPAD_ERROR_OK) {
 			if (ks.extensionType == WPAD_EXT_PRO_CONTROLLER) {
 				p->connected = 1;
+				p->kind = PADKIND_PRO;
+				p->ptr_valid = 0;
 				p->held = map_pro(ks.pro.hold);
 				p->lx = clampf(ks.pro.leftStick.x);
 				p->ly = clampf(ks.pro.leftStick.y);
@@ -170,28 +202,79 @@ static void update_now(void)
 			} else if (ks.extensionType == WPAD_EXT_CLASSIC ||
 			           ks.extensionType == WPAD_EXT_MPLUS_CLASSIC) {
 				p->connected = 1;
+				p->kind = PADKIND_CLASSIC;
+				p->ptr_valid = 0;
 				p->held = map_classic(ks.classic.hold);
 				p->lx = clampf(ks.classic.leftStick.x);
 				p->ly = clampf(ks.classic.leftStick.y);
 				p->rx = clampf(ks.classic.rightStick.x);
 				p->ry = clampf(ks.classic.rightStick.y);
 			} else {
-				/* Plain Wii Remote held sideways: usable as a digital pad. */
-				uint32_t b = ks.hold, o = 0;
+				/* Wii Remote: held sideways (a digital pad), or upright with a
+				 * Nunchuk (stick + C and Z). */
+				uint32_t b = ks.hold, o = 0, raw = 0;
+				int nun = ks.extensionType == WPAD_EXT_NUNCHUK || ks.extensionType == WPAD_EXT_MPLUS_NUNCHUK;
 				p->connected = 1;
-				if (b & WPAD_BUTTON_2)     o |= WIIU_BTN_A;
-				if (b & WPAD_BUTTON_1)     o |= WIIU_BTN_B;
-				if (b & WPAD_BUTTON_B)     o |= WIIU_BTN_Y;
-				if (b & WPAD_BUTTON_A)     o |= WIIU_BTN_X;
-				if (b & WPAD_BUTTON_RIGHT) o |= WIIU_BTN_UP;
-				if (b & WPAD_BUTTON_LEFT)  o |= WIIU_BTN_DOWN;
-				if (b & WPAD_BUTTON_UP)    o |= WIIU_BTN_LEFT;
-				if (b & WPAD_BUTTON_DOWN)  o |= WIIU_BTN_RIGHT;
+				p->kind = nun ? PADKIND_NUNCHUK : PADKIND_REMOTE;
+				if (b & WPAD_BUTTON_1)     raw |= 1u << WR_1;
+				if (b & WPAD_BUTTON_2)     raw |= 1u << WR_2;
+				if (b & WPAD_BUTTON_A)     raw |= 1u << WR_A;
+				if (b & WPAD_BUTTON_B)     raw |= 1u << WR_B;
+				if (b & WPAD_BUTTON_PLUS)  raw |= 1u << WR_PLUS;
+				if (b & WPAD_BUTTON_MINUS) raw |= 1u << WR_MINUS;
+				p->lx = p->ly = p->rx = p->ry = 0;
+				if (nun) {
+					if (b & WPAD_BUTTON_UP)    raw |= 1u << WR_UP;
+					if (b & WPAD_BUTTON_DOWN)  raw |= 1u << WR_DOWN;
+					if (b & WPAD_BUTTON_LEFT)  raw |= 1u << WR_LEFT;
+					if (b & WPAD_BUTTON_RIGHT) raw |= 1u << WR_RIGHT;
+					if (ks.nunchuk.hold & WPAD_NUNCHUK_BUTTON_C) raw |= 1u << WR_C;
+					if (ks.nunchuk.hold & WPAD_NUNCHUK_BUTTON_Z) raw |= 1u << WR_Z;
+					p->lx = clampf(ks.nunchuk.stick.x);
+					p->ly = clampf(ks.nunchuk.stick.y);
+					if (p->ly > 0.5f)  raw |= 1u << WR_SUP;
+					if (p->ly < -0.5f) raw |= 1u << WR_SDOWN;
+					if (p->lx < -0.5f) raw |= 1u << WR_SLEFT;
+					if (p->lx > 0.5f)  raw |= 1u << WR_SRIGHT;
+				} else {
+					/* sideways: the physical d-pad is turned a quarter */
+					if (b & WPAD_BUTTON_RIGHT) raw |= 1u << WR_UP;
+					if (b & WPAD_BUTTON_LEFT)  raw |= 1u << WR_DOWN;
+					if (b & WPAD_BUTTON_UP)    raw |= 1u << WR_LEFT;
+					if (b & WPAD_BUTTON_DOWN)  raw |= 1u << WR_RIGHT;
+				}
+				p->wraw = raw;
+				/* the menu: a fixed layout */
+				if (raw & (1u << WR_UP))    o |= WIIU_BTN_UP;
+				if (raw & (1u << WR_DOWN))  o |= WIIU_BTN_DOWN;
+				if (raw & (1u << WR_LEFT))  o |= WIIU_BTN_LEFT;
+				if (raw & (1u << WR_RIGHT)) o |= WIIU_BTN_RIGHT;
+				if (nun) {
+					if (raw & (1u << WR_A))  o |= WIIU_BTN_A;
+					if (raw & (1u << WR_B))  o |= WIIU_BTN_B;
+					if (raw & (1u << WR_1))  o |= WIIU_BTN_X;
+					if (raw & (1u << WR_2))  o |= WIIU_BTN_Y;
+				} else {
+					if (raw & (1u << WR_2))  o |= WIIU_BTN_A;
+					if (raw & (1u << WR_1))  o |= WIIU_BTN_B;
+					if (raw & (1u << WR_B))  o |= WIIU_BTN_Y;
+					if (raw & (1u << WR_A))  o |= WIIU_BTN_X;
+				}
 				if (b & WPAD_BUTTON_PLUS)  o |= WIIU_BTN_PLUS;
 				if (b & WPAD_BUTTON_MINUS) o |= WIIU_BTN_MINUS;
 				if (b & WPAD_BUTTON_HOME)  o |= WIIU_BTN_HOME;
+				/* the pointer (when the sensor bar sees it): A clicks instead */
+				p->ptr_valid = pointerMenu && ks.posValid > 0 && cfg.pointer;
+				if (p->ptr_valid) {
+					float px = (ks.pos.x + 1.0f) * 0.5f * 1280.0f;
+					float py = (ks.pos.y + 1.0f) * 0.5f * 720.0f;
+					p->ptr_x = px < 0 ? 0 : px > 1279 ? 1279 : px;
+					p->ptr_y = py < 0 ? 0 : py > 719 ? 719 : py;
+					if (b & WPAD_BUTTON_A) { o |= WIIU_BTN_TOUCH; o &= ~(WIIU_BTN_A | WIIU_BTN_X); }
+					p->touch_x = (int)p->ptr_x;
+					p->touch_y = (int)p->ptr_y;
+				}
 				p->held = o;
-				p->lx = p->ly = p->rx = p->ry = 0;
 			}
 		}
 		p->pressed = p->held & ~prev;

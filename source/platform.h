@@ -95,6 +95,9 @@ typedef struct {
 	int analog2;        /* players 2+: PAD_DIGITAL, PAD_DUALSHOCK or PAD_NEGCON */
 	int deadzone;       /* analog stick dead zone, in 5% steps */
 	int multitap;       /* 4 players on port 1 */
+	int p1first;        /* player 1: 0 the GamePad (when on), 1 the first Pro/Classic/Wii Remote */
+	int pointer;        /* Wii Remote pointer in the menu: 0 off, 1 GamePad sensor bar, 2 TV sensor bar */
+	int wmap[16];       /* PSX button <- Wii Remote/Nunchuk button (WR_*), -1 none */
 	int region;         /* 0 auto, 1 NTSC, 2 PAL */
 	int resume;         /* offer to continue where you left off */
 	int ffwd;           /* fast forward: 0 off, 1 hold R3, 2 toggle R3, 3 hold ZL+ZR */
@@ -207,8 +210,22 @@ enum {
 	WIIU_BTN_HOME   = 1 << 17,
 };
 
+/* Wii Remote (+ Nunchuk) buttons, as the player holds it: the d-pad names the
+ * direction in the game whatever way the remote is held */
+enum {
+	WR_1, WR_2, WR_A, WR_B, WR_PLUS, WR_MINUS,
+	WR_UP, WR_DOWN, WR_LEFT, WR_RIGHT,
+	WR_C, WR_Z, WR_SUP, WR_SDOWN, WR_SLEFT, WR_SRIGHT,
+	WR_COUNT
+};
+enum { PADKIND_GAMEPAD, PADKIND_PRO, PADKIND_CLASSIC, PADKIND_REMOTE, PADKIND_NUNCHUK };
+
 typedef struct {
 	int connected;
+	int kind;                /* PADKIND_* */
+	uint32_t wraw;           /* Wii Remote family: WR_* bits (1 << WR_x) */
+	int ptr_valid;           /* Wii Remote pointing at the screen */
+	float ptr_x, ptr_y;      /* menu pixels (1280x720) */
 	uint32_t held;
 	uint32_t pressed;
 	float lx, ly, rx, ry;    /* -1..1, +y = up */
@@ -226,6 +243,8 @@ uint32_t wiiu_input_menu_pressed(void);
 uint32_t wiiu_input_menu_held(void);
 void wiiu_input_rumble(int idx, int on);
 void wiiu_input_reset_hotkey(void);
+void wiiu_input_sensor_bar(int mode);   /* 0 off, 1 GamePad, 2 TV */
+void wiiu_input_pointer_menu(int on);   /* the Wii Remote pointer works in the menu only */
 void wiiu_home_button_ingame(int ingame);
 
 /* ---- JIT (jit.c) ---- */

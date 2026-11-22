@@ -27,6 +27,7 @@
 
 wiiu_settings cfg;
 extern const int default_map[16];
+extern const int default_wmap[16];
 static void recent_add(const char *path);
 static void cheats_load(void);
 static void cheats_apply(void);
@@ -123,6 +124,8 @@ static struct { const char *key; int *val; int min, max; } OPTS[] = {
 	{ "analog2",    &cfg.analog2,    -1, PAD_NEGCON },
 	{ "deadzone",   &cfg.deadzone,   0, 6 },
 	{ "multitap",   &cfg.multitap,   0, 1 },
+	{ "p1first",    &cfg.p1first,    0, 1 },
+	{ "pointer",    &cfg.pointer,    0, 2 },
 	{ "region",     &cfg.region,     0, 2 },
 	{ "resume",     &cfg.resume,     0, 1 },
 	{ "ffwd",       &cfg.ffwd,       0, 3 },
@@ -314,7 +317,7 @@ const char *emu_autofix_name(void)
 static int global_only(const char *k)
 {
 	return !strcmp(k, "view") || !strcmp(k, "cover3d") || !strcmp(k, "menusfx") || !strcmp(k, "theme") || !strcmp(k, "autostart") || !strcmp(k, "autofix") || !strcmp(k, "sort") || !strcmp(k, "regionf") || !strcmp(k, "lang") || !strncmp(k, "hk", 2) || !strcmp(k, "games_dir") || !strcmp(k, "gpu_thread") ||
-	       !strcmp(k, "spu_thread") || !strcmp(k, "resume") || !strcmp(k, "ffwd");
+	       !strcmp(k, "spu_thread") || !strcmp(k, "resume") || !strcmp(k, "ffwd") || !strcmp(k, "pointer");
 }
 
 #define GAMECFG_DIR WIIU_APP_DIR "/gamesettings"
@@ -356,6 +359,7 @@ static void settings_defaults(void)
 	memcpy(cfg.hk, default_hotkeys, sizeof(cfg.hk));
 	strcpy(cfg.games_dir, WIIU_ISO_DIR);
 	memcpy(cfg.map, default_map, sizeof(cfg.map));
+	memcpy(cfg.wmap, default_wmap, sizeof(cfg.wmap));
 }
 
 static int settings_parse(const char *path, int isGame)
@@ -388,6 +392,11 @@ static int settings_parse(const char *path, int isGame)
 		if (!strncmp(k, "map", 3) && k[3] >= '0' && k[3] <= '9') {
 			int id = atoi(k + 3), v = atoi(eq + 1);
 			if (id >= 0 && id < 16 && v >= 0 && v < 16) cfg.map[id] = v;
+			continue;
+		}
+		if (!strncmp(k, "wmap", 4) && k[4] >= '0' && k[4] <= '9') {
+			int id = atoi(k + 4), v = atoi(eq + 1);
+			if (id >= 0 && id < 16 && v >= -1 && v < WR_COUNT) cfg.wmap[id] = v;
 			continue;
 		}
 		if (!strncmp(k, "c_", 2)) {
@@ -434,6 +443,7 @@ static int settings_write(const char *path, int isGame)
 	for (int i = 0; i < NCOREOPT; i++) fprintf(f, "c_%s = %d\n", COREOPT[i].key, cfg.core[i]);
 	if (!isGame) fprintf(f, "games_dir = %s\n", cfg.games_dir);
 	for (int i = 0; i < 16; i++) fprintf(f, "map%d = %d\n", i, cfg.map[i]);
+	for (int i = 0; i < 16; i++) fprintf(f, "wmap%d = %d\n", i, cfg.wmap[i]);
 	fclose(f);
 	return 1;
 }
@@ -790,8 +800,12 @@ static void assign_pads(void)
 {
 	int players[WIIU_MAX_PADS], n = 0;
 	for (int i = 0; i < NPORTS; i++) portPad[i] = -1;
+	/* the GamePad first, or (player 1 option) the Wii controllers first */
+	if (cfg.p1first)
+		for (int i = 1; i < WIIU_MAX_PADS; i++)
+			if (wiiu_input_get(i)->connected) players[n++] = i;
 	for (int i = 0; i < WIIU_MAX_PADS; i++)
-		if (wiiu_input_get(i)->connected) players[n++] = i;
+		if (wiiu_input_get(i)->connected && (i == 0 || !cfg.p1first)) players[n++] = i;
 	if (!n) players[n++] = 0;
 	for (int k = 0; k < n; k++) {
 		int port = cfg.multitap ? (k < 4 ? k : 4) : (k == 0 ? 0 : k == 1 ? 1 : -1);
@@ -942,11 +956,39 @@ const int default_map[16] = {
 	14, 15,                         /* L3 R3 */
 };
 
+/* Default for the Wii Remote (held sideways) and Nunchuk: same order as default_map.
+ * Index = RETRO_DEVICE_ID_JOYPAD_*, value = WR_* (-1 none). */
+const int default_wmap[16] = {
+	WR_1,      /* B      (Cross)    */
+	WR_B,      /* Y      (Square)   */
+	WR_MINUS,  /* SELECT            */
+	WR_PLUS,   /* START             */
+	WR_UP, WR_DOWN, WR_LEFT, WR_RIGHT,
+	WR_2,      /* A      (Circle)   */
+	WR_A,      /* X      (Triangle) */
+	WR_C, WR_Z,/* L1 R1 (Nunchuk)   */
+	-1, -1,    /* L2 R2             */
+	-1, -1,    /* L3 R3             */
+};
+
 static uint32_t hkHide;   /* WIIU buttons used by a hotkey right now */
 
 static uint32_t psx_mask(const wiiu_pad_state *p, int analog)
 {
 	uint32_t b = p->held & ~hkHide, m = 0;
+	if (p->kind >= PADKIND_REMOTE) {            /* Wii Remote / Nunchuk: its own layout */
+		for (int id = 0; id < 16; id++) {
+			int w = cfg.wmap[id];
+			if (w >= 0 && w < WR_COUNT && (p->wraw & (1u << w))) m |= 1u << id;
+		}
+		if (!analog) {                          /* the Nunchuk stick also drives the d-pad */
+			if (p->ly > 0.5f)  m |= 1u << 4;
+			if (p->ly < -0.5f) m |= 1u << 5;
+			if (p->lx < -0.5f) m |= 1u << 6;
+			if (p->lx > 0.5f)  m |= 1u << 7;
+		}
+		return m;
+	}
 	/* Digital pad: the left stick also drives the d-pad */
 	if (!analog) {
 		if (p->ly > 0.5f)  b |= WIIU_BTN_UP;
@@ -1885,6 +1927,7 @@ static void run_game(void)
 	const OSTime frameTicks = (OSTime)(OSSecondsToTicks(1) / fps);
 
 	assign_pads();
+	wiiu_input_pointer_menu(0);          /* the pointer is for the menu only */
 	wiiu_home_button_ingame(1);
 	video_set_ingame(1);
 	video_set_vsync(cfg.vsync);

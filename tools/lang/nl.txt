@@ -491,3 +491,21 @@
 504|Druk nogmaals op Y om de hele kaart te wissen.
 505|Geheugenkaart gewist.
 506|Kan de geheugenkaart niet wissen.
+507|Wie is speler 1
+508|Aanwijzer van de Wii Remote
+509|Met het GamePad aan is dat speler 1. Kies de Wii-controllers om de Pro Controller of Wii Remote speler 1 te maken.
+510|Richt de Wii Remote op het scherm om het menu te bedienen. Dat vraagt een sensorbalk: die van het GamePad of van de tv.
+511|Wii-controllers
+512|Sensorbalk van het GamePad
+513|Sensorbalk van de tv
+514|Richt de Wii Remote op het GamePad. De sensorbalk staat alleen aan als er een Wii Remote is verbonden.
+515|Richt de Wii Remote op de tv. Dat vraagt de sensorbalk van de tv.
+516|Wii Remote + Nunchuk
+517|GamePad, Pro, Classic
+518|C (Nunchuk)
+519|Z (Nunchuk)
+520|Nunchuk-stick omhoog
+521|Nunchuk-stick omlaag
+522|Nunchuk-stick links
+523|Nunchuk-stick rechts
+524|Wii Remote horizontaal, of rechtop met een Nunchuk (zijn stick is de linkerstick)

@@ -505,3 +505,21 @@ Y: delete card   Cards from other emulators (.mcr, .mcd) can be copied to WiiUSt
 Press Y again to delete this whole card.
 Memory card deleted.
 Could not delete the memory card.
+Who is player 1
+Wii Remote pointer
+With the GamePad on, it is player 1. Choose the Wii controllers to make the Pro Controller or Wii Remote player 1.
+Point the Wii Remote at the screen to use the menu. It needs a sensor bar: the GamePad's or the TV's.
+Wii controllers
+GamePad sensor bar
+TV sensor bar
+Point the Wii Remote at the GamePad. Its sensor bar is on only while a Wii Remote is connected.
+Point the Wii Remote at the TV. Needs the sensor bar of the TV.
+Wii Remote + Nunchuk
+GamePad, Pro, Classic
+C (Nunchuk)
+Z (Nunchuk)
+Nunchuk stick up
+Nunchuk stick down
+Nunchuk stick left
+Nunchuk stick right
+Wii Remote held sideways, or upright with a Nunchuk (its stick is the left stick)

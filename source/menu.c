@@ -517,6 +517,12 @@ static void poll_touch(void)
 {
 	const wiiu_pad_state *gp = wiiu_input_get(0);
 	int on = gp->connected && (gp->held & WIIU_BTN_TOUCH);
+	wiiu_input_pointer_menu(1);
+	if (!on)                                       /* a Wii Remote's pointer clicks like a finger */
+		for (int i = 1; i < WIIU_MAX_PADS; i++) {
+			const wiiu_pad_state *w = wiiu_input_get(i);
+			if (w->connected && w->ptr_valid && (w->held & WIIU_BTN_TOUCH)) { gp = w; on = 1; break; }
+		}
 	T.tapped = 0;
 	T.dx = T.dy = 0;
 	if (touchBlock) {
@@ -828,8 +834,34 @@ static void draw_footer(const char *hint)
 static uint32_t fadeStart;
 static void transition(void) { fadeStart = SDL_GetTicks(); }
 
+/* the Wii Remote pointer: a ring with a dot, hidden when it rests for a while */
+static void draw_pointers(void)
+{
+	static float lx[WIIU_MAX_PADS], ly[WIIU_MAX_PADS];
+	static uint32_t moved[WIIU_MAX_PADS];
+	uint32_t now = SDL_GetTicks();
+	for (int i = 1; i < WIIU_MAX_PADS; i++) {
+		const wiiu_pad_state *w = wiiu_input_get(i);
+		if (!w->connected || !w->ptr_valid) continue;
+		if (fabsf(w->ptr_x - lx[i]) > 3 || fabsf(w->ptr_y - ly[i]) > 3 || (w->held & WIIU_BTN_TOUCH)) {
+			moved[i] = now;
+			lx[i] = w->ptr_x;
+			ly[i] = w->ptr_y;
+		}
+		if (now - moved[i] > 5000) continue;
+		float ring[2 * 24], dot[2 * 12];
+		for (int k = 0; k < 24; k++) { ring[k * 2] = w->ptr_x + cosf(k * 0.2617994f) * 17; ring[k * 2 + 1] = w->ptr_y + sinf(k * 0.2617994f) * 17; }
+		poly(ring, 24, (SDL_Color){ 0, 0, 0, 255 }, 200);
+		for (int k = 0; k < 24; k++) { ring[k * 2] = w->ptr_x + cosf(k * 0.2617994f) * 12; ring[k * 2 + 1] = w->ptr_y + sinf(k * 0.2617994f) * 12; }
+		poly(ring, 24, WHITE, (w->held & WIIU_BTN_TOUCH) ? 255 : 220);
+		for (int k = 0; k < 12; k++) { dot[k * 2] = w->ptr_x + cosf(k * 0.5235988f) * 4; dot[k * 2 + 1] = w->ptr_y + sinf(k * 0.5235988f) * 4; }
+		poly(dot, 12, th(0, 140, 220), 255);
+	}
+}
+
 static void present(void)
 {
+	draw_pointers();
 	uint32_t dt = SDL_GetTicks() - fadeStart;
 	if (dt < 220) {
 		SDL_Color k = { 0, 0, 0 };
@@ -2080,13 +2112,13 @@ static int pick_games_folder(void);
 static void settings(void)
 {
 	enum { S_SCOPE, S_LANG, S_THEME, S_SFX, S_AUTOSTART, S_GAMES, S_VIEW, S_COVERS, S_ALLCOVERS, S_RESUME, S_CORE, S_SKIP, S_FFWD, S_FFSPEED, S_FPS, S_VSYNC, S_AUDIO,
-	       S_ASPECT, S_FILTER, S_BEZEL, S_WIDE, S_SCAN, S_CRT, S_FX, S_DRC, S_DITHER, S_PAD, S_GYRO, S_PAD2, S_DEADZONE, S_MTAP,
+	       S_ASPECT, S_FILTER, S_BEZEL, S_WIDE, S_SCAN, S_CRT, S_FX, S_DRC, S_DITHER, S_PAD, S_GYRO, S_PAD2, S_DEADZONE, S_MTAP, S_P1FIRST, S_POINTER,
 	       S_CONTROLS, S_HOTKEYS, S_RUMBLE, S_REGION, S_BIOS, S_BIOSCHECK, S_LOGO, S_AUTOFIX, S_ADV, S_UPDATE, S_COUNT };
 	static const char *allLabels[S_COUNT] = {
 		"Settings for", "Language", "Theme colour", "Menu sounds", "Open the last game at start", "Games folder", "Game list", "Covers", "Download all covers...", "Continue where you left off", "CPU core",
 		"Frame skip", "Fast forward", "Fast forward speed", "Show FPS", "VSync (no tearing)", "Sound", "Screen",
 		"Picture", "Border", "Widescreen (16:9)", "Scanlines", "CRT mask", "Screen effect", "GamePad screen", "Dithering", "Player 1 controller", "Aim with GamePad motion",
-		"Player 2+ controller", "Analog dead zone", "Multitap (up to 5 players)", "Button mapping...", "Hotkeys...", "Vibration",
+		"Player 2+ controller", "Analog dead zone", "Multitap (up to 5 players)", "Who is player 1", "Wii Remote pointer", "Button mapping...", "Hotkeys...", "Vibration",
 		"Region", "BIOS", "Check BIOS files...", "PlayStation boot logo", "Automatic game fixes", "Advanced...", "Check for updates"
 	};
 	/* shown in the footer for the selected option */
@@ -2122,6 +2154,8 @@ static void settings(void)
 		"The controller of the other players.",
 		"How far the sticks move before the game notices.",
 		"Up to 5 players, for games that support the Multitap.",
+		"With the GamePad on, it is player 1. Choose the Wii controllers to make the Pro Controller or Wii Remote player 1.",
+		"Point the Wii Remote at the screen to use the menu. It needs a sensor bar: the GamePad's or the TV's.",
 		"Change which Wii U button does what.",
 		"Quick actions while playing: hold a button and press another.",
 		"Vibration of the GamePad and Pro Controller.",
@@ -2148,11 +2182,11 @@ static void settings(void)
 			 * everything from the CPU core down) */
 			if (loaded && i > S_SCOPE && i < S_CORE) continue;
 			/* about the emulator, not the game: only in the home screen's Settings */
-			if (loaded && (i == S_BIOSCHECK || i == S_AUTOFIX || i == S_UPDATE)) continue;
+			if (loaded && (i == S_BIOSCHECK || i == S_AUTOFIX || i == S_UPDATE || i == S_POINTER)) continue;
 			/* app-wide options are hidden while editing one game's settings */
 			if (game && (i == S_GAMES || i == S_VIEW || i == S_COVERS || i == S_RESUME ||
 			             i == S_FFWD || i == S_LANG || i == S_HOTKEYS || i == S_SFX || i == S_UPDATE ||
-			             i == S_AUTOSTART || i == S_ALLCOVERS || i == S_AUTOFIX)) continue;
+			             i == S_AUTOSTART || i == S_ALLCOVERS || i == S_AUTOFIX || i == S_POINTER)) continue;
 			map[n] = i;
 			labels[n] = allLabels[i];
 			values[n] = NULL;
@@ -2226,6 +2260,8 @@ static void settings(void)
 			case S_GYRO:   values[k] = cfg.gyroaim ? "On" : "Off"; break;
 			case S_DEADZONE: snprintf(dzs, sizeof(dzs), "%d%%", cfg.deadzone * 5); values[k] = dzs; break;
 			case S_MTAP:   values[k] = cfg.multitap ? "On" : "Off"; break;
+			case S_P1FIRST: values[k] = cfg.p1first ? "Wii controllers" : "GamePad"; break;
+			case S_POINTER: values[k] = cfg.pointer == 0 ? "Off" : cfg.pointer == 1 ? "GamePad sensor bar" : "TV sensor bar"; break;
 			case S_RUMBLE: values[k] = cfg.rumble ? "On" : "Off"; break;
 			case S_REGION: values[k] = cfg.region == 0 ? "Auto" : cfg.region == 1 ? "NTSC (60 Hz)" : "PAL (50 Hz)"; break;
 			case S_BIOS:   values[k] = cfg.bios_hle ? "Built-in" : "Auto"; break;
@@ -2390,6 +2426,12 @@ static void settings(void)
 		               status(cfg.multitap ? "Players 1-4 on port 1, player 5 on port 2. Applies on resume."
 		                                   : "Two players.");
 		               break;
+		case S_P1FIRST: cfg.p1first = !cfg.p1first;
+		                status("Applies the next time a game is loaded."); break;
+		case S_POINTER: cfg.pointer = (cfg.pointer + 3 + dir) % 3;
+		                if (cfg.pointer == 1) status("Point the Wii Remote at the GamePad. Its sensor bar is on only while a Wii Remote is connected.");
+		                else if (cfg.pointer == 2) status("Point the Wii Remote at the TV. Needs the sensor bar of the TV.");
+		                break;
 		case S_CONTROLS: controls(); transition(); break;
 		case S_HOTKEYS:  hotkeys(); transition(); break;
 		case S_THEME:    cfg.theme = (cfg.theme + THEME_COUNT + dir) % THEME_COUNT; break;
@@ -2639,6 +2681,7 @@ static int slot = 0;
 /* controls: button mapping                                                 */
 /* ------------------------------------------------------------------------ */
 extern const int default_map[16];
+extern const int default_wmap[16];
 static const char *wiiu_btn_name(int bit)
 {
 	static const char *n[] = { "A", "B", "X", "Y", "D-Pad Up", "D-Pad Down", "D-Pad Left",
@@ -2832,6 +2875,15 @@ static void hotkeys(void)
 	}
 }
 
+static const char *wr_name(int bit)
+{
+	static const char *n[WR_COUNT] = { "1", "2", "A", "B", "+ (Plus)", "- (Minus)", "D-Pad Up", "D-Pad Down",
+	                                   "D-Pad Left", "D-Pad Right", "C (Nunchuk)", "Z (Nunchuk)",
+	                                   "Nunchuk stick up", "Nunchuk stick down", "Nunchuk stick left",
+	                                   "Nunchuk stick right" };
+	return bit >= 0 && bit < WR_COUNT ? n[bit] : "None";
+}
+
 static void controls(void)
 {
 	/* display order of the PlayStation buttons -> RETRO_DEVICE_ID_JOYPAD_* */
@@ -2840,38 +2892,46 @@ static void controls(void)
 	                               "L3", "R3", "Start", "Select", "Up", "Down", "Left", "Right" };
 	const char *labels[18], *values[18];
 	list_t L = { 0, 0 };
+	static int wii;                   /* 0 GamePad / Pro / Classic, 1 Wii Remote + Nunchuk */
 	transition();
 	for (;;) {
+		labels[0] = "Controller";
+		values[0] = wii ? "Wii Remote + Nunchuk" : "GamePad, Pro, Classic";
 		for (int i = 0; i < 16; i++) {
-			labels[i] = psx[i];
-			values[i] = wiiu_btn_name(cfg.map[order[i]]);
+			labels[1 + i] = psx[i];
+			values[1 + i] = wii ? wr_name(cfg.wmap[order[i]]) : wiiu_btn_name(cfg.map[order[i]]);
 		}
-		labels[16] = "Reset to default";
-		values[16] = NULL;
+		labels[17] = "Reset to default";
+		values[17] = NULL;
 		poll_touch();
 		uint32_t b = poll_buttons();
 		int dir = 0;
-		if (b & WIIU_BTN_UP)   L.sel = L.sel > 0 ? L.sel - 1 : 16;
-		if (b & WIIU_BTN_DOWN) L.sel = L.sel < 16 ? L.sel + 1 : 0;
+		if (b & WIIU_BTN_UP)   L.sel = L.sel > 0 ? L.sel - 1 : 17;
+		if (b & WIIU_BTN_DOWN) L.sel = L.sel < 17 ? L.sel + 1 : 0;
 		if (b & (WIIU_BTN_RIGHT | WIIU_BTN_A)) dir = 1;
 		if (b & WIIU_BTN_LEFT) dir = -1;
 
 		draw_background();
 		int back = draw_header("Controls", 1);
 		int arrow = 0;
-		int t = list_run(&L, labels, values, 17, 1, &arrow, NULL);
+		int t = list_run(&L, labels, values, 18, 1, &arrow, NULL);
 		if (t >= 0) dir = 1;
 		if (arrow) dir = arrow;
-		draw_footer("Same layout for every controller");
+		draw_footer(wii ? "Wii Remote held sideways, or upright with a Nunchuk (its stick is the left stick)"
+		                : "Same layout for every controller");
 		present();
 		if (back || (b & WIIU_BTN_B) || wiiu_quit) { settings_save(); return; }
 		if (!dir) continue;
-		if (L.sel == 16) {
-			memcpy(cfg.map, default_map, sizeof(cfg.map));
+		if (L.sel == 0) {
+			wii = !wii;
+		} else if (L.sel == 17) {
+			if (wii) memcpy(cfg.wmap, default_wmap, sizeof(cfg.wmap));
+			else memcpy(cfg.map, default_map, sizeof(cfg.map));
 			status("Default layout restored.");
 		} else {
-			int id = order[L.sel];
-			cfg.map[id] = (cfg.map[id] + 16 + dir) % 16;
+			int id = order[L.sel - 1];
+			if (wii) cfg.wmap[id] = (cfg.wmap[id] + 1 + WR_COUNT + 1 + dir) % (WR_COUNT + 1) - 1;   /* None .. stick right */
+			else cfg.map[id] = (cfg.map[id] + 16 + dir) % 16;
 		}
 	}
 }

@@ -491,3 +491,21 @@
 504|Drücke Y noch einmal, um die ganze Karte zu löschen.
 505|Speicherkarte gelöscht.
 506|Die Speicherkarte konnte nicht gelöscht werden.
+507|Wer ist Spieler 1
+508|Wii-Remote-Zeiger
+509|Ist das GamePad an, ist es Spieler 1. Wähle die Wii-Controller, damit der Pro Controller oder die Wii Remote Spieler 1 ist.
+510|Richte die Wii Remote auf den Bildschirm, um das Menü zu bedienen. Dafür braucht es eine Sensorleiste: die des GamePads oder die des Fernsehers.
+511|Wii-Controller
+512|Sensorleiste des GamePads
+513|Sensorleiste am Fernseher
+514|Richte die Wii Remote auf das GamePad. Dessen Sensorleiste ist nur an, solange eine Wii Remote verbunden ist.
+515|Richte die Wii Remote auf den Fernseher. Dafür braucht es die Sensorleiste am Fernseher.
+516|Wii Remote + Nunchuk
+517|GamePad, Pro, Classic
+518|C (Nunchuk)
+519|Z (Nunchuk)
+520|Nunchuk-Stick hoch
+521|Nunchuk-Stick runter
+522|Nunchuk-Stick links
+523|Nunchuk-Stick rechts
+524|Wii Remote quer gehalten, oder aufrecht mit Nunchuk (sein Stick ist der linke Stick)
