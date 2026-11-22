@@ -92,37 +92,26 @@ static inline float tsin(float cycles)
 
 /* ------------------------------------------------------------------------ */
 /* menu music: a slow, nostalgic, quietly mysterious ambient piece, made    */
-/* here from sine waves and a little filtered noise (no recording). Four    */
-/* chords of 12 s in D minor fade into each other as a hollow, organ-like   */
-/* pad over a deep drone; now and then a music box plays a short falling    */
-/* phrase; a long, dark reverb spreads it all. Quiet by design.             */
+/* here from sine waves (no recording). Four chords of 12 s in D minor fade */
+/* into each other as a hollow, organ-like pad over a deep drone, and a     */
+/* long, dark reverb spreads it. No melody, no noise. Quiet by design.      */
 /* ------------------------------------------------------------------------ */
 static volatile int musicTarget;       /* 1 = should play */
 static float musicGain;                /* 0..1, faded */
 static int musicWasOn;
-enum { MU_CHORDS = 4, MU_NOTES = 5, MU_PLUCKS = 10, MU_QUEUE = 6, MU_RV = 2500 };
+enum { MU_CHORDS = 4, MU_NOTES = 5, MU_RV = 2500 };
 static const int MU_CH[MU_CHORDS][MU_NOTES] = {      /* MIDI notes: Dm9, Bb maj9, Gm9, A sus */
 	{ 50, 57, 62, 64, 65 }, { 46, 53, 57, 62, 64 }, { 43, 50, 53, 58, 60 }, { 45, 52, 57, 62, 64 },
 };
-static const int MU_SCALE[9] = { 74, 77, 79, 81, 84, 86, 89, 91, 93 };   /* D minor pentatonic, high */
 static float muFreq[128];
 static float muPad[MU_CHORDS][MU_NOTES][2];            /* oscillator phases */
 static float muBass[MU_CHORDS][2];
-static struct { float ph, ph2, inc, env, env2, dec, dec2, amp, panL, panR; int on; } muPl[MU_PLUCKS];
-static struct { uint32_t at; int note; float vel; int on; } muQ[MU_QUEUE];
-static uint32_t muT, muAbs, muRng, muNextPhrase;
+static uint32_t muT;
 static float muLfo, muVib;
-static float muAirLo1, muAirLo2;                       /* the filtered noise ("breath") */
 /* a small stereo reverb: four combs and two all-passes per side (the classic layout) */
 static const int RV_C[4] = { 1116, 1188, 1277, 1356 }, RV_A[2] = { 556, 441 };
 static float rvComb[2][4][MU_RV], rvAp[2][2][MU_RV], rvLp[2][4];
 static int rvCi[2][4], rvAi[2][2], rvCn[2][4], rvAn[2][2];
-
-static uint32_t mu_rand(void)
-{
-	muRng = muRng * 1664525u + 1013904223u;
-	return muRng >> 8;
-}
 
 static void music_reset(void)
 {
@@ -130,16 +119,11 @@ static void music_reset(void)
 	for (int n = 0; n < 128; n++) muFreq[n] = 440.0f * powf(2.0f, (n - 69) / 12.0f);
 	memset(muPad, 0, sizeof(muPad));
 	memset(muBass, 0, sizeof(muBass));
-	memset(muPl, 0, sizeof(muPl));
-	memset(muQ, 0, sizeof(muQ));
 	memset(rvComb, 0, sizeof(rvComb));
 	memset(rvAp, 0, sizeof(rvAp));
 	memset(rvLp, 0, sizeof(rvLp));
-	muT = muAbs = 0;
-	muRng = 1999;
-	muNextPhrase = (uint32_t)(5.0 * outRate);          /* the first phrase after five seconds */
+	muT = 0;
 	muLfo = muVib = 0;
-	muAirLo1 = muAirLo2 = 0;
 	for (int c = 0; c < 2; c++) {
 		for (int i = 0; i < 4; i++) {
 			int n = (int)(RV_C[i] * outRate / 44100.0 + 0.5) + c * 23;
@@ -217,68 +201,10 @@ static void music_sample(float *outL, float *outR)
 	padL *= swell;
 	padR *= swell;
 
-	/* the "breath": noise through a band that drifts very slowly */
-	{
-		float n = ((float)((int32_t)(mu_rand() & 0xffff) - 32768)) / 32768.0f;
-		float c1 = 0.06f + 0.05f * tsin((float)muT * inv / 23.0f + 0.2f);   /* the upper edge of the band */
-		float c2 = c1 * 0.28f;                                              /* the lower edge */
-		muAirLo1 += (n - muAirLo1) * c1;
-		muAirLo2 += (n - muAirLo2) * c2;
-		float air = (muAirLo1 - muAirLo2) * 0.085f * (0.4f + 0.6f * tsin((float)muT * inv / 14.0f + 0.5f) * tsin((float)muT * inv / 14.0f + 0.5f));
-		padL += air;
-		padR -= air * 0.8f;
-	}
-
-	/* the music box: every so often a short falling phrase of two to four notes */
-	if (muAbs >= muNextPhrase) {
-		int n = 2 + (int)(mu_rand() % 3), idx = 3 + (int)(mu_rand() % 6);
-		uint32_t at = muAbs + (uint32_t)(0.05 * rate);
-		for (int k = 0; k < n && k < MU_QUEUE; k++) {
-			muQ[k].at = at;
-			muQ[k].note = MU_SCALE[idx < 0 ? 0 : idx > 8 ? 8 : idx];
-			muQ[k].vel = 1.0f - 0.18f * k;
-			muQ[k].on = 1;
-			idx -= 1 + (int)(mu_rand() % 2);                 /* stepping down the scale */
-			at += (uint32_t)((1.1 + 0.7 * (mu_rand() % 100) / 100.0) * rate);
-		}
-		muNextPhrase = at + (uint32_t)((6.0 + 6.0 * (mu_rand() % 100) / 100.0) * rate);
-	}
-	for (int q = 0; q < MU_QUEUE; q++) {
-		if (!muQ[q].on || muQ[q].at != muAbs) continue;
-		muQ[q].on = 0;
-		for (int v = 0; v < MU_PLUCKS; v++)
-			if (!muPl[v].on) {
-				float pan = 0.30f + 0.40f * ((mu_rand() % 100) / 100.0f);
-				muPl[v].on = 1;
-				muPl[v].ph = muPl[v].ph2 = 0;
-				muPl[v].inc = muFreq[muQ[q].note] * inv;
-				muPl[v].env = muPl[v].env2 = 1.0f;
-				muPl[v].dec = expf(-1.0f / (1.7f * (float)rate));      /* a long ring */
-				muPl[v].dec2 = expf(-1.0f / (0.12f * (float)rate));    /* the bright knock fades fast */
-				muPl[v].amp = 0.040f * muQ[q].vel;
-				muPl[v].panL = 1.0f - pan;
-				muPl[v].panR = pan;
-				break;
-			}
-	}
-	float plL = 0, plR = 0;
-	for (int v = 0; v < MU_PLUCKS; v++) {
-		if (!muPl[v].on) continue;
-		muPl[v].ph += muPl[v].inc; if (muPl[v].ph >= 1) muPl[v].ph -= 1;
-		muPl[v].ph2 += muPl[v].inc * 4.07f; if (muPl[v].ph2 >= 1) muPl[v].ph2 -= 1;   /* a slightly sharp overtone: a music box */
-		float x = (tsin(muPl[v].ph) * muPl[v].env + 0.20f * tsin(muPl[v].ph2) * muPl[v].env2) * muPl[v].amp;
-		muPl[v].env *= muPl[v].dec;
-		muPl[v].env2 *= muPl[v].dec2;
-		if (muPl[v].env < 0.003f) muPl[v].on = 0;
-		plL += x * muPl[v].panL * 1.4f;
-		plR += x * muPl[v].panR * 1.4f;
-	}
-
-	/* the reverb: a good part of the pad and most of the music box go through it */
-	float rvL = rv_side(0, padL * 0.55f + plL * 1.0f), rvR = rv_side(1, padR * 0.55f + plR * 1.0f);
-	*outL = padL + plL + rvL * 1.8f;
-	*outR = padR + plR + rvR * 1.8f;
-	muAbs++;
+	/* the reverb: a good part of the pad goes through it, for a big, dark space */
+	float rvL = rv_side(0, padL * 0.6f), rvR = rv_side(1, padR * 0.6f);
+	*outL = padL + rvL * 1.8f;
+	*outR = padR + rvR * 1.8f;
 	if (++muT >= cycle) muT = 0;
 }
 
