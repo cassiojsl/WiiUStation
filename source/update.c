@@ -173,6 +173,15 @@ int update_check(char *tag, size_t tn, char *err, size_t en)
 	}
 	json_str(m.buf, "tag_name", NULL, latestTag, sizeof(latestTag));
 	json_text(m.buf, "body", latestBody, sizeof(latestBody));
+	{   /* GitHub adds "**Full Changelog**: <url>" at the end: not shown */
+		char *fc = strstr(latestBody, "Full Changelog");
+		if (fc) {
+			while (fc > latestBody && fc[-1] == '*') fc--;
+			*fc = 0;
+		}
+		size_t l = strlen(latestBody);
+		while (l > 0 && (latestBody[l - 1] == '\n' || latestBody[l - 1] == ' ')) latestBody[--l] = 0;
+	}
 	/* the first asset whose download URL ends in .wuhb */
 	const char *p = m.buf;
 	while ((p = strstr(p, "\"browser_download_url\"")) != NULL) {
