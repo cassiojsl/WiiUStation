@@ -509,3 +509,8 @@
 522|Nunchuk-stick links
 523|Nunchuk-stick rechts
 524|Wii Remote horizontaal, of rechtop met een Nunchuk (zijn stick is de linkerstick)
+525|Nieuw
+526|Deze versie heeft geen notities.
+527|Omhoog / Omlaag: scrollen
+528|A: downloaden en installeren   X: nieuw
+529|X: nieuw

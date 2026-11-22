@@ -509,3 +509,8 @@
 522|Nunchuk: palanca izquierda
 523|Nunchuk: palanca derecha
 524|Wii Remote en horizontal, o en vertical con un Nunchuk (su palanca es la izquierda)
+525|Novedades
+526|Esta versión no tiene notas.
+527|Arriba / Abajo: desplazar
+528|A: descargar e instalar   X: novedades
+529|X: novedades

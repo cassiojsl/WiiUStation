@@ -489,3 +489,8 @@
 { "Nunchuk stick left", "Nunchuk : stick gauche" },
 { "Nunchuk stick right", "Nunchuk : stick droit" },
 { "Wii Remote held sideways, or upright with a Nunchuk (its stick is the left stick)", "Wiimote à l'horizontale, ou à la verticale avec un Nunchuk (son stick est le stick gauche)" },
+{ "What's new", "Nouveautés" },
+{ "No release notes.", "Cette version n'a pas de notes." },
+{ "Up / Down: scroll", "Haut / Bas : défiler" },
+{ "A: download and install   X: what's new", "A : télécharger et installer   X : nouveautés" },
+{ "X: what's new", "X : nouveautés" },

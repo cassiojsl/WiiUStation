@@ -485,3 +485,8 @@
 { "Nunchuk stick left", "Nunchuk-stick links" },
 { "Nunchuk stick right", "Nunchuk-stick rechts" },
 { "Wii Remote held sideways, or upright with a Nunchuk (its stick is the left stick)", "Wii Remote horizontaal, of rechtop met een Nunchuk (zijn stick is de linkerstick)" },
+{ "What's new", "Nieuw" },
+{ "No release notes.", "Deze versie heeft geen notities." },
+{ "Up / Down: scroll", "Omhoog / Omlaag: scrollen" },
+{ "A: download and install   X: what's new", "A: downloaden en installeren   X: nieuw" },
+{ "X: what's new", "X: nieuw" },

@@ -523,3 +523,8 @@ Nunchuk stick down
 Nunchuk stick left
 Nunchuk stick right
 Wii Remote held sideways, or upright with a Nunchuk (its stick is the left stick)
+What's new
+No release notes.
+Up / Down: scroll
+A: download and install   X: what's new
+X: what's new

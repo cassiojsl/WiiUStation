@@ -509,3 +509,8 @@
 522|Nunchuk-Stick links
 523|Nunchuk-Stick rechts
 524|Wii Remote quer gehalten, oder aufrecht mit Nunchuk (sein Stick ist der linke Stick)
+525|Neuigkeiten
+526|Diese Version hat keine Hinweise.
+527|Hoch / Runter: scrollen
+528|A: herunterladen und installieren   X: Neuigkeiten
+529|X: Neuigkeiten

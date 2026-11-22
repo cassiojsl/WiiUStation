@@ -2758,6 +2758,81 @@ static void bios_screen(void)
 /* ------------------------------------------------------------------------ */
 /* updates                                                                  */
 /* ------------------------------------------------------------------------ */
+/* the release text of the new version: markdown reduced to plain lines, scrollable */
+static void notes_screen(void)
+{
+	enum { MAXL = 200, W = 1100 };
+	static char lines[MAXL][160];
+	static int head[MAXL];
+	int n = 0;
+	const char *src = update_notes();
+	char raw[512];
+	while (*src && n < MAXL - 1) {
+		size_t k = strcspn(src, "\n");
+		snprintf(raw, sizeof(raw), "%.*s", (int)(k < sizeof(raw) - 1 ? k : sizeof(raw) - 1), src);
+		src += k + (src[k] == '\n');
+		/* plain text: no ** or `, "- " becomes a bullet, "###" a heading */
+		char t[512];
+		int h = 0, o = 0;
+		const char *q = raw;
+		while (*q == '#') { h = 1; q++; }
+		while (*q == ' ') q++;
+		if (!h && q[0] == '-' && q[1] == ' ') { o += snprintf(t, sizeof(t), "\xe2\x80\xa2 "); q += 2; }
+		for (; *q && o < (int)sizeof(t) - 4; q++) {
+			if (*q == '*' || *q == '`') continue;
+			t[o++] = *q;
+		}
+		t[o] = 0;
+		if (!t[0]) { lines[n][0] = 0; head[n++] = 0; continue; }
+		/* wrap at the box width; continuation lines are indented */
+		const char *p = t;
+		int first = 1;
+		while (*p && n < MAXL - 1) {
+			int best = 0, len = (int)strlen(p);
+			char tmp[512];
+			for (int i = 1; i <= len; i++) {
+				if (p[i] != ' ' && p[i] != 0) continue;
+				int w = 0;
+				snprintf(tmp, sizeof(tmp), "%.*s", i, p);
+				TTF_SizeUTF8(h ? fontItem : fontSmall, tmp, &w, NULL);
+				if (w > W - (first ? 0 : 30) && best) break;
+				best = i;
+			}
+			if (!best) best = len;
+			snprintf(lines[n], sizeof(lines[0]), "%s%.*s", first ? "" : "    ", best, p);
+			head[n++] = h;
+			p += best;
+			while (*p == ' ') p++;
+			first = 0;
+		}
+	}
+	const int LH = 34, TOP = 110, SHOWN = 16;
+	float scroll = 0;
+	transition();
+	for (;;) {
+		poll_touch();
+		uint32_t b = poll_buttons();
+		if (b & WIIU_BTN_UP)   scroll -= 3;
+		if (b & WIIU_BTN_DOWN) scroll += 3;
+		scroll -= T.dy / (float)LH;
+		if (scroll > n - SHOWN) scroll = (float)(n - SHOWN);
+		if (scroll < 0) scroll = 0;
+		draw_background();
+		int back = draw_header("What's new", 1);
+		if (!n) text(fontItem, 640, 330, "No release notes.", GREY, 1);
+		SDL_RenderSetClipRect(R, &(SDL_Rect){ 0, TOP - 10, 1280, SHOWN * LH + 20 });
+		for (int i = (int)scroll; i < n && i <= (int)scroll + SHOWN; i++) {
+			int y = TOP + (int)((i - scroll) * LH) + LH / 2;
+			if (head[i]) text(fontItem, 90, y, lines[i], PS_BLUE, 0);
+			else text(fontSmall, 90, y, lines[i], WHITE, 0);
+		}
+		SDL_RenderSetClipRect(R, NULL);
+		draw_footer("Up / Down: scroll");
+		present();
+		if (back || (b & WIIU_BTN_B) || wiiu_quit) return;
+	}
+}
+
 static void update_screen(void)
 {
 	char tag[32] = "", err[128] = "", line1[256], line2[256];
@@ -2795,8 +2870,20 @@ static void update_screen(void)
 		}
 		text(fontItem, 640, 300, line1, WHITE, 1);
 		if (line2[0]) text_wrap(fontSmall, 640, 345, 1100, line2, GREY);
-		draw_footer(state == 1 ? "A: download and install" : NULL);
+		int notesTap = 0;
+		if (state == 1 || state == 5) {             /* a button for the release text */
+			rrect(500, 450, 280, 60, 30, th(26, 32, 60), 255);
+			outline(500, 450, 280, 60, th(0, 140, 220), 255, 2);
+			text(fontItem, 640, 480, "What's new", WHITE, 1);
+			notesTap = tap_in(500, 450, 280, 60);
+		}
+		draw_footer(state == 1 ? "A: download and install   X: what's new" : state == 5 ? "X: what's new" : NULL);
 		present();
+		if (notesTap || ((state == 1 || state == 5) && (b & WIIU_BTN_X))) {
+			notes_screen();
+			transition();
+			continue;
+		}
 		if (!checked) {     /* the check blocks for a moment: after the first frame */
 			checked = 1;
 			int r = update_check(tag, sizeof(tag), err, sizeof(err));

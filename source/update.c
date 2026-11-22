@@ -98,7 +98,49 @@ static long vnum(const char *v)
 	return a * 1000000L + b * 1000L + c;
 }
 
-static char latestTag[32], latestUrl[512];
+static char latestTag[32], latestUrl[512], latestBody[4096];
+
+/* a JSON string with its escapes decoded (\n, \", \uXXXX...) */
+static int json_text(const char *js, const char *key, char *out, size_t n)
+{
+	char pat[64];
+	snprintf(pat, sizeof(pat), "\"%s\"", key);
+	const char *p = strstr(js, pat);
+	size_t o = 0;
+	out[0] = 0;
+	if (!p) return 0;
+	p = strchr(p + strlen(pat), ':');
+	if (!p) return 0;
+	p++;
+	while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r') p++;
+	if (*p != '"') return 0;
+	p++;
+	while (*p && *p != '"' && o + 4 < n) {
+		if (*p != '\\') { out[o++] = *p++; continue; }
+		p++;
+		switch (*p) {
+		case 'n': out[o++] = '\n'; p++; break;
+		case 'r': p++; break;
+		case 't': out[o++] = ' '; p++; break;
+		case 'u': {
+			unsigned u = 0;
+			for (int i = 1; i <= 4 && p[i]; i++) u = u * 16 + (unsigned)((p[i] <= '9' ? p[i] - '0' : (p[i] | 32) - 'a' + 10) & 15);
+			p += 5;
+			if (u < 0x80) out[o++] = (char)u;
+			else if (u < 0x800) { out[o++] = (char)(0xC0 | (u >> 6)); out[o++] = (char)(0x80 | (u & 63)); }
+			else if (u >= 0xD800 && u < 0xE000) out[o++] = '?';
+			else { out[o++] = (char)(0xE0 | (u >> 12)); out[o++] = (char)(0x80 | ((u >> 6) & 63)); out[o++] = (char)(0x80 | (u & 63)); }
+			break;
+		}
+		default: if (*p) out[o++] = *p++; break;
+		}
+	}
+	out[o] = 0;
+	return 1;
+}
+
+/* the text of the newest release found by update_check ("" when none) */
+const char *update_notes(void) { return latestBody; }
 
 static size_t file_write_cb(void *p, size_t sz, size_t n, void *ud)
 {
@@ -110,7 +152,7 @@ int update_check(char *tag, size_t tn, char *err, size_t en)
 {
 	mem_t m = { 0 };
 	long code = 0;
-	latestTag[0] = latestUrl[0] = 0;
+	latestTag[0] = latestUrl[0] = latestBody[0] = 0;
 	if (!net_init()) { snprintf(err, en, "%s", tr("No internet connection.")); return -1; }
 	CURL *c = new_handle(UPDATE_API);
 	if (!c) { snprintf(err, en, "%s", tr("Could not start the download.")); return -1; }
@@ -130,6 +172,7 @@ int update_check(char *tag, size_t tn, char *err, size_t en)
 		return -1;
 	}
 	json_str(m.buf, "tag_name", NULL, latestTag, sizeof(latestTag));
+	json_text(m.buf, "body", latestBody, sizeof(latestBody));
 	/* the first asset whose download URL ends in .wuhb */
 	const char *p = m.buf;
 	while ((p = strstr(p, "\"browser_download_url\"")) != NULL) {

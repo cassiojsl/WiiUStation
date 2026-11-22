@@ -510,3 +510,8 @@
 { "Nunchuk stick left", "ヌンチャク: スティック左" },
 { "Nunchuk stick right", "ヌンチャク: スティック右" },
 { "Wii Remote held sideways, or upright with a Nunchuk (its stick is the left stick)", "Wiiリモコンは横持ち、またはヌンチャクと縦持ち(スティックは左スティック)" },
+{ "What's new", "新機能" },
+{ "No release notes.", "この版にはリリースノートがありません。" },
+{ "Up / Down: scroll", "上 / 下: スクロール" },
+{ "A: download and install   X: what's new", "A: ダウンロードして更新   X: 新機能" },
+{ "X: what's new", "X: 新機能" },

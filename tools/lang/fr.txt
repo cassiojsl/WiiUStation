@@ -509,3 +509,8 @@
 522|Nunchuk : stick gauche
 523|Nunchuk : stick droit
 524|Wiimote à l'horizontale, ou à la verticale avec un Nunchuk (son stick est le stick gauche)
+525|Nouveautés
+526|Cette version n'a pas de notes.
+527|Haut / Bas : défiler
+528|A : télécharger et installer   X : nouveautés
+529|X : nouveautés
