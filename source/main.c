@@ -116,6 +116,8 @@ static struct { const char *key; int *val; int min, max; } OPTS[] = {
 	{ "spu_thread", &cfg.spu_thread, 0, 1 },
 	{ "frameskip",  &cfg.frameskip,  0, 1 },
 	{ "show_fps",   &cfg.show_fps,   0, 2 },
+	{ "games_src",  &cfg.games_src,  0, 2 },
+	{ "games_chosen", &cfg.games_chosen, 0, 1 },
 	{ "aspect",     &cfg.aspect,     0, 3 },
 	{ "filter",     &cfg.filter,     0, 2 },
 	{ "fx",         &cfg.fx,         0, FX_COUNT - 1 },
@@ -328,7 +330,7 @@ const char *emu_autofix_name(void)
 /* keys that only make sense globally (never in a per-game file) */
 static int global_only(const char *k)
 {
-	return !strcmp(k, "view") || !strcmp(k, "cover3d") || !strcmp(k, "menusfx") || !strcmp(k, "theme") || !strcmp(k, "autostart") || !strcmp(k, "autofix") || !strcmp(k, "sort") || !strcmp(k, "regionf") || !strcmp(k, "lang") || !strncmp(k, "hk", 2) || !strcmp(k, "games_dir") || !strcmp(k, "gpu_thread") ||
+	return !strcmp(k, "view") || !strcmp(k, "cover3d") || !strcmp(k, "menusfx") || !strcmp(k, "theme") || !strcmp(k, "autostart") || !strcmp(k, "autofix") || !strcmp(k, "sort") || !strcmp(k, "regionf") || !strcmp(k, "lang") || !strncmp(k, "hk", 2) || !strcmp(k, "games_dir") || !strcmp(k, "games_dir_usb") || !strcmp(k, "games_src") || !strcmp(k, "games_chosen") || !strcmp(k, "gpu_thread") ||
 	       !strcmp(k, "spu_thread") || !strcmp(k, "resume") || !strcmp(k, "ffwd") || !strcmp(k, "pointer") || !strcmp(k, "tex565") || !strcmp(k, "menumusic");
 }
 
@@ -372,7 +374,9 @@ static void settings_defaults(void)
 	cfg.autofix = 1;
 	for (int i = 0; i < NCOREOPT; i++) cfg.core[i] = COREOPT[i].def;
 	memcpy(cfg.hk, default_hotkeys, sizeof(cfg.hk));
-	strcpy(cfg.games_dir, WIIU_ISO_DIR);
+	strcpy(cfg.games_dir, WIIU_SD_ROOT);     /* no folder of its own: games are usually in a folder at the root of the SD card */
+	strcpy(cfg.games_dir_usb, "usb:");
+	cfg.games_src = 0;
 	memcpy(cfg.map, default_map, sizeof(cfg.map));
 	memcpy(cfg.wmap, default_wmap, sizeof(cfg.wmap));
 }
@@ -396,11 +400,19 @@ static int settings_parse(const char *path, int isGame)
 		while (*k == ' ') k++;
 		for (char *e = eq - 1; e >= k && *e == ' '; e--) *e = 0;
 		if (isGame && global_only(k)) continue;
+		if (!strcmp(k, "games_dir_usb")) {
+			char *v = eq + 1;
+			while (*v == ' ') v++;
+			v[strcspn(v, "\r\n")] = 0;
+			if (!strncmp(v, "usb:", 4)) strncpy(cfg.games_dir_usb, v, sizeof(cfg.games_dir_usb) - 1);
+			continue;
+		}
+		if (!strcmp(k, "games_dir") && version < 11) cfg.games_chosen = 1;   /* a folder chosen (or the old default) before this setting existed */
 		if (!strcmp(k, "games_dir")) {
 			char *v = eq + 1;
 			while (*v == ' ') v++;
 			v[strcspn(v, "\r\n")] = 0;
-			if (!strncmp(v, WIIU_SD_ROOT, strlen(WIIU_SD_ROOT)))
+			if (!strncmp(v, WIIU_SD_ROOT, strlen(WIIU_SD_ROOT)) || !strncmp(v, "usb:", 4))
 				strncpy(cfg.games_dir, v, sizeof(cfg.games_dir) - 1);
 			continue;
 		}
@@ -451,12 +463,12 @@ static int settings_write(const char *path, int isGame)
 {
 	FILE *f = fopen(path, "w");
 	if (!f) return 0;
-	fprintf(f, "# WiiUStation %s\nversion = 10\n", isGame ? "per-game settings" : "settings");
+	fprintf(f, "# WiiUStation %s\nversion = 11\n", isGame ? "per-game settings" : "settings");
 	for (unsigned i = 0; i < sizeof(OPTS) / sizeof(OPTS[0]); i++)
 		if (!isGame || !global_only(OPTS[i].key))
 			fprintf(f, "%s = %d\n", OPTS[i].key, *OPTS[i].val);
 	for (int i = 0; i < NCOREOPT; i++) fprintf(f, "c_%s = %d\n", COREOPT[i].key, cfg.core[i]);
-	if (!isGame) fprintf(f, "games_dir = %s\n", cfg.games_dir);
+	if (!isGame) fprintf(f, "games_dir = %s\ngames_dir_usb = %s\n", cfg.games_dir, cfg.games_dir_usb);
 	for (int i = 0; i < 16; i++) fprintf(f, "map%d = %d\n", i, cfg.map[i]);
 	for (int i = 0; i < 16; i++) fprintf(f, "wmap%d = %d\n", i, cfg.wmap[i]);
 	fclose(f);
@@ -2506,7 +2518,6 @@ int main(int argc, char **argv)
 		if (wd) SDL_DetachThread(wd);
 	}
 	wiiu_input_init();
-	wiiu_mkdirs(WIIU_ISO_DIR);
 	wiiu_mkdirs(WIIU_BIOS_DIR);
 	wiiu_mkdirs(WIIU_SAVE_DIR);
 	wiiu_mkdirs(WIIU_STATE_DIR);
@@ -2520,6 +2531,7 @@ int main(int argc, char **argv)
 	     jit_available() ? "available" : "unavailable", cfg.dynarec ? "on" : "off", cfg.gpu_thread ? "on" : "off",
 	     cfg.vsync ? "on" : "off", cfg.aspect, cfg.filter, cfg.region);
 	log_system();
+	usbfs_mount();               /* a FAT32 USB drive becomes "usb:/" (when there is one) */
 
 	retro_set_environment(environment);
 	retro_set_video_refresh(video_cb);
@@ -2546,6 +2558,7 @@ int main(int argc, char **argv)
 		if (!update_finish()) SYSLaunchMenu();
 		while (pump_events()) SDL_Delay(10);
 	}
+	usbfs_unmount();
 	wlog_exit();
 	video_shutdown();
 	return 0;

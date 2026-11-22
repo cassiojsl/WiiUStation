@@ -550,3 +550,16 @@ Menu music
 Soft, quiet background music in the menus. Off by default.
 Free block
 Detailed
+USB drive
+Games source
+USB games folder
+SD + USB
+SD card
+Where are your games?
+A USB drive was found.
+Where your games are: the SD card, a USB drive or both.
+The folder with your games on the SD card.
+The folder with your games on the USB drive.
+SD games folder
+SD only
+USB only

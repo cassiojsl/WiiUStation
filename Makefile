@@ -25,7 +25,7 @@ include $(DEVKITPRO)/wut/share/wut_rules
 
 TARGET		:=	WiiUStation
 BUILD		:=	build
-SOURCES		:=	source
+SOURCES		:=	source source/libfat
 CORE_DIR	:=	$(TOPDIR)/vendor/pcsx_rearmed
 CORE_LIB	:=	$(CORE_DIR)/pcsx_rearmed_libretro_wiiu.a
 CORE_PATCHES	:=	$(sort $(wildcard $(TOPDIR)/patches/*.patch))
@@ -51,8 +51,8 @@ LDFLAGS		=	$(ARCH) $(RPXSPECS) $(MACHDEP) -Wl,--gc-sections -Wl,-Map,$(notdir $*
 
 LIBS		:=	$(CORE_LIB) -lSDL2_image -lwebpdemux -lwebp -lsharpyuv -ljpeg \
 			-lcurl -lmbedtls -lmbedx509 -lmbedcrypto -lSDL2_ttf -lfreetype -lharfbuzz -lfreetype -lpng -lbz2 \
-			-lbrotlidec -lbrotlicommon -lz -lSDL2 -lwut -lm
-LIBDIRS		:=	$(PORTLIBS) $(WUT_ROOT)
+			-lbrotlidec -lbrotlicommon -lz -lSDL2 -lmocha -lwut -lm
+LIBDIRS		:=	$(PORTLIBS) $(WUT_ROOT) /home/user/wiiu-env/libmocha
 
 #---------------------------------------------------------------------------------
 ifneq ($(BUILD),$(notdir $(CURDIR)))
@@ -66,7 +66,7 @@ export OFILES	:=	$(CFILES:.c=.o)
 export LD	:=	$(CC)
 export INCLUDE	:=	$(foreach dir,$(LIBDIRS),-I$(dir)/include) \
 			-I$(PORTLIBS_PATH)/wiiu/include/SDL2 \
-			-I$(CURDIR)/source -I$(CORE_DIR)/deps/libretro-common/include -I$(CORE_DIR)/deps/libchdr/include
+			-I$(CURDIR)/source -I$(CURDIR)/source/libfat -I$(CORE_DIR)/deps/libretro-common/include -I$(CORE_DIR)/deps/libchdr/include
 export LIBPATHS	:=	$(foreach dir,$(LIBDIRS),-L$(dir)/lib)
 
 .PHONY: all clean core $(BUILD)

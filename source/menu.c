@@ -1206,7 +1206,7 @@ static int text_prompt(const char *title, const char *initial, char *out, size_t
 /* file browser                                                             */
 /* ------------------------------------------------------------------------ */
 typedef struct { char name[256]; int dir; int idTried; char id[16]; int fav; int discs; long secs; long long last;
-                 char cover[16]; int coverChecked, hasCustom; } entry_t;
+                 char cover[16]; int coverChecked, hasCustom; const char *base; } entry_t;
 static int disc_tag(const char *name, char *base, size_t n);
 static char browsePath[512];
 static int favOnly;            /* show favourites only */
@@ -1244,6 +1244,8 @@ static int entry_region(const char *name, const char *id)
 static const char *sort_name(int v) { return v == 1 ? "Last played" : v == 2 ? "Most played" : "Name"; }
 static const char *regionf_name(int v)
 {
+	/* after the collections come the two source filters, only offered in the SD + USB view */
+	if (v >= 5 + emu_coll_count()) return v == 5 + emu_coll_count() ? "SD only" : "USB only";
 	if (v >= 5) return emu_coll_name(v - 5);
 	return v == 1 ? "USA" : v == 2 ? "Europe" : v == 3 ? "Japan" : v == 4 ? "Favourites" : "All games";
 }
@@ -1303,13 +1305,29 @@ static int cmp_entry(const void *a, const void *b)
 	return strcasecmp(x->name, y->name);
 }
 
+#define MERGED "merged:"     /* the top level of the SD + USB view: the games folders of both drives together */
+/* a USB drive (FAT32) is the device "usb:"; its root is written "usb:" and opened as "usb:/" */
+static int is_usb_path(const char *p) { return !strncmp(p, "usb:", 4); }
+static const char *fs_path(const char *p) { return !strcmp(p, "usb:") ? "usb:/" : p; }
+/* the folder as shown to the user: relative to the SD card, or "USB/..." */
+static const char *show_path(const char *p, char *buf, size_t n)
+{
+	if (!strcmp(p, MERGED)) { snprintf(buf, n, "%s", tr("SD + USB")); return buf; }
+	if (is_usb_path(p)) { snprintf(buf, n, "USB%s", p + 4); return buf; }
+	return p + strlen(WIIU_SD_ROOT);
+}
+
+/* where the games are: 0 SD, 1 USB, 2 both; USB only counts while the drive is there */
+static int src_effective(void) { return usbfs_mounted() ? cfg.games_src : 0; }
+static const char *edir(const entry_t *e, const char *def) { return e->base ? e->base : def; }
+
 static int scan_dir(const char *path, entry_t **out)
 {
-	DIR *d = opendir(path);
+	DIR *d = opendir(fs_path(path));
 	int n = 0, cap = 64;
 	entry_t *list = malloc(cap * sizeof(entry_t));
 	struct dirent *ent;
-	if (strcmp(path, WIIU_SD_ROOT) != 0) {
+	if (strcmp(path, WIIU_SD_ROOT) != 0 && strcmp(path, "usb:") != 0) {
 		memset(&list[n], 0, sizeof(entry_t));
 		strcpy(list[n].name, "..");
 		list[n].idTried = 1;
@@ -1533,7 +1551,7 @@ static int grid_run(grid_t *G, entry_t *list, const char **labels, int count, co
 			entry_t *e = &list[i];
 			int x = gx + c * S->cellW;
 			int cx = x + (S->cellW - 12 - S->cover) / 2;
-			if (!e->dir && !e->idTried && !detected && !T.down) { detect_entry(e, dir); detected = 1; }
+			if (!e->dir && !e->idTried && !detected && !T.down) { detect_entry(e, edir(e, dir)); detected = 1; }
 			if (e->dir) folder_icon(cx, y + 10, S->cover);
 			else {
 				cover_or_disc_r(ecover(e), cx, y + 10, S->cover, 0);
@@ -1634,7 +1652,7 @@ static int carousel_run(grid_t *G, entry_t *list, const char **labels, int count
 		for (int sgn = 1; sgn >= -1; sgn -= 2) {
 			int i = G->sel + k * sgn;
 			if (i >= 0 && i < count && !list[i].dir && !list[i].idTried && !T.down) {
-				detect_entry(&list[i], dir);
+				detect_entry(&list[i], edir(&list[i], dir));
 				done = 1;
 				break;
 			}
@@ -1924,17 +1942,64 @@ static int prepare_multidisc(const char *dir, const char *entry, char *out, size
 static int at_or_above(const char *path, const char *root)
 {
 	/* 1 when path is root itself (or shorter, i.e. outside it) */
+	if (is_usb_path(path) != is_usb_path(root)) return 0;      /* the other drive is not "above" */
 	return strlen(path) <= strlen(root);
 }
 
 static void go_up(void)
 {
+	if (is_usb_path(browsePath)) {
+		char *sl = strrchr(browsePath, '/');
+		if (sl) *sl = 0;
+		if (strlen(browsePath) < 4) strcpy(browsePath, "usb:");
+		return;
+	}
 	char *slash = strrchr(browsePath, '/');
 	if (slash && (size_t)(slash - browsePath) >= strlen(WIIU_SD_ROOT)) *slash = 0;
 	if (strlen(browsePath) < strlen(WIIU_SD_ROOT)) strcpy(browsePath, WIIU_SD_ROOT);
 }
 
-/* Game browser (pickDir = 0) or folder picker (pickDir = 1).
+/* in the SD + USB view, the games folder of either drive goes up to the top level */
+static void nav_up(int merged)
+{
+	if (merged && (!strcmp(browsePath, cfg.games_dir) || !strcmp(browsePath, cfg.games_dir_usb))) { strcpy(browsePath, MERGED); return; }
+	go_up();
+}
+
+static int at_top(const char *root)
+{
+	if (!strcmp(root, MERGED)) return !strcmp(browsePath, MERGED);
+	return at_or_above(browsePath, root);
+}
+
+static int path_in_games(const char *p)
+{
+	return !strncmp(p, cfg.games_dir, strlen(cfg.games_dir)) || !strncmp(p, cfg.games_dir_usb, strlen(cfg.games_dir_usb));
+}
+
+/* the entries of both games folders, as one list (each remembers its folder) */
+static int scan_merged(entry_t **out)
+{
+	entry_t *all = NULL;
+	int total = 0;
+	const char *bases[2] = { cfg.games_dir, cfg.games_dir_usb };
+	for (int b = 0; b < 2; b++) {
+		entry_t *l = NULL;
+		int n = scan_dir(bases[b], &l);
+		if (n && !strcmp(l[0].name, "..")) { memmove(l, l + 1, (n - 1) * sizeof(entry_t)); n--; }
+		collapse_entries(bases[b], l, &n);
+		for (int i = 0; i < n; i++) l[i].base = bases[b];
+		all = realloc(all, (total + n + 1) * sizeof(entry_t));
+		if (n) memcpy(all + total, l, n * sizeof(entry_t));
+		total += n;
+		free(l);
+	}
+	if (total > 1) qsort(all, total, sizeof(entry_t), cmp_entry);
+	*out = all;
+	return total;
+}
+
+/* Game browser (pickDir = 0), folder picker for the SD card (1) or the USB drive (2).
  * Opens in the games folder. B goes up one level and leaves the browser
  * once it is back in the games folder; the on-screen Back button always
  * leaves straight away. Returns 1 with the chosen file / folder in out. */
@@ -1946,14 +2011,21 @@ static int browse(const char *title, char *out, size_t outsz, int pickDir)
 	grid_t G = { 0 };
 	const char **labels = NULL;
 	char (*names)[272] = NULL;
-	const char *root = pickDir ? WIIU_SD_ROOT : cfg.games_dir;
+	const int src = src_effective();
+	const int merged = !pickDir && src == 2;
+	if (!merged && cfg.regionf >= 5 + emu_coll_count()) cfg.regionf = 0;        /* the source filters only exist in the SD + USB view */
+	const char *root = pickDir == 2 ? "usb:" : pickDir ? WIIU_SD_ROOT :
+	                   merged ? MERGED : src == 1 ? cfg.games_dir_usb : cfg.games_dir;
 	int ret = 0;
 
-	if (pickDir || !browsePath[0] || strncmp(browsePath, cfg.games_dir, strlen(cfg.games_dir)))
-		strcpy(browsePath, pickDir ? cfg.games_dir : cfg.games_dir);
-	{
+	if (pickDir == 2) strcpy(browsePath, "usb:");              /* the folder pickers open at the root of the drive */
+	else if (pickDir) strcpy(browsePath, WIIU_SD_ROOT);
+	else if (merged) { if (!path_in_games(browsePath)) strcpy(browsePath, MERGED); }
+	else if (!browsePath[0] || strncmp(browsePath, root, strlen(root))) strcpy(browsePath, root);
+	if (strcmp(browsePath, MERGED)) {
 		struct stat st;
-		if (stat(browsePath, &st) != 0) strcpy(browsePath, WIIU_SD_ROOT);
+		if (stat(fs_path(browsePath), &st) != 0)
+			strcpy(browsePath, merged ? MERGED : (pickDir == 2 || (!pickDir && src == 1)) ? "usb:" : WIIU_SD_ROOT);
 	}
 
 	int keepSel = 0;
@@ -1968,20 +2040,25 @@ rescan:
 		keepSel = 0;
 	}
 	free(list);
-	count = scan_dir(browsePath, &list);
-	if (!pickDir && count && !strcmp(list[0].name, "..") && at_or_above(browsePath, cfg.games_dir)) {
+	if (!strcmp(browsePath, MERGED)) { count = scan_merged(&list); }
+	else count = scan_dir(browsePath, &list);
+	if (!pickDir && count && !strcmp(list[0].name, "..") && at_top(root)) {
 		memmove(list, list + 1, (count - 1) * sizeof(entry_t));
 		count--;
 	}
-	if (!pickDir) collapse_entries(browsePath, list, &count);
+	if (!pickDir && strcmp(browsePath, MERGED)) collapse_entries(browsePath, list, &count);
 	if (!pickDir) {
 		int m = 0;
 		for (int i = 0; i < count; i++) {
 			char full[768], nm[272];
-			snprintf(full, sizeof(full), "%s/%s", browsePath, list[i].name);
+			snprintf(full, sizeof(full), "%s/%s", edir(&list[i], browsePath), list[i].name);
 			list[i].fav = !list[i].dir && emu_fav_is(full);
 			if (!list[i].dir && (favOnly || cfg.regionf == 4) && !list[i].fav) continue;
-			if (!list[i].dir && cfg.regionf >= 5 && !emu_coll_has(emu_coll_name(cfg.regionf - 5), full)) continue;
+			if (!list[i].dir && cfg.regionf >= 5 && cfg.regionf < 5 + emu_coll_count() && !emu_coll_has(emu_coll_name(cfg.regionf - 5), full)) continue;
+			if (cfg.regionf >= 5 + emu_coll_count() && !strcmp(browsePath, MERGED)) {      /* only SD / only USB, at the top of the SD + USB view */
+				int isUsb = list[i].base && is_usb_path(list[i].base);
+				if (isUsb != (cfg.regionf == 5 + emu_coll_count() + 1)) continue;
+			}
 			if (!list[i].dir && searchText[0]) {
 				pretty_name(list[i].name, nm, sizeof(nm));
 				if (!contains_ci(nm, searchText)) continue;
@@ -2048,6 +2125,10 @@ rescan:
 			pretty_name(list[i].name, nm, sizeof(nm));
 			snprintf(names[i], sizeof(names[i]), "%s%s", list[i].fav ? "\xe2\x98\x85 " : "", nm);
 		}
+		if (merged && !strcmp(browsePath, MERGED) && list[i].base && is_usb_path(list[i].base) && list[i].dir != 2) {
+			size_t l = strlen(names[i]);
+			snprintf(names[i] + l, sizeof(names[i]) - l, "  [USB]");
+		}
 		labels[i] = names[i];
 	}
 	if (!keepSel) {
@@ -2097,14 +2178,14 @@ rescan:
 			int i = (useGrid || useCar) ? G.sel : L.sel;
 			if (i >= 0 && i < count && !list[i].dir) {
 				char full[768];
-				snprintf(full, sizeof(full), "%s/%s", browsePath, list[i].name);
+				snprintf(full, sizeof(full), "%s/%s", edir(&list[i], browsePath), list[i].name);
 				emu_fav_toggle(full);
 				status(emu_fav_is(full) ? "Added to favourites." : "Removed from favourites.");
 				int keepG = G.sel, keepL = L.sel;
 				free(list); list = NULL;
 				count = 0;
 				/* rescan keeps the cursor */
-				count = scan_dir(browsePath, &list);
+				count = strcmp(browsePath, MERGED) ? scan_dir(browsePath, &list) : scan_merged(&list);
 				(void)keepG; (void)keepL;
 				goto rescan_keep;
 			}
@@ -2119,7 +2200,7 @@ rescan:
 		}
 		if (!pickDir && (b & WIIU_BTN_ZR)) {
 			char m[96];
-			cfg.regionf = (cfg.regionf + 1) % (5 + emu_coll_count());
+			cfg.regionf = (cfg.regionf + 1) % (5 + emu_coll_count() + (merged ? 2 : 0));
 			settings_save();
 			snprintf(m, sizeof(m), tr("Showing: %s"), tr(regionf_name(cfg.regionf)));
 			status(m);
@@ -2128,7 +2209,7 @@ rescan:
 		if (!pickDir && count && (b & WIIU_BTN_MINUS)) {   /* - : this game's options */
 			int i = (useGrid || useCar) ? G.sel : L.sel;
 			if (i >= 0 && i < count && !list[i].dir) {
-				game_options(&list[i], browsePath);
+				game_options(&list[i], edir(&list[i], browsePath));
 				transition();
 				goto rescan_keep;
 			}
@@ -2154,7 +2235,8 @@ rescan:
 		draw_background();
 		int back = draw_header(title, 1);
 		{
-			const char *p = browsePath + strlen(WIIU_SD_ROOT);
+			char shown[300];
+			const char *p = show_path(browsePath, shown, sizeof(shown));
 			char sub[200];
 			snprintf(sub, sizeof(sub), "%s%s%s%s%s%s%s%s%s", *p ? p : "/", favOnly ? tr("   \xe2\x98\x85 Favourites") : "",
 			         searchText[0] ? tr("   Search: \"") : "", searchText, searchText[0] ? "\"" : "",
@@ -2185,7 +2267,7 @@ rescan:
 			if (!e->dir) {
 				if (!e->idTried && !T.down) {
 					char full[768];
-					snprintf(full, sizeof(full), "%s/%s", browsePath, e->name);
+					snprintf(full, sizeof(full), "%s/%s", edir(e, browsePath), e->name);
 					e->idTried = 1;
 					if (!covers_detect_id(full, e->id)) e->id[0] = 0;
 				}
@@ -2204,8 +2286,8 @@ rescan:
 
 		if (back) break;                                      /* leave now */
 		if (b & WIIU_BTN_B) {
-			if (at_or_above(browsePath, root)) break;          /* back to menu */
-			go_up();
+			if (at_top(root)) break;                           /* back to menu */
+			nav_up(merged);
 			goto rescan;
 		}
 		if (activate >= 0 && activate < count) {
@@ -2218,19 +2300,22 @@ rescan:
 				status("This is a game. Choose [ Use this folder ] to use the folder it is in.");
 				continue;
 			} else if (!strcmp(e->name, "..")) {
-				go_up();
+				nav_up(merged);
 			} else if (e->dir) {
-				size_t l = strlen(browsePath);
-				snprintf(browsePath + l, sizeof(browsePath) - l, "/%s", e->name);
+				if (e->base) snprintf(browsePath, sizeof(browsePath), "%s/%s", e->base, e->name);
+				else {
+					size_t l = strlen(browsePath);
+					snprintf(browsePath + l, sizeof(browsePath) - l, "/%s", e->name);
+				}
 			} else {
 				pendingIndex = 0;
 				pendingDisc[0] = 0;
 				if (e->discs > 1) {
-					int r = prepare_multidisc(browsePath, e->name, out, outsz);
+					int r = prepare_multidisc(edir(e, browsePath), e->name, out, outsz);
 					if (r < 0) { transition(); continue; }       /* cancelled */
 					if (r > 0) { ret = 1; break; }
 				}
-				snprintf(out, outsz, "%s/%s", browsePath, e->name);
+				snprintf(out, outsz, "%s/%s", edir(e, browsePath), e->name);
 				ret = 1;
 				break;
 			}
@@ -2254,14 +2339,18 @@ static int quitAfterUpdate;
 static void all_covers(void);
 static void bios_screen(void);
 static int pick_games_folder(void);
+static int pick_usb_folder(void);
+static int pick_games_setup(void);
+static int gamesChecked;
 
 static void settings(void)
 {
-	enum { S_SCOPE, S_LANG, S_THEME, S_SFX, S_MUSIC, S_AUTOSTART, S_GAMES, S_VIEW, S_COVERS, S_ALLCOVERS, S_RESUME, S_CORE, S_SKIP, S_FFWD, S_FFSPEED, S_FPS, S_VSYNC, S_AUDIO,
+	if (!usbfs_mounted()) usbfs_mount();       /* a drive connected after the start */
+	enum { S_SCOPE, S_LANG, S_THEME, S_SFX, S_MUSIC, S_AUTOSTART, S_SRC, S_GAMES, S_GAMESUSB, S_VIEW, S_COVERS, S_ALLCOVERS, S_RESUME, S_CORE, S_SKIP, S_FFWD, S_FFSPEED, S_FPS, S_VSYNC, S_AUDIO,
 	       S_ASPECT, S_FILTER, S_BEZEL, S_WIDE, S_SCAN, S_CRT, S_FX, S_DRC, S_DITHER, S_HIRES, S_PAD, S_GYRO, S_PAD2, S_DEADZONE, S_MTAP, S_P1FIRST, S_POINTER,
 	       S_CONTROLS, S_HOTKEYS, S_RUMBLE, S_REGION, S_BIOS, S_BIOSCHECK, S_LOGO, S_AUTOFIX, S_ADV, S_UPDATE, S_COUNT };
 	static const char *allLabels[S_COUNT] = {
-		"Settings for", "Language", "Theme colour", "Menu sounds", "Menu music", "Open the last game at start", "Games folder", "Game list", "Covers", "Download all covers...", "Continue where you left off", "CPU core",
+		"Settings for", "Language", "Theme colour", "Menu sounds", "Menu music", "Open the last game at start", "Games source", "Games folder", "USB games folder", "Game list", "Covers", "Download all covers...", "Continue where you left off", "CPU core",
 		"Frame skip", "Fast forward", "Fast forward speed", "Show FPS", "VSync (no tearing)", "Sound", "Screen",
 		"Picture", "Border", "Widescreen (16:9)", "Scanlines", "CRT mask", "Screen effect", "GamePad screen", "Dithering", "Hi-res speed-up", "Player 1 controller", "Aim with GamePad motion",
 		"Player 2+ controller", "Analog dead zone", "Multitap (up to 5 players)", "Who is player 1", "Wii Remote pointer", "Button mapping...", "Hotkeys...", "Vibration",
@@ -2275,7 +2364,9 @@ static void settings(void)
 		"Sounds when you move and choose in the menu, and their style.",
 		"Soft, quiet background music in the menus. Off by default.",
 		"Opens the last game right away when WiiUStation starts.",
-		"The folder the game list opens in.",
+		"Where your games are: the SD card, a USB drive or both.",
+		"The folder with your games on the SD card.",
+		"The folder with your games on the USB drive.",
 		"How the games are shown: carousel, grid, compact grid or list.",
 		"2D front covers or 3D boxes.",
 		"Downloads the cover of every game in the games folder now.",
@@ -2319,24 +2410,31 @@ static void settings(void)
 	int map[S_COUNT];
 	list_t L = { 0, 0 };
 	int picMode = 0;                  /* the picture options over the game */
-	char scopeStr[96], gd[80], ffs[8], dzs[8];
+	char scopeStr[96], gd[80], gdu[80], ffs[8], dzs[8];
 	transition();
 
 	for (;;) {
 		int loaded = emu_game_loaded(), game = settings_game_scope(), n = 0;
 		for (int i = 0; i < S_COUNT; i++) {
 			if (i == S_SCOPE && !loaded) continue;
+			/* the USB options only exist while a USB drive is there */
+			if (i == S_SRC && !usbfs_mounted()) continue;
+			if (i == S_GAMES && src_effective() == 1) continue;
+			if (i == S_GAMESUSB && src_effective() == 0) continue;
 			/* in a game: only what is about the game ("Settings for", then
 			 * everything from the CPU core down) */
 			if (loaded && i > S_SCOPE && i < S_CORE) continue;
 			/* about the emulator, not the game: only in the home screen's Settings */
 			if (loaded && (i == S_BIOSCHECK || i == S_AUTOFIX || i == S_UPDATE)) continue;
 			/* app-wide options are hidden while editing one game's settings */
-			if (game && (i == S_GAMES || i == S_VIEW || i == S_COVERS || i == S_RESUME ||
+			if (game && (i == S_GAMES || i == S_SRC || i == S_GAMESUSB || i == S_VIEW || i == S_COVERS || i == S_RESUME ||
 			             i == S_FFWD || i == S_LANG || i == S_HOTKEYS || i == S_SFX || i == S_MUSIC || i == S_UPDATE ||
 			             i == S_AUTOSTART || i == S_ALLCOVERS || i == S_AUTOFIX || i == S_POINTER)) continue;
 			map[n] = i;
 			labels[n] = allLabels[i];
+			/* with both drives the two folders say which is which; with one, it is just "Games folder" */
+			if (i == S_GAMES && src_effective() == 2) labels[n] = "SD games folder";
+			if (i == S_GAMESUSB && src_effective() == 1) labels[n] = "Games folder";
 			values[n] = NULL;
 			n++;
 		}
@@ -2351,11 +2449,22 @@ static void settings(void)
 				values[k] = scopeStr;
 				break;
 			case S_GAMES: {
-				const char *p = cfg.games_dir + strlen(WIIU_SD_ROOT);
+				char shown[300];
+				const char *p = show_path(cfg.games_dir, shown, sizeof(shown));
 				const char *last = strrchr(p, '/'), *prev = last;
 				if (last && last > p) { prev = last - 1; while (prev > p && *prev != '/') prev--; }
 				snprintf(gd, sizeof(gd), "%s%.40s", prev && prev > p ? "..." : "", prev && *p ? prev : "/");
 				values[k] = gd;
+				break;
+			}
+			case S_SRC:    values[k] = cfg.games_src == 1 ? "USB" : cfg.games_src == 2 ? "SD + USB" : "SD"; break;
+			case S_GAMESUSB: {
+				char shown[300];
+				const char *p = show_path(cfg.games_dir_usb, shown, sizeof(shown));
+				const char *last = strrchr(p, '/'), *prev = last;
+				if (last && last > p) { prev = last - 1; while (prev > p && *prev != '/') prev--; }
+				snprintf(gdu, sizeof(gdu), "%s%.40s", prev && prev > p ? "..." : "", prev && *p ? prev : "USB/");
+				values[k] = gdu;
 				break;
 			}
 			case S_VIEW:   values[k] = view_name(cfg.view); break;
@@ -2502,7 +2611,13 @@ static void settings(void)
 			settings_set_game_scope(!game);
 			status(!game ? "Now editing this game's own settings." : "This game uses the global settings again.");
 			break;
+		case S_SRC:
+			cfg.games_src = (cfg.games_src + 3 + dir) % 3;
+			browsePath[0] = 0;
+			gamesChecked = 0;
+			break;
 		case S_GAMES: pick_games_folder(); transition(); break;
+		case S_GAMESUSB: pick_usb_folder(); transition(); break;
 		case S_VIEW:   cfg.view = view_next(cfg.view, dir); break;
 		case S_VSYNC:  cfg.vsync = !cfg.vsync; break;
 		case S_COVERS:
@@ -2721,10 +2836,12 @@ static void credits(void)
 		"devkitPPC / devkitPro toolchain",
 		"Aroma environment  -  Maschell and contributors",
 		"SDL2 for Wii U  -  GaryOderNichts, Maschell and contributors",
+		"libmocha (USB drive access)  -  Maschell, Dimok and contributors",
 		"",
 		"#Libraries",
 		"SDL2, SDL2_ttf, SDL2_image  -  Sam Lantinga and the SDL team",
 		"FreeType, HarfBuzz, libpng, libjpeg-turbo, libwebp, zlib",
+		"libfat (FAT32)  -  Michael \"Chishm\" Chisholm, Sven Peter, devkitPro",
 		"libcurl  -  Daniel Stenberg and contributors",
 		"Mbed TLS  -  Trusted Firmware / Arm",
 		"Mozilla CA certificate store (certifi)",
@@ -3261,7 +3378,8 @@ static void all_covers(void)
 		present();
 		if (back || (b & WIIU_BTN_B) || wiiu_quit) break;
 		if (!scanned) {
-			collect_games(cfg.games_dir, 0, &paths, &n, &cap);
+			if (src_effective() != 1) collect_games(cfg.games_dir, 0, &paths, &n, &cap);
+			if (src_effective() != 0) collect_games(cfg.games_dir_usb, 0, &paths, &n, &cap);
 			scanned = 1;
 			continue;
 		}
@@ -3404,8 +3522,9 @@ static void game_collections(entry_t *e, const char *dir)
 		if (act < n) {
 			char nm[64];
 			snprintf(nm, sizeof(nm), "%s", emu_coll_name(act));
+			int before = emu_coll_count();
 			emu_coll_toggle(nm, full);
-			if (cfg.regionf >= 5 + emu_coll_count()) cfg.regionf = 0;   /* its last game was removed */
+			if (emu_coll_count() != before && cfg.regionf >= 5) cfg.regionf = 0;   /* a collection went away (its last game was removed): the numbers shift */
 		} else {
 			char nm[64];
 			if (text_prompt("Collection name", "", nm, sizeof(nm)) && nm[0]) {
@@ -4512,43 +4631,104 @@ static void intro(void)
 
 /* is there any game in the games folder (or one folder below)? Checked
  * again whenever gamesChecked is cleared. */
-static int gamesChecked = 0, gamesFound;
+static int gamesFound;
+static int dir_has_games(const char *dir)
+{
+	int found = 0;
+	DIR *d = opendir(fs_path(dir));
+	if (!d) return 0;
+	struct dirent *ent;
+	while (!found && (ent = readdir(d)) != NULL) {
+		if (ent->d_name[0] == '.') continue;
+		if (!(ent->d_type & DT_DIR)) { if (is_game_file(ent->d_name)) found = 1; continue; }
+		char sub[768];
+		snprintf(sub, sizeof(sub), "%s/%s", dir, ent->d_name);
+		DIR *d2 = opendir(sub);
+		if (!d2) continue;
+		struct dirent *e2;
+		while ((e2 = readdir(d2)) != NULL)
+			if (e2->d_name[0] != '.' && !(e2->d_type & DT_DIR) && is_game_file(e2->d_name)) { found = 1; break; }
+		closedir(d2);
+	}
+	closedir(d);
+	return found;
+}
 static int games_folder_ok(void)
 {
 	if (gamesChecked) return gamesFound;
 	gamesChecked = 1;
 	gamesFound = 0;
-	DIR *d = opendir(cfg.games_dir);
-	if (!d) return 0;
-	struct dirent *ent;
-	while (!gamesFound && (ent = readdir(d)) != NULL) {
-		if (ent->d_name[0] == '.') continue;
-		if (!(ent->d_type & DT_DIR)) { if (is_game_file(ent->d_name)) gamesFound = 1; continue; }
-		char sub[768];
-		snprintf(sub, sizeof(sub), "%s/%s", cfg.games_dir, ent->d_name);
-		DIR *d2 = opendir(sub);
-		if (!d2) continue;
-		struct dirent *e2;
-		while ((e2 = readdir(d2)) != NULL)
-			if (e2->d_name[0] != '.' && !(e2->d_type & DT_DIR) && is_game_file(e2->d_name)) { gamesFound = 1; break; }
-		closedir(d2);
-	}
-	closedir(d);
+	if (!cfg.games_chosen) return 0;        /* a new installation: the home screen asks for the folder */
+	int src = src_effective();
+	gamesFound = (src != 1 && dir_has_games(cfg.games_dir)) || (src != 0 && dir_has_games(cfg.games_dir_usb));
 	return gamesFound;
 }
 
-/* the folder picker for the games folder; 1 if a folder was chosen */
-static int pick_games_folder(void)
+/* the folder pickers: the SD card (usb = 0) or the USB drive; 1 if a folder was chosen */
+static int pick_folder(int usb)
 {
 	char dirp[512];
-	if (!browse("Games folder", dirp, sizeof(dirp), 1)) return 0;
-	strncpy(cfg.games_dir, dirp, sizeof(cfg.games_dir) - 1);
-	cfg.games_dir[sizeof(cfg.games_dir) - 1] = 0;
+	if (!browse(usb ? "USB games folder" : usbfs_mounted() ? "SD games folder" : "Games folder", dirp, sizeof(dirp), usb ? 2 : 1)) return 0;
+	if (usb) { strncpy(cfg.games_dir_usb, dirp, sizeof(cfg.games_dir_usb) - 1); cfg.games_dir_usb[sizeof(cfg.games_dir_usb) - 1] = 0; }
+	else { strncpy(cfg.games_dir, dirp, sizeof(cfg.games_dir) - 1); cfg.games_dir[sizeof(cfg.games_dir) - 1] = 0; }
 	browsePath[0] = 0;
 	gamesChecked = 0;
+	cfg.games_chosen = 1;
 	settings_save();
 	status("Games folder saved.");
 	return 1;
+}
+static int pick_games_folder(void) { return pick_folder(0); }
+static int pick_usb_folder(void) { return pick_folder(1); }
+
+/* the first start: where are the games? (only asked when a USB drive is there) */
+static int choose_source(void)
+{
+	int sel = 0;
+	poll_buttons();
+	T.down = T.tapped = 0;
+	transition();
+	for (;;) {
+		poll_touch();
+		uint32_t b = poll_buttons();
+		if (b & WIIU_BTN_LEFT)  sel = (sel + 2) % 3;
+		if (b & WIIU_BTN_RIGHT) sel = (sel + 1) % 3;
+		draw_background();
+		int back = draw_header(NULL, 1);
+		SDL_Color card = th(14, 18, 40), hl = th(0, 140, 220), btn = th(40, 46, 74);
+		static const char *const names[3] = { "SD card", "USB drive", "SD + USB" };
+		rrect(70, 200, 1140, 340, 26, card, 240);
+		text(fontTitle, 640, 260, "Where are your games?", WHITE, 1);
+		text(fontSmall, 640, 306, "A USB drive was found.", GREY, 1);
+		for (int i = 0; i < 3; i++) {
+			SDL_Rect r = { 100 + i * 370, 350, 340, 140 };
+			if (tap_in(r.x, r.y, r.w, r.h)) { transition(); return i; }
+			if (hover_in(r.x, r.y, r.w, r.h)) sel = i;
+			rrect(r.x, r.y, r.w, r.h, 20, i == sel ? hl : btn, 255);
+			text(fontItem, r.x + r.w / 2, r.y + 70, names[i], WHITE, 1);
+		}
+		draw_footer(NULL);
+		present();
+		if (wiiu_quit || back || (b & WIIU_BTN_B)) return -1;
+		if (b & WIIU_BTN_A) { transition(); return sel; }
+	}
+}
+
+/* the home screen's "Choose games folder": with a USB drive, first where the games are */
+static int pick_games_setup(void)
+{
+	if (!usbfs_mounted()) usbfs_mount();
+	if (!usbfs_mounted()) return pick_games_folder();
+	int src = choose_source();
+	if (src < 0) return 0;
+	int old = cfg.games_src, ok = 1;
+	cfg.games_src = src;
+	if (src != 1) ok = pick_folder(0);
+	if (ok && src != 0) ok = pick_folder(1);
+	if (!ok) cfg.games_src = old;
+	settings_save();
+	gamesChecked = 0;
+	return ok;
 }
 
 int menu_run(void)
@@ -4687,8 +4867,7 @@ int menu_run(void)
 			if (!nrec) {
 				rrect(50, 168, 1180, 170, 22, card, 200);
 				if (games_folder_ok()) {
-					text(fontItem, 640, 230, "Tap Games to choose a game.", WHITE, 1);
-					text_wrap(fontSmall, 640, 280, 1000, "Put your games in sd:/wiiu/apps/WiiUStation/games", GREY);
+					text(fontItem, 640, 250, "Tap Games to choose a game.", WHITE, 1);
 				} else {
 					text(fontItem, 640, 214, "Choose the folder with your games to start.", WHITE, 1);
 				}
@@ -4740,9 +4919,7 @@ int menu_run(void)
 				{
 					int tw = 0;
 					TTF_SizeUTF8(fontItem, tr("Choose games folder"), &tw, NULL);
-					int x0 = r.x + (r.w - tw - 52) / 2;
-					folder_icon(x0, r.y + 12, 36);
-					text(fontItem, x0 + 52, r.y + r.h / 2, "Choose games folder", WHITE, 0);
+					text(fontItem, r.x + r.w / 2, r.y + r.h / 2, "Choose games folder", WHITE, 1);
 				}
 				break;
 			case H_RECENT: {
@@ -4815,7 +4992,7 @@ int menu_run(void)
 			transition();
 			break;
 		case H_PICKDIR:
-			pick_games_folder();
+			pick_games_setup();
 			sel = -1;
 			transition();
 			break;

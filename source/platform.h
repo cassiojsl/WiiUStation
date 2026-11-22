@@ -120,7 +120,10 @@ typedef struct {
 	int core[32];       /* extra PCSX-ReARMed options, see core_opt_* */
 	int hk[HK_COUNT];   /* hotkeys: WIIU_BTN bit index, -1 = none; hk[0] = modifier */
 	int map[16];        /* PSX button (RETRO_DEVICE_ID_JOYPAD_*) -> WIIU_BTN bit index */
-	char games_dir[256];  /* folder the game browser opens */
+	char games_dir[256];  /* folder the game browser opens (on the SD card) */
+	char games_dir_usb[256]; /* the same on the USB drive ("usb:" is its root) */
+	int games_src;        /* where the games are: 0 SD, 1 USB, 2 both */
+	int games_chosen;     /* 1 once the user chose the games folder (until then the home screen asks) */
 } wiiu_settings;
 
 extern wiiu_settings cfg;
@@ -309,6 +312,9 @@ void wlog_lastpc(const char *what);     /* the emulated CPU position, once a sec
 void wlog_activity(const char *what);   /* kept for the next start if the app dies */
 void audio_take_stats(unsigned *underruns, unsigned *drops);
 void wlog_exit(void);
+int usbfs_mount(void);       /* the FAT32 USB drive as "usb:/" (0 when there is none) */
+int usbfs_mounted(void);
+void usbfs_unmount(void);
 const char *emu_load_error(void);      /* why the last game did not load */
 void update_install_on_exit(void);   /* swap the file and restart when the app closes */
 int update_pending(void);
