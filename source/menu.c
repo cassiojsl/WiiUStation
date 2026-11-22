@@ -512,6 +512,7 @@ static touch_t T;
 /* set when the menu opens: the touch that opened it (still on the screen)
  * must not become a tap in the menu, so it is ignored until lifted */
 static int touchBlock;
+static int arrowGrab;        /* a carousel arrow is being held: its own sounds, no "tap" chime */
 /* the Wii Remote pointer moved this frame (position in menu pixels) */
 static struct { int moved, x, y; } P;
 
@@ -560,7 +561,8 @@ static void poll_touch(void)
 		}
 	} else if (T.down) {
 		T.down = 0;
-		if (!T.dragging) { T.tapped = 1; T.tx = T.sx; T.ty = T.sy; sfx_play(SFX_OK); }
+		if (!T.dragging) { T.tapped = 1; T.tx = T.sx; T.ty = T.sy; if (!arrowGrab) sfx_play(SFX_OK); }
+		arrowGrab = 0;
 	}
 }
 
@@ -1537,12 +1539,52 @@ static int grid_run(grid_t *G, entry_t *list, const char **labels, int count, co
 /* Carousel: one big cover in the middle, the neighbours smaller and dimmer
  * at the sides. Swipe or press left/right. Tap the middle cover to start,
  * a side cover to move to it. Returns the activated entry or -1. */
+static int wii_remote_connected(void)
+{
+	for (int i = 1; i < WIIU_MAX_PADS; i++) {
+		const wiiu_pad_state *w = wiiu_input_get(i);
+		if (w->connected && w->kind >= PADKIND_REMOTE) return 1;
+	}
+	return 0;
+}
+
+static int in_rect(SDL_Rect r, int x, int y)
+{
+	return x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h;
+}
+
 static int carousel_run(grid_t *G, entry_t *list, const char **labels, int count, const char *dir)
 {
 	const int CX = 640, CY = 318, BIG = 340;
 	int tapped = -1;
+	/* arrows on both sides while a Wii Remote is there (like USB Loader GX):
+	 * press to go one game, hold to go on, faster after a while */
+	const SDL_Rect aL = { 6, 230, 76, 176 }, aR = { 1198, 230, 76, 176 };
+	const int wiiOn = cfg.pointer && wii_remote_connected();
+	int arrowDir = 0;
+	if (wiiOn && T.down) arrowDir = in_rect(aL, T.sx, T.sy) ? -1 : in_rect(aR, T.sx, T.sy) ? 1 : 0;
 	if (!G->hInit) { G->pos = G->sel; G->hInit = 1; }
-	if (T.down && T.dragging && T.sy >= GRID_Y && T.sy < 560) {
+	static int heldDir;
+	static uint32_t pressAt, lastStep;
+	if (arrowDir) {
+		uint32_t now = SDL_GetTicks();
+		int step = 0;
+		arrowGrab = 1;
+		if (heldDir != arrowDir) { heldDir = arrowDir; pressAt = lastStep = now; step = 1; }
+		else {
+			uint32_t held = now - pressAt;
+			uint32_t every = held < 1500 ? 150 : 70;
+			if (held >= 450 && now - lastStep >= every) { step = 1; lastStep = now; }
+		}
+		if (step) {
+			int ns = G->sel + arrowDir;
+			if (ns >= 0 && ns < count) { G->sel = ns; sfx_play(SFX_MOVE); }
+		}
+	} else {
+		heldDir = 0;
+	}
+	if (wiiOn && T.tapped && (in_rect(aL, T.tx, T.ty) || in_rect(aR, T.tx, T.ty))) T.tapped = 0;
+	if (T.down && T.dragging && !arrowDir && T.sy >= GRID_Y && T.sy < 560) {
 		G->pos -= T.dx / 230.0f;
 		if (G->pos < 0) G->pos = 0;
 		if (G->pos > count - 1) G->pos = count - 1;
@@ -1621,6 +1663,18 @@ static int carousel_run(grid_t *G, entry_t *list, const char **labels, int count
 			text(fontSmall, 1240, 116, pos, GREY, 2);
 		}
 		text(fontSmall, CX, 634, info, GREY, 1);
+	}
+	if (wiiOn) {
+		for (int side = 0; side < 2; side++) {
+			SDL_Rect r = side ? aR : aL;
+			int hot = (arrowDir == (side ? 1 : -1)) || (P.moved && in_rect(r, P.x, P.y));
+			int possible = side ? G->sel < count - 1 : G->sel > 0;
+			rrect(r.x, r.y, r.w, r.h, 20, th(14, 18, 40), hot ? 200 : 110);
+			if (hot) outline(r.x, r.y, r.w, r.h, th(0, 140, 220), 255, 3);
+			float cy = r.y + r.h / 2.0f, x0 = r.x + (side ? 20 : 56), x1 = r.x + (side ? 56 : 20);
+			float tri[6] = { x1, cy, x0, cy - 36, x0, cy + 36 };
+			poly(tri, 3, WHITE, possible ? (hot ? 255 : 190) : 70);
+		}
 	}
 	return tapped;
 }
