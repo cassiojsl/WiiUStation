@@ -4647,6 +4647,8 @@ static int games_folder_ok(void)
 {
 	if (gamesChecked) return gamesFound;
 	gamesChecked = 1;
+	gamesFound = 0;
+	if (!cfg.games_chosen) return 0;        /* a new installation: the home screen asks for the folder */
 	int src = src_effective();
 	gamesFound = (src != 1 && dir_has_games(cfg.games_dir)) || (src != 0 && dir_has_games(cfg.games_dir_usb));
 	return gamesFound;
@@ -4661,6 +4663,7 @@ static int pick_folder(int usb)
 	else { strncpy(cfg.games_dir, dirp, sizeof(cfg.games_dir) - 1); cfg.games_dir[sizeof(cfg.games_dir) - 1] = 0; }
 	browsePath[0] = 0;
 	gamesChecked = 0;
+	cfg.games_chosen = 1;
 	settings_save();
 	status("Games folder saved.");
 	return 1;

@@ -123,6 +123,7 @@ typedef struct {
 	char games_dir[256];  /* folder the game browser opens (on the SD card) */
 	char games_dir_usb[256]; /* the same on the USB drive ("usb:" is its root) */
 	int games_src;        /* where the games are: 0 SD, 1 USB, 2 both */
+	int games_chosen;     /* 1 once the user chose the games folder (until then the home screen asks) */
 } wiiu_settings;
 
 extern wiiu_settings cfg;
