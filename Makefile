@@ -52,7 +52,7 @@ LDFLAGS		=	$(ARCH) $(RPXSPECS) $(MACHDEP) -Wl,--gc-sections -Wl,-Map,$(notdir $*
 LIBS		:=	$(CORE_LIB) -lSDL2_image -lwebpdemux -lwebp -lsharpyuv -ljpeg \
 			-lcurl -lmbedtls -lmbedx509 -lmbedcrypto -lSDL2_ttf -lfreetype -lharfbuzz -lfreetype -lpng -lbz2 \
 			-lbrotlidec -lbrotlicommon -lz -lSDL2 -lmocha -lwut -lm
-LIBDIRS		:=	$(PORTLIBS) $(WUT_ROOT) /home/user/wiiu-env/libmocha
+LIBDIRS		:=	$(PORTLIBS) $(WUT_ROOT) $(WUT_ROOT)/usr
 
 #---------------------------------------------------------------------------------
 ifneq ($(BUILD),$(notdir $(CURDIR)))

@@ -25,6 +25,14 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+      # libmocha (USB drive access through Aroma) is not in the container: built and installed here,
+      # from a fixed commit so the build does not change by itself
+      - name: libmocha
+        run: |
+          git config --global --add safe.directory '*'
+          git clone https://github.com/wiiu-env/libmocha /tmp/libmocha
+          git -C /tmp/libmocha checkout 50fefdf8307a875c63bdbdcf6c973779d4ddac92
+          make -C /tmp/libmocha install
       - name: Build
         env:
           RELEASE_VERSION: ${{ github.event.inputs.version }}

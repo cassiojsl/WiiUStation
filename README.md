@@ -18,7 +18,6 @@ controllers, covers and saves are WiiUStation's own.
 
 ```
 sd:/wiiu/apps/WiiUStation/
-├── games/      your games (.cue/.bin, .chd, .pbp, .iso, .img, .m3u, ...)
 ├── bios/       optional: scph1001.bin, scph5501.bin, ...
 ├── saves/      memory cards (<game>.srm)
 ├── states/     save states
@@ -27,13 +26,26 @@ sd:/wiiu/apps/WiiUStation/
 ├── cheats/     libretro .cht files: <game file name>.cht or <GAME-ID>.cht
 ├── screenshots/
 ├── gamesettings/  per-game settings
+├── db/         game details (downloaded on demand)
 ├── favorites.txt, recent.txt
 ├── log.txt     what happened (system, settings, games loaded or not and why, fps, crash reports); last_error.txt: the last game that did not load
 └── settings.cfg
 ```
 
-The games folder can be anywhere on the SD card: set it in
-**Settings → Games folder**. Without a BIOS, the built-in HLE BIOS is used.
+Your games (.cue/.bin, .chd, .pbp, .iso, .img, .m3u, ...) can be in any
+folder of the SD card: the first time, choose it on the start screen, or
+later in **Settings → Games folder**. WiiUStation has no games folder of its
+own. Without a BIOS, the built-in HLE BIOS is used.
+
+### Games on a USB drive
+
+A **FAT32** USB drive (with Aroma) can hold your games too. When a drive is
+detected, **Settings → Games source** lets you choose **SD**, **USB** or
+**SD + USB**, with a folder for each. With both, the game list shows them
+together (games from the drive are tagged **[USB]**) and the **ZR** filter
+can show only one of them. The drive is only read: saves, states and
+settings stay on the SD card. If the Wii U asks to format the drive, do not
+accept: Aroma's UStealth option (Aroma Base Plugin) hides that dialog.
 
 ## Controls
 
@@ -148,6 +160,9 @@ Settings → Button mapping.
   from there.
 - **Game information** (− → Information): game ID, region, size, play
   time, save states, memory card use, cheats, translation patch.
+- **Game details**: release date, genre, developer, publisher, players and a
+  description, in the Information screen and under the cover in the list
+  view. The data is downloaded once (about 7 MB) from the Information screen.
 - **Collections**: make your own lists of games (− → Collections) and show
   one with the ZR filter.
 - **Download all covers**: Settings → Download all covers fetches the cover
@@ -212,8 +227,11 @@ The **PCSX-ReARMed** team (notaz, Exophase, senquack, pcercuei and the
 contributors) and the PCSX / PCSX-df / PCSX-Reloaded teams. **Lightrec** and
 **GNU lightning**. **P.E.Op.S.** GPU. **wut**, **devkitPro** and the Wii U
 homebrew community. **Aroma**. **SDL2** for Wii U, **libcurl**, **Mbed TLS**,
-**FreeType**, **HarfBuzz**. Covers from **xlenore/psx-covers**. The full list
-is in the app under **Credits**.
+**FreeType**, **HarfBuzz**. **libmocha** (USB access, by Maschell, Dimok and
+contributors, LGPL-3.0) and **libfat** (FAT32, by Chishm, Sven Peter and
+devkitPro, BSD-style licence). Covers from **xlenore/psx-covers**. Game
+details from **libretro-database** (built from the PSX Data Center,
+CC BY-SA 4.0). The full list is in the app under **Credits**.
 
 ## Licence
 
