@@ -487,3 +487,7 @@
 500|Versie %s is klaar.
 501|Druk op A om WiiUStation opnieuw te starten met de nieuwe versie.
 502|Kan de game niet laden: %s (details in last_error.txt)
+503|Y: kaart wissen   Kaarten van andere emulators (.mcr, .mcd) kunnen naar WiiUStation/saves worden gekopieerd
+504|Druk nogmaals op Y om de hele kaart te wissen.
+505|Geheugenkaart gewist.
+506|Kan de geheugenkaart niet wissen.

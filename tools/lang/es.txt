@@ -487,3 +487,7 @@
 500|La versión %s está lista.
 501|Pulsa A para reiniciar WiiUStation con la nueva versión.
 502|No se pudo abrir el juego: %s (detalles en last_error.txt)
+503|Y: borrar tarjeta   Las tarjetas de otros emuladores (.mcr, .mcd) se pueden copiar a WiiUStation/saves
+504|Pulsa Y otra vez para borrar la tarjeta entera.
+505|Tarjeta de memoria borrada.
+506|No se pudo borrar la tarjeta de memoria.

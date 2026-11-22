@@ -3357,6 +3357,7 @@ static void memcards(void)
 		values[i] = usage[i];
 	}
 	list_t L = { 0, 0 };
+	uint32_t delArm = 0;
 	transition();
 	for (;;) {
 		poll_touch();
@@ -3374,9 +3375,36 @@ static void memcards(void)
 			text(fontItem, 640, 330, "No memory cards yet.", GREY, 1);
 			text_wrap(fontSmall, 640, 380, 1000, "Each game gets one in WiiUStation/saves. Cards from other emulators (.mcr, .mcd) can be copied there too.", DIM);
 		}
-		draw_footer(n ? "Cards from other emulators (.mcr, .mcd) can be copied to WiiUStation/saves" : NULL);
+		draw_footer(n ? "Y: delete card   Cards from other emulators (.mcr, .mcd) can be copied to WiiUStation/saves" : NULL);
 		present();
 		if (back || (b & WIIU_BTN_B) || wiiu_quit) return;
+		if (n && (b & WIIU_BTN_Y)) {
+			if (delArm && SDL_GetTicks() - delArm < 3000) {
+				char p[600], inuse[600];
+				snprintf(p, sizeof(p), "%s/%s", WIIU_SAVE_DIR, cardNames[L.sel]);
+				delArm = 0;
+				if (emu_memcard_path(inuse, sizeof(inuse)) && !strcmp(inuse, p))
+					status("That card belongs to the game that is running.");
+				else if (remove(p) != 0)
+					status("Could not delete the memory card.");
+				else {
+					status("Memory card deleted.");
+					n = scan_cards();
+					for (int i = 0; i < n; i++) {
+						pretty_name(cardNames[i], shown[i], sizeof(shown[i]));
+						labels[i] = shown[i];
+						snprintf(p, sizeof(p), "%s/%s", WIIU_SAVE_DIR, cardNames[i]);
+						if (mc_load(p, card)) snprintf(usage[i], sizeof(usage[i]), tr("%d / 15 used"), 15 - mc_free_blocks(card));
+						else snprintf(usage[i], sizeof(usage[i]), "?");
+						values[i] = usage[i];
+					}
+					if (L.sel >= n) L.sel = n ? n - 1 : 0;
+				}
+			} else {
+				delArm = SDL_GetTicks();
+				status("Press Y again to delete this whole card.");
+			}
+		}
 		if (open >= 0) {
 			card_view(cardNames[open]);
 			transition();

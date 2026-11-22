@@ -501,3 +501,7 @@ Press A to close WiiUStation, then open it again to use the new version.
 Version %s is ready.
 Press A to restart WiiUStation with the new version.
 Could not load the game: %s (details in last_error.txt)
+Y: delete card   Cards from other emulators (.mcr, .mcd) can be copied to WiiUStation/saves
+Press Y again to delete this whole card.
+Memory card deleted.
+Could not delete the memory card.

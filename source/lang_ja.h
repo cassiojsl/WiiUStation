@@ -488,3 +488,7 @@
 { "Version %s is ready.", "バージョン %s の準備ができました。" },
 { "Press A to restart WiiUStation with the new version.", "Aを押すと、新しいバージョンでWiiUStationを再起動します。" },
 { "Could not load the game: %s (details in last_error.txt)", "ゲームを開けませんでした: %s (詳細は last_error.txt)" },
+{ "Y: delete card   Cards from other emulators (.mcr, .mcd) can be copied to WiiUStation/saves", "Y: カードを削除   他のエミュレータのカード (.mcr, .mcd) は WiiUStation/saves にコピーできます" },
+{ "Press Y again to delete this whole card.", "もう一度 Y を押すとカード全体を削除します。" },
+{ "Memory card deleted.", "メモリーカードを削除しました。" },
+{ "Could not delete the memory card.", "メモリーカードを削除できませんでした。" },

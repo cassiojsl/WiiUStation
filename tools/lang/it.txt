@@ -487,3 +487,7 @@
 500|La versione %s è pronta.
 501|Premi A per riavviare WiiUStation con la nuova versione.
 502|Impossibile aprire il gioco: %s (dettagli in last_error.txt)
+503|Y: elimina scheda   Le schede di altri emulatori (.mcr, .mcd) si possono copiare in WiiUStation/saves
+504|Premi di nuovo Y per eliminare l'intera scheda.
+505|Scheda di memoria eliminata.
+506|Impossibile eliminare la scheda di memoria.

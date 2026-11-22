@@ -467,3 +467,7 @@
 { "Version %s is ready.", "Versie %s is klaar." },
 { "Press A to restart WiiUStation with the new version.", "Druk op A om WiiUStation opnieuw te starten met de nieuwe versie." },
 { "Could not load the game: %s (details in last_error.txt)", "Kan de game niet laden: %s (details in last_error.txt)" },
+{ "Y: delete card   Cards from other emulators (.mcr, .mcd) can be copied to WiiUStation/saves", "Y: kaart wissen   Kaarten van andere emulators (.mcr, .mcd) kunnen naar WiiUStation/saves worden gekopieerd" },
+{ "Press Y again to delete this whole card.", "Druk nogmaals op Y om de hele kaart te wissen." },
+{ "Memory card deleted.", "Geheugenkaart gewist." },
+{ "Could not delete the memory card.", "Kan de geheugenkaart niet wissen." },

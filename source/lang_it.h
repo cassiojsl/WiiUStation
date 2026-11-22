@@ -476,3 +476,7 @@
 { "Version %s is ready.", "La versione %s è pronta." },
 { "Press A to restart WiiUStation with the new version.", "Premi A per riavviare WiiUStation con la nuova versione." },
 { "Could not load the game: %s (details in last_error.txt)", "Impossibile aprire il gioco: %s (dettagli in last_error.txt)" },
+{ "Y: delete card   Cards from other emulators (.mcr, .mcd) can be copied to WiiUStation/saves", "Y: elimina scheda   Le schede di altri emulatori (.mcr, .mcd) si possono copiare in WiiUStation/saves" },
+{ "Press Y again to delete this whole card.", "Premi di nuovo Y per eliminare l'intera scheda." },
+{ "Memory card deleted.", "Scheda di memoria eliminata." },
+{ "Could not delete the memory card.", "Impossibile eliminare la scheda di memoria." },

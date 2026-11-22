@@ -487,3 +487,7 @@
 500|Version %s ist bereit.
 501|Drücke A, um WiiUStation mit der neuen Version neu zu starten.
 502|Das Spiel konnte nicht geladen werden: %s (Details in last_error.txt)
+503|Y: Karte löschen   Karten anderer Emulatoren (.mcr, .mcd) können nach WiiUStation/saves kopiert werden
+504|Drücke Y noch einmal, um die ganze Karte zu löschen.
+505|Speicherkarte gelöscht.
+506|Die Speicherkarte konnte nicht gelöscht werden.
