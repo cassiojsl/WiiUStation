@@ -514,3 +514,7 @@
 527|Su / Giù: scorri
 528|A: scarica e installa   X: novità
 529|X: novità
+530|Annulla
+531|Annullamento...
+532|Download annullato.
+533|B: annulla il download

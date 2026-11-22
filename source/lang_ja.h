@@ -515,3 +515,7 @@
 { "Up / Down: scroll", "上 / 下: スクロール" },
 { "A: download and install   X: what's new", "A: ダウンロードして更新   X: 新機能" },
 { "X: what's new", "X: 新機能" },
+{ "Cancel", "キャンセル" },
+{ "Cancelling...", "キャンセル中..." },
+{ "Download cancelled.", "ダウンロードを中止しました。" },
+{ "B: cancel the download", "B: ダウンロードを中止" },

@@ -511,3 +511,7 @@
 { "Up / Down: scroll", "Вверх / Вниз: прокрутка" },
 { "A: download and install   X: what's new", "A: скачать и установить   X: что нового" },
 { "X: what's new", "X: что нового" },
+{ "Cancel", "Отмена" },
+{ "Cancelling...", "Отмена..." },
+{ "Download cancelled.", "Загрузка отменена." },
+{ "B: cancel the download", "B: отменить загрузку" },

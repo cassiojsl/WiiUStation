@@ -514,3 +514,7 @@
 527|Haut / Bas : défiler
 528|A : télécharger et installer   X : nouveautés
 529|X : nouveautés
+530|Annuler
+531|Annulation...
+532|Téléchargement annulé.
+533|B : annuler le téléchargement

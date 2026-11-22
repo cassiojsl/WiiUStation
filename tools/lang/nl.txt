@@ -514,3 +514,7 @@
 527|Omhoog / Omlaag: scrollen
 528|A: downloaden en installeren   X: nieuw
 529|X: nieuw
+530|Annuleren
+531|Annuleren...
+532|Download geannuleerd.
+533|B: download annuleren

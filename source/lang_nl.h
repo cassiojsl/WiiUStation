@@ -490,3 +490,7 @@
 { "Up / Down: scroll", "Omhoog / Omlaag: scrollen" },
 { "A: download and install   X: what's new", "A: downloaden en installeren   X: nieuw" },
 { "X: what's new", "X: nieuw" },
+{ "Cancel", "Annuleren" },
+{ "Cancelling...", "Annuleren..." },
+{ "Download cancelled.", "Download geannuleerd." },
+{ "B: cancel the download", "B: download annuleren" },

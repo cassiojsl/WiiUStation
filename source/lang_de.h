@@ -482,3 +482,7 @@
 { "Up / Down: scroll", "Hoch / Runter: scrollen" },
 { "A: download and install   X: what's new", "A: herunterladen und installieren   X: Neuigkeiten" },
 { "X: what's new", "X: Neuigkeiten" },
+{ "Cancel", "Abbrechen" },
+{ "Cancelling...", "Abbrechen..." },
+{ "Download cancelled.", "Download abgebrochen." },
+{ "B: cancel the download", "B: Download abbrechen" },

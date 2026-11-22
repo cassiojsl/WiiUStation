@@ -528,3 +528,7 @@ No release notes.
 Up / Down: scroll
 A: download and install   X: what's new
 X: what's new
+Cancel
+Cancelling...
+Download cancelled.
+B: cancel the download

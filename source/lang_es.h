@@ -502,3 +502,7 @@
 { "Up / Down: scroll", "Arriba / Abajo: desplazar" },
 { "A: download and install   X: what's new", "A: descargar e instalar   X: novedades" },
 { "X: what's new", "X: novedades" },
+{ "Cancel", "Cancelar" },
+{ "Cancelling...", "Cancelando..." },
+{ "Download cancelled.", "Descarga cancelada." },
+{ "B: cancel the download", "B: cancelar la descarga" },

@@ -514,3 +514,7 @@
 527|Arriba / Abajo: desplazar
 528|A: descargar e instalar   X: novedades
 529|X: novedades
+530|Cancelar
+531|Cancelando...
+532|Descarga cancelada.
+533|B: cancelar la descarga

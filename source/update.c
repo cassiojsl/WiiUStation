@@ -220,7 +220,8 @@ int net_download(const char *url, const char *path)
 }
 
 /* ---- the download ---- */
-static volatile int dlState;           /* 0 idle, 1 running, 2 done, -1 failed */
+static volatile int dlState;           /* 0 idle, 1 running, 2 done, -1 failed, 3 cancelled */
+static volatile int dlCancel;          /* the player asked to stop */
 static volatile double dlNow, dlTotal;
 
 static int progress_cb(void *ud, curl_off_t total, curl_off_t now, curl_off_t ut, curl_off_t un)
@@ -228,7 +229,7 @@ static int progress_cb(void *ud, curl_off_t total, curl_off_t now, curl_off_t ut
 	(void)ud; (void)ut; (void)un;
 	dlTotal = (double)total;
 	dlNow = (double)now;
-	return 0;
+	return dlCancel ? 1 : 0;               /* nonzero stops the transfer */
 }
 
 
@@ -294,6 +295,12 @@ static int download_thread(void *ud)
 	int wok = fflush(f) == 0;
 	fclose(f);
 	long got = file_size(tmp);
+	if (dlCancel) {                       /* stopped by the player: nothing is kept */
+		remove(tmp);
+		wlog("update download cancelled");
+		dlState = 3;
+		return 0;
+	}
 	if (rc != CURLE_OK || code != 200) {
 		remove(tmp);
 		if (rc != CURLE_OK) snprintf(dlErr, sizeof(dlErr), tr("Download error %d: %s"), (int)rc, cerr[0] ? cerr : curl_easy_strerror(rc));
@@ -317,9 +324,13 @@ static int download_thread(void *ud)
 
 const char *update_error(void) { return dlErr; }
 
+/* stop the download that is running (update_progress then returns 3) */
+void update_cancel(void) { if (dlState == 1) dlCancel = 1; }
+
 int update_start(void)
 {
 	if (!latestUrl[0] || dlState == 1) return 0;
+	dlCancel = 0;
 	dlState = 1;
 	dlNow = dlTotal = 0;
 	/* curl with TLS needs a large stack */

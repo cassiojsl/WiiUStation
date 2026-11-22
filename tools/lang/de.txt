@@ -514,3 +514,7 @@
 527|Hoch / Runter: scrollen
 528|A: herunterladen und installieren   X: Neuigkeiten
 529|X: Neuigkeiten
+530|Abbrechen
+531|Abbrechen...
+532|Download abgebrochen.
+533|B: Download abbrechen

@@ -2837,7 +2837,7 @@ static void update_screen(void)
 {
 	char tag[32] = "", err[128] = "", line1[256], line2[256];
 	int state = 0;      /* 0 checking, 1 newer, 2 current, 3 error, 4 downloading, 5 installed, 6 failed */
-	int checked = 0;
+	int checked = 0, cancelling = 0;
 	transition();
 	for (;;) {
 		poll_touch();
@@ -2849,10 +2849,15 @@ static void update_screen(void)
 			int st = update_progress(&f);
 			if (st == 2) { state = 5; sfx_play(SFX_OK); }
 			else if (st == -1) { state = 6; sfx_play(SFX_ERROR); }
+			else if (st == 3) { state = 1; status("Download cancelled."); }
 			else {
 				SDL_Color bg = th(26, 32, 60), fg = th(0, 140, 220);
 				rrect(240, 380, 800, 26, 13, bg, 255);
 				rrect(240, 380, (int)(800 * (f < 0.02f ? 0.02f : f)), 26, 13, fg, 255);
+				rrect(500, 450, 280, 60, 30, th(26, 32, 60), 255);
+				outline(500, 450, 280, 60, th(0, 140, 220), 255, 2);
+				text(fontItem, 640, 480, cancelling ? "Cancelling..." : "Cancel", WHITE, 1);
+				if (tap_in(500, 450, 280, 60)) { update_cancel(); cancelling = 1; }
 			}
 		}
 		switch (state) {
@@ -2877,7 +2882,7 @@ static void update_screen(void)
 			text(fontItem, 640, 480, "What's new", WHITE, 1);
 			notesTap = tap_in(500, 450, 280, 60);
 		}
-		draw_footer(state == 1 ? "A: download and install   X: what's new" : state == 5 ? "X: what's new" : NULL);
+		draw_footer(state == 1 ? "A: download and install   X: what's new" : state == 5 ? "X: what's new" : state == 4 ? "B: cancel the download" : NULL);
 		present();
 		if (notesTap || ((state == 1 || state == 5) && (b & WIIU_BTN_X))) {
 			notes_screen();
@@ -2890,7 +2895,11 @@ static void update_screen(void)
 			state = r == 1 ? 1 : r == 0 ? 2 : 3;
 			continue;
 		}
-		if (state == 4) continue;          /* can't leave while writing the file */
+		if (state == 4) {                  /* downloading: B / Back / HOME cancel it */
+			if (back || (b & WIIU_BTN_B) || wiiu_quit) { update_cancel(); cancelling = 1; }
+			continue;
+		}
+		cancelling = 0;
 		if (state == 5) {                  /* downloaded: A restarts in the new version */
 			if ((b & WIIU_BTN_A) || T.tapped) {
 				update_install_on_exit();
