@@ -546,3 +546,4 @@
 559|Dove sono i giochi: scheda SD, unità USB o entrambe.
 560|La cartella con i tuoi giochi sulla scheda SD.
 561|La cartella con i tuoi giochi sull'unità USB.
+562|Cartella dei giochi su SD

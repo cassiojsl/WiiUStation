@@ -2425,6 +2425,9 @@ static void settings(void)
 			             i == S_AUTOSTART || i == S_ALLCOVERS || i == S_AUTOFIX || i == S_POINTER)) continue;
 			map[n] = i;
 			labels[n] = allLabels[i];
+			/* with both drives the two folders say which is which; with one, it is just "Games folder" */
+			if (i == S_GAMES && src_effective() == 2) labels[n] = "SD games folder";
+			if (i == S_GAMESUSB && src_effective() == 1) labels[n] = "Games folder";
 			values[n] = NULL;
 			n++;
 		}

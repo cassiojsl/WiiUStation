@@ -546,3 +546,4 @@
 559|Waar de spellen staan: de SD-kaart, een USB-schijf of beide.
 560|De map met je spellen op de SD-kaart.
 561|De map met je spellen op de USB-schijf.
+562|Spellenmap op SD
