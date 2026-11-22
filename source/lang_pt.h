@@ -146,6 +146,7 @@
 { "D-Pad Up", "Direcional cima" },
 { "Dark lines between the rows, like an old TV.", "Linhas escuras entre as linhas da imagem, como numa TV antiga." },
 { "Default layout restored.", "Configuração padrão restaurada." },
+{ "Detailed", "Detalhado" },
 { "Digital/analog switch combo", "Combinação digital/analógico" },
 { "Direct 16-bit picture", "Imagem direta de 16 bits" },
 { "Disable coordinate check", "Desativar checagem de coordenadas" },

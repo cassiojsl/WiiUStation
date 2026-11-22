@@ -503,3 +503,4 @@
 { "Menu music", "Menümusik" },
 { "Soft, quiet background music in the menus. Off by default.", "Sanfte, leise Hintergrundmusik in den Menüs. Standardmäßig aus." },
 { "Free block", "Freier Block" },
+{ "Detailed", "Detailliert" },

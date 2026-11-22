@@ -536,3 +536,4 @@
 { "Menu music", "メニューの音楽" },
 { "Soft, quiet background music in the menus. Off by default.", "メニューで流れる静かなBGMです。初期設定ではオフです。" },
 { "Free block", "空きブロック" },
+{ "Detailed", "詳細" },

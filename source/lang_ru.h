@@ -532,3 +532,4 @@
 { "Menu music", "Музыка меню" },
 { "Soft, quiet background music in the menus. Off by default.", "Тихая спокойная фоновая музыка в меню. По умолчанию выключена." },
 { "Free block", "Свободный блок" },
+{ "Detailed", "Подробно" },

@@ -520,3 +520,4 @@
 { "Menu music", "Musica dei menu" },
 { "Soft, quiet background music in the menus. Off by default.", "Musica di sottofondo dolce e leggera nei menu. Disattivata per impostazione predefinita." },
 { "Free block", "Blocco libero" },
+{ "Detailed", "Dettagliato" },

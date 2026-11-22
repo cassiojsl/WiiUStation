@@ -511,3 +511,4 @@
 { "Menu music", "Menumuziek" },
 { "Soft, quiet background music in the menus. Off by default.", "Zachte, stille achtergrondmuziek in de menu's. Standaard uit." },
 { "Free block", "Vrij blok" },
+{ "Detailed", "Gedetailleerd" },
