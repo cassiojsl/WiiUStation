@@ -698,6 +698,54 @@ static void wiiu_button(int x, int y, const char *label)
 	text(fontSmall, x, y, label, (SDL_Color){ 30, 34, 50, 255 }, 1);
 }
 
+/* a button name in a hint: "A", "X", "ZL", "+", "-"... -> its length, else 0.
+ * It must start the hint or follow a space, and be followed by ':' or a space
+ * (single letters A/B/L/R only when followed by ':' or two spaces, so a word
+ * such as the Italian "A" is left alone). */
+static int hint_button(const char *h, int i)
+{
+	static const char *const names[] = { "ZL", "ZR", "A", "B", "X", "Y", "L", "R", "+", "-" };
+	if (i > 0 && h[i - 1] != ' ') return 0;
+	for (int k = 0; k < 10; k++) {
+		int n = (int)strlen(names[k]);
+		if (strncmp(h + i, names[k], n)) continue;
+		char c = h[i + n];
+		if (c == ':') return n;
+		if (c != ' ') return 0;
+		if (n == 1 && names[k][0] >= 'A' && names[k][0] <= 'Z' && !strchr("XY", names[k][0]) && h[i + n + 1] != ' ') return 0;
+		return n;
+	}
+	return 0;
+}
+
+/* the hint with its button names drawn as Wii U glyphs */
+static void draw_hint(int x, const char *hint)
+{
+	char seg[256];
+	int n = 0;
+	for (int i = 0; hint[i];) {
+		int b = hint_button(hint, i);
+		if (b) {
+			char lab[4];
+			snprintf(lab, sizeof(lab), "%.*s", b, hint + i);
+			if (n) { seg[n] = 0; x += text(fontSmall, x, 692, seg, DIM, 0); n = 0; }
+			if (b == 1) { wiiu_button(x + 15, 692, lab); x += 34; }
+			else {
+				rrect(x, 676, 44, 32, 14, WHITE, 230);
+				text(fontSmall, x + 22, 692, lab, (SDL_Color){ 30, 34, 50, 255 }, 1);
+				x += 50;
+			}
+			i += b;
+			if (hint[i] == ':') i++;
+			while (hint[i] == ' ') i++;
+			continue;
+		}
+		if (n < (int)sizeof(seg) - 2) seg[n++] = hint[i];
+		i++;
+	}
+	if (n) { seg[n] = 0; text(fontSmall, x, 692, seg, DIM, 0); }
+}
+
 static void draw_footer(const char *hint)
 {
 	SDL_Color bg = { 0, 0, 0 };
@@ -711,12 +759,7 @@ static void draw_footer(const char *hint)
 	x += text(fontSmall, x, 692, "OK", GREY, 0) + 34;
 	wiiu_button(x, 692, "B"); x += 24;
 	x += text(fontSmall, x, 692, "Back", GREY, 0) + 34;
-	if (hint) hint = tr(hint);
-	if (hint && hint[0] == 'X' && hint[1] == ' ') {     /* "X  ..." -> X glyph */
-		wiiu_button(x, 692, "X"); x += 24;
-		hint += 3;
-	}
-	if (hint) text(fontSmall, x, 692, hint, DIM, 0);
+	if (hint) draw_hint(x, tr(hint));
 }
 
 /* Screen transitions: every new screen fades in from black. */
