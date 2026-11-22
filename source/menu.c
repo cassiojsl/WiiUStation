@@ -3769,7 +3769,8 @@ static void card_view(const char *file)
 				snprintf(line, sizeof(line), tr(saves[o].blocks > 1 ? "%d blocks" : "%d block"), saves[o].blocks);
 				text(fontSmall, PX + PW / 2, PY + PH - 56, line, GREY, 1);
 			} else {
-				text(fontItem, PX + PW / 2, PY + PH / 2 - 14, n ? "Free block" : "This memory card is empty.", GREY, 1);
+				if (n) text(fontItem, PX + PW / 2, PY + PH / 2 - 14, "Free block", GREY, 1);
+				else text_wrap(fontItem, PX + PW / 2, PY + PH / 2 - 30, PW - 40, "This memory card is empty.", GREY);   /* breaks into lines to fit the panel */
 			}
 		}
 		draw_footer(locked ? "This card belongs to the game that is running: close the game to change it" :
