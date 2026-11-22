@@ -537,3 +537,12 @@
 550|Vrij blok
 551|Gedetailleerd
 552|USB-schijf
+553|Bron van de spellen
+554|Spellenmap op USB
+555|SD + USB
+556|SD-kaart
+557|Waar staan je spellen?
+558|Er is een USB-schijf gevonden.
+559|Waar de spellen staan: de SD-kaart, een USB-schijf of beide.
+560|De map met je spellen op de SD-kaart.
+561|De map met je spellen op de USB-schijf.

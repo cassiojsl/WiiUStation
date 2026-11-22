@@ -537,3 +537,12 @@
 550|Freier Block
 551|Detailliert
 552|USB-Laufwerk
+553|Spielequelle
+554|Spieleordner auf USB
+555|SD + USB
+556|SD-Karte
+557|Wo sind deine Spiele?
+558|Ein USB-Laufwerk wurde gefunden.
+559|Wo die Spiele sind: SD-Karte, USB-Laufwerk oder beides.
+560|Der Ordner mit deinen Spielen auf der SD-Karte.
+561|Der Ordner mit deinen Spielen auf dem USB-Laufwerk.

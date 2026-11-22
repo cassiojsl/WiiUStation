@@ -120,7 +120,9 @@ typedef struct {
 	int core[32];       /* extra PCSX-ReARMed options, see core_opt_* */
 	int hk[HK_COUNT];   /* hotkeys: WIIU_BTN bit index, -1 = none; hk[0] = modifier */
 	int map[16];        /* PSX button (RETRO_DEVICE_ID_JOYPAD_*) -> WIIU_BTN bit index */
-	char games_dir[256];  /* folder the game browser opens */
+	char games_dir[256];  /* folder the game browser opens (on the SD card) */
+	char games_dir_usb[256]; /* the same on the USB drive ("usb:" is its root) */
+	int games_src;        /* where the games are: 0 SD, 1 USB, 2 both */
 } wiiu_settings;
 
 extern wiiu_settings cfg;

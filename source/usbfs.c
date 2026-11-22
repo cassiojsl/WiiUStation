@@ -15,18 +15,18 @@
 #include "libfat/fat.h"
 #include "platform.h"
 
-static int mochaOk, mounted;
+static int mochaOk, mounted, noneLogged;
 
 int usbfs_mount(void)
 {
 	if (mounted) return 1;
 	if (!mochaOk) {
 		MochaUtilsStatus st = Mocha_InitLibrary();
-		if (st != MOCHA_RESULT_SUCCESS) { wlog("usb: libmocha not available (%s)", Mocha_GetStatusStr(st)); return 0; }
+		if (st != MOCHA_RESULT_SUCCESS) { if (!noneLogged) { noneLogged = 1; wlog("usb: libmocha not available (%s)", Mocha_GetStatusStr(st)); } return 0; }
 		mochaOk = 1;
 	}
 	const DISC_INTERFACE *d = &Mocha_usb_disc_interface;
-	if (!d->startup() || !d->isInserted()) { wlog("usb: no USB drive found"); d->shutdown(); return 0; }
+	if (!d->startup() || !d->isInserted()) { if (!noneLogged) { noneLogged = 1; wlog("usb: no USB drive found"); } d->shutdown(); return 0; }
 	if (!fatMount("usb", d, 0, 32, 64)) { wlog("usb: the drive is not FAT32 (or has no FAT partition)"); d->shutdown(); return 0; }
 	mounted = 1;
 	char label[16] = "";

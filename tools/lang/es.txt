@@ -537,3 +537,12 @@
 550|Bloque libre
 551|Detallado
 552|Unidad USB
+553|Origen de los juegos
+554|Carpeta de juegos en USB
+555|SD + USB
+556|Tarjeta SD
+557|¿Dónde están tus juegos?
+558|Se encontró una unidad USB.
+559|Dónde están los juegos: la tarjeta SD, una unidad USB o ambas.
+560|La carpeta con tus juegos en la tarjeta SD.
+561|La carpeta con tus juegos en la unidad USB.
