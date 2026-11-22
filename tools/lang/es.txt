@@ -536,3 +536,71 @@
 549|Música de fondo suave y baja en los menús. Desactivada por defecto.
 550|Bloque libre
 551|Detallado
+552|Fecha de lanzamiento
+553|Género
+554|Desarrolladora
+555|Distribuidora
+556|Jugadores
+557|Descripción
+558|Mostrar...
+559|Detalles del juego
+560|Descargar (6,7 MB)
+561|Descargando los detalles de los juegos...
+562|Detalles de los juegos descargados.
+563|No se pudieron descargar los detalles de los juegos.
+564|Sin descripción.
+565|Acción
+566|Aventura
+567|RPG
+568|Deportes
+569|Carreras
+570|Simulación
+571|Lucha
+572|Estrategia
+573|Puzle
+574|Plataformas
+575|Disparos
+576|Apuestas
+577|Mahjong
+578|Tablero
+579|Baloncesto
+580|Minijuegos
+581|Caza y pesca
+582|Quiz
+583|Música
+584|Survival horror
+585|Lucha libre
+586|Baile
+587|Educativo
+588|Pistola
+589|Fútbol
+590|Cartas
+591|Boxeo
+592|Shogi
+593|Pinball
+594|Tenis
+595|Cómic interactivo
+596|Película interactiva
+597|Datos
+598|Imágenes
+193|Imagen
+599|Vídeos
+600|Vídeo
+601|Breakout
+602|Ajedrez
+603|Fiesta
+604|Beat'em up
+605|Sound novel
+606|Libro para colorear
+607|Juego de colorear
+608|Cocina
+609|Simulador de vuelo
+610|Visual novel
+611|Citas
+612|Go
+613|Cría
+614|Arcade
+615|Construcción
+616|Construcción
+617|Tarot
+618|Utilidad

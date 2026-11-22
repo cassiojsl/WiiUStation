@@ -536,3 +536,71 @@
 549|Sanfte, leise Hintergrundmusik in den Menüs. Standardmäßig aus.
 550|Freier Block
 551|Detailliert
+552|Erscheinungsdatum
+553|Genre
+554|Entwickler
+555|Publisher
+556|Spieler
+557|Beschreibung
+558|Anzeigen...
+559|Spieldetails
+560|Herunterladen (6,7 MB)
+561|Spieldetails werden geladen...
+562|Spieldetails geladen.
+563|Die Spieldetails konnten nicht geladen werden.
+564|Keine Beschreibung.
+565|Action
+566|Abenteuer
+567|Rollenspiel (RPG)
+568|Sport
+569|Rennspiel
+570|Simulation
+571|Kampfspiel
+572|Strategie
+573|Puzzle
+574|Jump 'n' Run
+575|Shooter
+576|Glücksspiel
+577|Mahjong
+578|Brettspiel
+579|Basketball
+580|Minispiele
+581|Jagen und Angeln
+582|Quiz
+583|Musik
+584|Survival Horror
+585|Wrestling
+586|Tanzen
+587|Lernspiel
+588|Lichtpistole
+589|Fußball
+590|Kartenspiel
+591|Boxen
+592|Shogi
+593|Flipper
+594|Tennis
+595|Interaktiver Comic
+596|Interaktiver Film
+597|Daten
+598|Bilder
+193|Bild
+599|Videos
+600|Video
+601|Breakout
+602|Schach
+603|Party
+604|Beat'em Up
+605|Sound Novel
+606|Malbuch
+607|Malspiel
+608|Kochen
+609|Flugsimulator
+610|Visual Novel
+611|Dating
+612|Go
+613|Zucht
+614|Arcade
+615|Bauen
+616|Bauen
+617|Tarot
+618|Hilfsprogramm

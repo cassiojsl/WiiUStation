@@ -353,6 +353,16 @@ int  emu_memcard_path(char *out, size_t n);   /* 1 while a game is loaded */
 
 /* ---- covers (covers.c) ---- */
 int   covers_detect_id(const char *path, char *out);   /* out: "SCUS-94244" */
+int   covers_net_ready(void);                          /* the Wii U is on the network */
+
+/* game details (release date, genre, developer...) from libretro-database's PlayStation DAT */
+typedef struct {
+	int year, month, day, users;
+	char genre[96], developer[96], publisher[96], description[1500];
+} gamedb_t;
+int gamedb_present(void);                              /* the file was downloaded */
+int gamedb_download(void);                             /* 1 on success */
+int gamedb_lookup(const char *serial, gamedb_t *out);  /* serial like "SCUS-94488"; 1 when found */
 void  covers_set_loaded_id(const char *path, const char *cdromId);
 void  covers_request(const char *id);
 int   covers_status(const char *id);   /* 2 have, 1 downloading, 0 none */

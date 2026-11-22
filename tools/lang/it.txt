@@ -536,3 +536,71 @@
 549|Musica di sottofondo dolce e leggera nei menu. Disattivata per impostazione predefinita.
 550|Blocco libero
 551|Dettagliato
+552|Data di uscita
+553|Genere
+554|Sviluppatore
+555|Editore
+556|Giocatori
+557|Descrizione
+558|Mostra...
+559|Dettagli del gioco
+560|Scarica (6,7 MB)
+561|Download dei dettagli dei giochi...
+562|Dettagli dei giochi scaricati.
+563|Impossibile scaricare i dettagli dei giochi.
+564|Nessuna descrizione.
+565|Azione
+566|Avventura
+567|GDR (RPG)
+568|Sport
+569|Corse
+570|Simulazione
+571|Picchiaduro
+572|Strategia
+573|Puzzle
+574|Piattaforme
+575|Sparatutto
+576|Gioco d'azzardo
+577|Mahjong
+578|Gioco da tavolo
+579|Pallacanestro
+580|Minigiochi
+581|Caccia e pesca
+582|Quiz
+583|Musica
+584|Survival horror
+585|Wrestling
+586|Ballo
+587|Educativo
+588|Pistola
+589|Calcio
+590|Carte
+591|Pugilato
+592|Shogi
+593|Flipper
+594|Tennis
+595|Fumetto interattivo
+596|Film interattivo
+597|Dati
+598|Immagini
+193|Immagine
+599|Video
+600|Video
+601|Breakout
+602|Scacchi
+603|Party
+604|Picchiaduro a scorrimento
+605|Sound novel
+606|Libro da colorare
+607|Gioco da colorare
+608|Cucina
+609|Simulatore di volo
+610|Visual novel
+611|Appuntamenti
+612|Go
+613|Allevamento
+614|Arcade
+615|Costruzione
+616|Costruzione
+617|Tarocchi
+618|Utilità

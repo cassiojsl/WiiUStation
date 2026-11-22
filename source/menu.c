@@ -2254,6 +2254,7 @@ static int quitAfterUpdate;
 static void all_covers(void);
 static void bios_screen(void);
 static int pick_games_folder(void);
+static void text_screen(const char *title, const char *src, const char *emptyMsg);
 
 static void settings(void)
 {
@@ -2731,6 +2732,7 @@ static void credits(void)
 		"",
 		"#Content",
 		"Game covers  -  xlenore/psx-covers",
+		"Game details  -  libretro-database / PSX Data Center (CC BY-SA 4.0)",
 		"",
 		"#Licence",
 		"GPL-2.0-or-later. Source code is available on GitHub.",
@@ -2922,13 +2924,12 @@ static void bios_screen(void)
 /* updates                                                                  */
 /* ------------------------------------------------------------------------ */
 /* the release text of the new version: markdown reduced to plain lines, scrollable */
-static void notes_screen(void)
+static void text_screen(const char *title, const char *src, const char *emptyMsg)
 {
 	enum { MAXL = 200, W = 1100 };
 	static char lines[MAXL][160];
 	static int head[MAXL];
 	int n = 0;
-	const char *src = update_notes();
 	char raw[512];
 	while (*src && n < MAXL - 1) {
 		size_t k = strcspn(src, "\n");
@@ -2981,8 +2982,8 @@ static void notes_screen(void)
 		if (scroll > n - SHOWN) scroll = (float)(n - SHOWN);
 		if (scroll < 0) scroll = 0;
 		draw_background();
-		int back = draw_header("What's new", 1);
-		if (!n) text(fontItem, 640, 330, "No release notes.", GREY, 1);
+		int back = draw_header(title, 1);
+		if (!n) text(fontItem, 640, 330, emptyMsg, GREY, 1);
 		SDL_RenderSetClipRect(R, &(SDL_Rect){ 0, TOP - 10, 1280, SHOWN * LH + 20 });
 		for (int i = (int)scroll; i < n && i <= (int)scroll + SHOWN; i++) {
 			int y = TOP + (int)((i - scroll) * LH) + LH / 2;
@@ -2995,6 +2996,8 @@ static void notes_screen(void)
 		if (back || (b & WIIU_BTN_B) || wiiu_quit) return;
 	}
 }
+
+static void notes_screen(void) { text_screen("What's new", update_notes(), "No release notes."); }
 
 static void update_screen(void)
 {
@@ -3447,10 +3450,30 @@ static int file_there(const char *fmt, const char *a, const char *b)
 	return stat(p, &st) == 0;
 }
 
+/* "Action / Mini Games" -> each word translated on its own ("/" and "&" separate them) */
+static void genre_text(const char *in, char *out, size_t n)
+{
+	out[0] = 0;
+	const char *p = in;
+	while (*p) {
+		size_t k = strcspn(p, "/&");
+		char word[64];
+		size_t a = 0, b = k;
+		while (a < b && p[a] == ' ') a++;
+		while (b > a && p[b - 1] == ' ') b--;
+		snprintf(word, sizeof(word), "%.*s", (int)(b - a), p + a);
+		if (out[0]) strncat(out, p[-1] == '&' ? " & " : " / ", n - strlen(out) - 1);
+		strncat(out, tr(word), n - strlen(out) - 1);
+		p += k;
+		if (*p) p++;
+	}
+}
+
 static void game_info(entry_t *e, const char *dir)
 {
-	enum { I_ID, I_REGION, I_DISCS, I_SIZE, I_TIME, I_LAST, I_STATES, I_RESUME, I_CARD, I_CHEATS, I_PATCH, I_OWN, I_COUNT };
-	const char *labels[I_COUNT] = { "Game ID", "Region", "Discs", "Size", "Play time", "Last played",
+	enum { I_DATE, I_GENRE, I_DEV, I_PUB, I_PLAYERS, I_DESC, I_ID, I_REGION, I_DISCS, I_SIZE, I_TIME, I_LAST, I_STATES, I_RESUME, I_CARD, I_CHEATS, I_PATCH, I_OWN, I_COUNT };
+	const char *labels[I_COUNT] = { "Release date", "Genre", "Developer", "Publisher", "Players", "Description",
+		"Game ID", "Region", "Discs", "Size", "Play time", "Last played",
 		"Save states", "Continue where you left off", "Memory card", "Cheats", "Translation patch", "Own settings" };
 	static char v[I_COUNT][96];
 	const char *values[I_COUNT];
@@ -3502,22 +3525,80 @@ static void game_info(entry_t *e, const char *dir)
 	snprintf(v[I_OWN], 96, "%s", tr(file_there("%s/gamesettings/%s.cfg", WIIU_APP_DIR, key) ? "Yes" : "No"));
 	for (int i = 0; i < I_COUNT; i++) values[i] = v[i];
 
+	/* the game details: from the downloaded database (see gamedb.c); without it, one row to download it */
+	static gamedb_t db;
+	int dbState = 0;                        /* 0 not downloaded, 1 found, 2 the game is not in it */
+	const char *rowLab[I_COUNT], *rowVal[I_COUNT];
+	int rowMap[I_COUNT], nrow = 0;
 	list_t L = { 0, 0 };
+	int rebuild = 1;
 	transition();
 	for (;;) {
+		if (rebuild) {
+			rebuild = 0;
+			dbState = !gamedb_present() ? 0 : (e->id[0] && gamedb_lookup(e->id, &db)) ? 1 : 2;
+			if (dbState == 1) {
+				if (db.year && db.month && db.day) snprintf(v[I_DATE], 96, "%02d/%02d/%04d", db.day, db.month, db.year);
+				else if (db.year && db.month) snprintf(v[I_DATE], 96, "%02d/%04d", db.month, db.year);
+				else if (db.year) snprintf(v[I_DATE], 96, "%04d", db.year);
+				else snprintf(v[I_DATE], 96, "-");
+				if (db.genre[0]) genre_text(db.genre, v[I_GENRE], 96); else snprintf(v[I_GENRE], 96, "-");
+				snprintf(v[I_DEV], 96, "%s", db.developer[0] ? db.developer : "-");
+				snprintf(v[I_PUB], 96, "%s", db.publisher[0] ? db.publisher : "-");
+				if (db.users > 1) snprintf(v[I_PLAYERS], 96, "1-%d", db.users); else snprintf(v[I_PLAYERS], 96, "1");
+				snprintf(v[I_DESC], 96, "%s", db.description[0] ? tr("Show...") : "-");
+			}
+			nrow = 0;
+			for (int i = 0; i < I_COUNT; i++) {
+				if (i <= I_DESC) {
+					if (dbState == 0 && i == I_DATE) {                 /* one row: download the database */
+						snprintf(v[I_DATE], 96, "%s", tr("Download (6.7 MB)"));
+						rowLab[nrow] = "Game details";
+						rowVal[nrow] = v[I_DATE];
+						rowMap[nrow++] = i;
+						continue;
+					}
+					if (dbState != 1) continue;
+				}
+				rowLab[nrow] = labels[i];
+				rowVal[nrow] = values[i];
+				rowMap[nrow++] = i;
+			}
+			if (L.sel >= nrow) L.sel = 0;
+		}
 		poll_touch();
 		uint32_t b = poll_buttons();
-		if (b & WIIU_BTN_UP)   L.sel = L.sel > 0 ? L.sel - 1 : I_COUNT - 1;
-		if (b & WIIU_BTN_DOWN) L.sel = L.sel < I_COUNT - 1 ? L.sel + 1 : 0;
+		if (b & WIIU_BTN_UP)   L.sel = L.sel > 0 ? L.sel - 1 : nrow - 1;
+		if (b & WIIU_BTN_DOWN) L.sel = L.sel < nrow - 1 ? L.sel + 1 : 0;
 		draw_background();
 		int back = draw_header(title, 1);
 		listW = 700;
-		list_run(&L, labels, values, I_COUNT, 0, NULL, NULL);
+		int tapped = list_run(&L, rowLab, rowVal, nrow, 0, NULL, NULL);
 		listW = 1060;
 		draw_cover(ecover(e), NULL);
 		draw_footer(NULL);
 		present();
-		if (back || (b & (WIIU_BTN_B | WIIU_BTN_A)) || wiiu_quit) return;
+		int act = tapped >= 0 ? tapped : (b & WIIU_BTN_A) ? L.sel : -1;     /* A or a tap on a row */
+		if (act >= 0 && act < nrow) {
+			int row = rowMap[act];
+			if (row == I_DESC && dbState == 1 && db.description[0]) {
+				text_screen(title, db.description, "No description.");
+				transition();
+				continue;
+			}
+			if (row == I_DATE && dbState == 0) {
+				draw_background();
+				draw_header(title, 1);
+				text(fontItem, 640, 330, "Downloading game details...", WHITE, 1);
+				present();
+				status(gamedb_download() ? "Game details downloaded." : "Could not download the game details.");
+				rebuild = 1;
+				transition();
+				continue;
+			}
+			if (tapped < 0) return;                  /* A on an ordinary row closes, as before */
+		}
+		if (back || (b & WIIU_BTN_B) || wiiu_quit) return;
 	}
 }
 

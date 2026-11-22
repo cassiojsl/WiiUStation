@@ -550,3 +550,70 @@ Menu music
 Soft, quiet background music in the menus. Off by default.
 Free block
 Detailed
+Release date
+Genre
+Developer
+Publisher
+Players
+Description
+Show...
+Game details
+Download (6.7 MB)
+Downloading game details...
+Game details downloaded.
+Could not download the game details.
+No description.
+Action
+Adventure
+Role-playing (RPG)
+Sports
+Racing
+Simulation
+Fighting
+Strategy
+Puzzle
+Platform
+Shooter
+Gambling
+Mahjong
+Board
+Basketball
+Mini Games
+Hunting and Fishing
+Quiz
+Music
+Survival Horror
+Wrestling
+Dancing
+Educational
+Gun
+Football
+Card
+Boxing
+Shogi
+Pinball
+Tennis
+Interactive Comic
+Interactive Movie
+Data
+Pictures
+Videos
+Video
+Breakout
+Chess
+Party
+Beat'em Up
+Sound Novel
+Colouring Book
+Colouring Game
+Cooking
+Flight Simulator
+Visual Novel
+Dating
+Go
+Breeding
+Arcade
+Constructing
+Building
+Tarot
+Utility

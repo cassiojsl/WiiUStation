@@ -536,3 +536,71 @@
 549|Zachte, stille achtergrondmuziek in de menu's. Standaard uit.
 550|Vrij blok
 551|Gedetailleerd
+552|Releasedatum
+553|Genre
+554|Ontwikkelaar
+555|Uitgever
+556|Spelers
+557|Beschrijving
+558|Tonen...
+559|Spelgegevens
+560|Downloaden (6,7 MB)
+561|Spelgegevens downloaden...
+562|Spelgegevens gedownload.
+563|Kon de spelgegevens niet downloaden.
+564|Geen beschrijving.
+565|Actie
+566|Avontuur
+567|Rollenspel (RPG)
+568|Sport
+569|Race
+570|Simulatie
+571|Vechtspel
+572|Strategie
+573|Puzzel
+574|Platformgame
+575|Shooter
+576|Gokken
+577|Mahjong
+578|Bordspel
+579|Basketbal
+580|Minigames
+581|Jagen en vissen
+582|Quiz
+583|Muziek
+584|Survival horror
+585|Worstelen
+586|Dansen
+587|Educatief
+588|Lichtpistool
+589|Voetbal
+590|Kaartspel
+591|Boksen
+592|Shogi
+593|Flipperkast
+594|Tennis
+595|Interactieve strip
+596|Interactieve film
+597|Gegevens
+598|Afbeeldingen
+193|Afbeelding
+599|Video's
+600|Video
+601|Breakout
+602|Schaken
+603|Party
+604|Beat'em up
+605|Sound novel
+606|Kleurboek
+607|Kleurspel
+608|Koken
+609|Vluchtsimulator
+610|Visual novel
+611|Daten
+612|Go
+613|Fokken
+614|Arcade
+615|Bouwen
+616|Bouwen
+617|Tarot
+618|Hulpprogramma

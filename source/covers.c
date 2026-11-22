@@ -130,6 +130,16 @@ static size_t write_cb(void *p, size_t sz, size_t nm, void *ud)
 	return fwrite(p, sz, nm, (FILE *)ud);
 }
 
+/* the connection to the network, made once (also used by the game details download) */
+int covers_net_ready(void)
+{
+	if (netReady < 0) {
+		netReady = NNResult_IsSuccess(ACInitialize()) && NNResult_IsSuccess(ACConnect());
+		curl_global_init(CURL_GLOBAL_DEFAULT);
+	}
+	return netReady > 0;
+}
+
 static int download(const char *key)
 {
 	char id[16], url[256], path[256], tmp[260];
@@ -138,11 +148,7 @@ static int download(const char *key)
 	long code = 0;
 	CURLcode rc;
 
-	if (netReady < 0) {
-		netReady = NNResult_IsSuccess(ACInitialize()) && NNResult_IsSuccess(ACConnect());
-		curl_global_init(CURL_GLOBAL_DEFAULT);
-	}
-	if (!netReady) return 0;
+	if (!covers_net_ready()) return 0;
 
 	key_id(key, id, sizeof(id));
 	snprintf(url, sizeof(url), key_is_3d(key) ? COVER3D_URL : COVER_URL, id);
