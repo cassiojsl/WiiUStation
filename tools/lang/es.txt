@@ -536,3 +536,4 @@
 549|Música de fondo suave y baja en los menús. Desactivada por defecto.
 550|Bloque libre
 551|Detallado
+552|Unidad USB

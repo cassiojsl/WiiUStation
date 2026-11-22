@@ -536,3 +536,4 @@
 549|Musique de fond douce et discrète dans les menus. Désactivée par défaut.
 550|Bloc libre
 551|Détaillé
+552|Lecteur USB

@@ -400,7 +400,7 @@ static int settings_parse(const char *path, int isGame)
 			char *v = eq + 1;
 			while (*v == ' ') v++;
 			v[strcspn(v, "\r\n")] = 0;
-			if (!strncmp(v, WIIU_SD_ROOT, strlen(WIIU_SD_ROOT)))
+			if (!strncmp(v, WIIU_SD_ROOT, strlen(WIIU_SD_ROOT)) || !strncmp(v, "usb:", 4))
 				strncpy(cfg.games_dir, v, sizeof(cfg.games_dir) - 1);
 			continue;
 		}
@@ -2520,6 +2520,7 @@ int main(int argc, char **argv)
 	     jit_available() ? "available" : "unavailable", cfg.dynarec ? "on" : "off", cfg.gpu_thread ? "on" : "off",
 	     cfg.vsync ? "on" : "off", cfg.aspect, cfg.filter, cfg.region);
 	log_system();
+	usbfs_mount();               /* a FAT32 USB drive becomes "usb:/" (when there is one) */
 
 	retro_set_environment(environment);
 	retro_set_video_refresh(video_cb);
@@ -2546,6 +2547,7 @@ int main(int argc, char **argv)
 		if (!update_finish()) SYSLaunchMenu();
 		while (pump_events()) SDL_Delay(10);
 	}
+	usbfs_unmount();
 	wlog_exit();
 	video_shutdown();
 	return 0;

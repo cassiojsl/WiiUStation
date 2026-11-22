@@ -536,3 +536,4 @@
 549|Sanfte, leise Hintergrundmusik in den Menüs. Standardmäßig aus.
 550|Freier Block
 551|Detailliert
+552|USB-Laufwerk

@@ -1303,9 +1303,19 @@ static int cmp_entry(const void *a, const void *b)
 	return strcasecmp(x->name, y->name);
 }
 
+/* a USB drive (FAT32) is the device "usb:"; its root is written "usb:" and opened as "usb:/" */
+static int is_usb_path(const char *p) { return !strncmp(p, "usb:", 4); }
+static const char *fs_path(const char *p) { return !strcmp(p, "usb:") ? "usb:/" : p; }
+/* the folder as shown to the user: relative to the SD card, or "USB/..." */
+static const char *show_path(const char *p, char *buf, size_t n)
+{
+	if (is_usb_path(p)) { snprintf(buf, n, "USB%s", p + 4); return buf; }
+	return p + strlen(WIIU_SD_ROOT);
+}
+
 static int scan_dir(const char *path, entry_t **out)
 {
-	DIR *d = opendir(path);
+	DIR *d = opendir(fs_path(path));
 	int n = 0, cap = 64;
 	entry_t *list = malloc(cap * sizeof(entry_t));
 	struct dirent *ent;
@@ -1924,11 +1934,19 @@ static int prepare_multidisc(const char *dir, const char *entry, char *out, size
 static int at_or_above(const char *path, const char *root)
 {
 	/* 1 when path is root itself (or shorter, i.e. outside it) */
+	if (is_usb_path(path) != is_usb_path(root)) return 0;      /* the other drive is not "above" */
 	return strlen(path) <= strlen(root);
 }
 
 static void go_up(void)
 {
+	if (!strcmp(browsePath, "usb:")) { strcpy(browsePath, WIIU_SD_ROOT); return; }   /* the drive's root: back to the SD card */
+	if (is_usb_path(browsePath)) {
+		char *sl = strrchr(browsePath, '/');
+		if (sl) *sl = 0;
+		if (strlen(browsePath) < 4) strcpy(browsePath, "usb:");
+		return;
+	}
 	char *slash = strrchr(browsePath, '/');
 	if (slash && (size_t)(slash - browsePath) >= strlen(WIIU_SD_ROOT)) *slash = 0;
 	if (strlen(browsePath) < strlen(WIIU_SD_ROOT)) strcpy(browsePath, WIIU_SD_ROOT);
@@ -1953,7 +1971,7 @@ static int browse(const char *title, char *out, size_t outsz, int pickDir)
 		strcpy(browsePath, pickDir ? cfg.games_dir : cfg.games_dir);
 	{
 		struct stat st;
-		if (stat(browsePath, &st) != 0) strcpy(browsePath, WIIU_SD_ROOT);
+		if (stat(fs_path(browsePath), &st) != 0) strcpy(browsePath, WIIU_SD_ROOT);
 	}
 
 	int keepSel = 0;
@@ -1969,6 +1987,16 @@ rescan:
 	}
 	free(list);
 	count = scan_dir(browsePath, &list);
+	if (pickDir && !strcmp(browsePath, WIIU_SD_ROOT) && usbfs_mounted()) {
+		/* the USB drive, as a folder on top of the list */
+		list = realloc(list, (count + 1) * sizeof(entry_t));
+		memmove(list + 1, list, count * sizeof(entry_t));
+		memset(&list[0], 0, sizeof(entry_t));
+		strcpy(list[0].name, "\x02");
+		list[0].dir = 1;
+		list[0].idTried = 1;
+		count++;
+	}
 	if (!pickDir && count && !strcmp(list[0].name, "..") && at_or_above(browsePath, cfg.games_dir)) {
 		memmove(list, list + 1, (count - 1) * sizeof(entry_t));
 		count--;
@@ -2036,6 +2064,7 @@ rescan:
 	for (int i = 0; i < count; i++) {
 		if (list[i].dir == 2) snprintf(names[i], sizeof(names[i]), "%s", tr("[ Use this folder ]"));
 		else if (!strcmp(list[i].name, "..")) snprintf(names[i], sizeof(names[i]), "%s", tr(".. (up)"));
+		else if (list[i].name[0] == '\x02') snprintf(names[i], sizeof(names[i]), "%s", tr("USB drive"));
 		else if (list[i].dir) snprintf(names[i], sizeof(names[i]), "%s/", list[i].name);
 		else if (list[i].discs > 1) {
 			char b[256], nm[256];
@@ -2154,7 +2183,8 @@ rescan:
 		draw_background();
 		int back = draw_header(title, 1);
 		{
-			const char *p = browsePath + strlen(WIIU_SD_ROOT);
+			char shown[300];
+			const char *p = show_path(browsePath, shown, sizeof(shown));
 			char sub[200];
 			snprintf(sub, sizeof(sub), "%s%s%s%s%s%s%s%s%s", *p ? p : "/", favOnly ? tr("   \xe2\x98\x85 Favourites") : "",
 			         searchText[0] ? tr("   Search: \"") : "", searchText, searchText[0] ? "\"" : "",
@@ -2219,6 +2249,8 @@ rescan:
 				continue;
 			} else if (!strcmp(e->name, "..")) {
 				go_up();
+			} else if (e->dir && e->name[0] == '\x02') {
+				strcpy(browsePath, "usb:");
 			} else if (e->dir) {
 				size_t l = strlen(browsePath);
 				snprintf(browsePath + l, sizeof(browsePath) - l, "/%s", e->name);
@@ -2351,7 +2383,8 @@ static void settings(void)
 				values[k] = scopeStr;
 				break;
 			case S_GAMES: {
-				const char *p = cfg.games_dir + strlen(WIIU_SD_ROOT);
+				char shown[300];
+				const char *p = show_path(cfg.games_dir, shown, sizeof(shown));
 				const char *last = strrchr(p, '/'), *prev = last;
 				if (last && last > p) { prev = last - 1; while (prev > p && *prev != '/') prev--; }
 				snprintf(gd, sizeof(gd), "%s%.40s", prev && prev > p ? "..." : "", prev && *p ? prev : "/");
@@ -4518,7 +4551,7 @@ static int games_folder_ok(void)
 	if (gamesChecked) return gamesFound;
 	gamesChecked = 1;
 	gamesFound = 0;
-	DIR *d = opendir(cfg.games_dir);
+	DIR *d = opendir(fs_path(cfg.games_dir));
 	if (!d) return 0;
 	struct dirent *ent;
 	while (!gamesFound && (ent = readdir(d)) != NULL) {
