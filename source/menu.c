@@ -718,21 +718,28 @@ static int hint_button(const char *h, int i)
 	return 0;
 }
 
-/* the hint with its button names drawn as Wii U glyphs */
-static void draw_hint(int x, const char *hint)
+/* the hint with its button names drawn as Wii U glyphs; returns its width
+ * (draw = 0 only measures) */
+static int draw_hint(int x, const char *hint, int draw)
 {
 	char seg[256];
-	int n = 0;
+	int n = 0, x0 = x;
 	for (int i = 0; hint[i];) {
 		int b = hint_button(hint, i);
 		if (b) {
 			char lab[4];
 			snprintf(lab, sizeof(lab), "%.*s", b, hint + i);
-			if (n) { seg[n] = 0; x += text(fontSmall, x, 692, seg, DIM, 0); n = 0; }
-			if (b == 1) { wiiu_button(x + 15, 692, lab); x += 34; }
+			if (n) {
+				seg[n] = 0; n = 0;
+				if (draw) x += text(fontSmall, x, 692, seg, DIM, 0);
+				else { int w = 0; TTF_SizeUTF8(fontSmall, seg, &w, NULL); x += w; }
+			}
+			if (b == 1) { if (draw) wiiu_button(x + 15, 692, lab); x += 34; }
 			else {
-				rrect(x, 676, 44, 32, 14, WHITE, 230);
-				text(fontSmall, x + 22, 692, lab, (SDL_Color){ 30, 34, 50, 255 }, 1);
+				if (draw) {
+					rrect(x, 676, 44, 32, 14, WHITE, 230);
+					text(fontSmall, x + 22, 692, lab, (SDL_Color){ 30, 34, 50, 255 }, 1);
+				}
 				x += 50;
 			}
 			i += b;
@@ -743,7 +750,12 @@ static void draw_hint(int x, const char *hint)
 		if (n < (int)sizeof(seg) - 2) seg[n++] = hint[i];
 		i++;
 	}
-	if (n) { seg[n] = 0; text(fontSmall, x, 692, seg, DIM, 0); }
+	if (n) {
+		seg[n] = 0;
+		if (draw) x += text(fontSmall, x, 692, seg, DIM, 0);
+		else { int w = 0; TTF_SizeUTF8(fontSmall, seg, &w, NULL); x += w; }
+	}
+	return x - x0;
 }
 
 static void draw_footer(const char *hint)
@@ -759,7 +771,28 @@ static void draw_footer(const char *hint)
 	x += text(fontSmall, x, 692, "OK", GREY, 0) + 34;
 	wiiu_button(x, 692, "B"); x += 24;
 	x += text(fontSmall, x, 692, "Back", GREY, 0) + 34;
-	if (hint) draw_hint(x, tr(hint));
+	if (!hint) return;
+	hint = tr(hint);
+	int room = 1240 - x, w = draw_hint(x, hint, 0);
+	if (w <= room) { draw_hint(x, hint, 1); return; }
+	/* too long: it scrolls (pause, scroll to the end, pause, again) */
+	static char shownHint[256];
+	static uint32_t start;
+	uint32_t now = SDL_GetTicks();
+	if (strncmp(shownHint, hint, sizeof(shownHint) - 1)) {
+		snprintf(shownHint, sizeof(shownHint), "%s", hint);
+		start = now;
+	}
+	int over = w - room;
+	uint32_t hold = 1500, run = (uint32_t)over * 1000 / 70, cyc = hold + run + hold;
+	uint32_t t = (now - start) % cyc;
+	int off = t < hold ? 0 : t < hold + run ? (int)((t - hold) * 70 / 1000) : over;
+	int had = SDL_RenderIsClipEnabled(R);
+	SDL_Rect prev, clip = { x, 664, room, 56 };
+	if (had) SDL_RenderGetClipRect(R, &prev);
+	SDL_RenderSetClipRect(R, &clip);
+	draw_hint(x - off, hint, 1);
+	SDL_RenderSetClipRect(R, had ? &prev : NULL);
 }
 
 /* Screen transitions: every new screen fades in from black. */
