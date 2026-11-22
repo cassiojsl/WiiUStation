@@ -235,6 +235,9 @@ CC BY-SA 4.0). The full list is in the app under **Credits**.
 
 ## Licence
 
-GPL-2.0-or-later, the same as PCSX-ReARMed. Builds that include libmocha (LGPL-3.0) are distributed under GPL-3.0-or-later terms. libfat is under a BSD-style licence, and the game details data (libretro-database) is CC BY-SA 4.0. PlayStation is a trademark of
-Sony Interactive Entertainment, and Wii U is a trademark of Nintendo. This
-project is not affiliated with or endorsed by either company.
+GPL-2.0-or-later, the same as PCSX-ReARMed. Builds that include libmocha
+(LGPL-3.0) are distributed under GPL-3.0-or-later terms. libfat is under a
+BSD-style licence, and the game details data (libretro-database) is CC BY-SA
+4.0. PlayStation is a trademark of Sony Interactive Entertainment, and Wii U
+is a trademark of Nintendo. This project is not affiliated with or endorsed
+by either company.
