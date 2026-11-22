@@ -2250,11 +2250,11 @@ static int pick_games_folder(void);
 
 static void settings(void)
 {
-	enum { S_SCOPE, S_LANG, S_THEME, S_SFX, S_AUTOSTART, S_GAMES, S_VIEW, S_COVERS, S_ALLCOVERS, S_RESUME, S_CORE, S_SKIP, S_FFWD, S_FFSPEED, S_FPS, S_VSYNC, S_AUDIO,
+	enum { S_SCOPE, S_LANG, S_THEME, S_SFX, S_MUSIC, S_AUTOSTART, S_GAMES, S_VIEW, S_COVERS, S_ALLCOVERS, S_RESUME, S_CORE, S_SKIP, S_FFWD, S_FFSPEED, S_FPS, S_VSYNC, S_AUDIO,
 	       S_ASPECT, S_FILTER, S_BEZEL, S_WIDE, S_SCAN, S_CRT, S_FX, S_DRC, S_DITHER, S_HIRES, S_PAD, S_GYRO, S_PAD2, S_DEADZONE, S_MTAP, S_P1FIRST, S_POINTER,
 	       S_CONTROLS, S_HOTKEYS, S_RUMBLE, S_REGION, S_BIOS, S_BIOSCHECK, S_LOGO, S_AUTOFIX, S_ADV, S_UPDATE, S_COUNT };
 	static const char *allLabels[S_COUNT] = {
-		"Settings for", "Language", "Theme colour", "Menu sounds", "Open the last game at start", "Games folder", "Game list", "Covers", "Download all covers...", "Continue where you left off", "CPU core",
+		"Settings for", "Language", "Theme colour", "Menu sounds", "Menu music", "Open the last game at start", "Games folder", "Game list", "Covers", "Download all covers...", "Continue where you left off", "CPU core",
 		"Frame skip", "Fast forward", "Fast forward speed", "Show FPS", "VSync (no tearing)", "Sound", "Screen",
 		"Picture", "Border", "Widescreen (16:9)", "Scanlines", "CRT mask", "Screen effect", "GamePad screen", "Dithering", "Hi-res speed-up", "Player 1 controller", "Aim with GamePad motion",
 		"Player 2+ controller", "Analog dead zone", "Multitap (up to 5 players)", "Who is player 1", "Wii Remote pointer", "Button mapping...", "Hotkeys...", "Vibration",
@@ -2266,6 +2266,7 @@ static void settings(void)
 		"The language of WiiUStation. System follows the Wii U's language.",
 		"The colour of the menu.",
 		"Sounds when you move and choose in the menu, and their style.",
+		"Soft, quiet background music in the menus. Off by default.",
 		"Opens the last game right away when WiiUStation starts.",
 		"The folder the game list opens in.",
 		"How the games are shown: carousel, grid, compact grid or list.",
@@ -2325,7 +2326,7 @@ static void settings(void)
 			if (loaded && (i == S_BIOSCHECK || i == S_AUTOFIX || i == S_UPDATE)) continue;
 			/* app-wide options are hidden while editing one game's settings */
 			if (game && (i == S_GAMES || i == S_VIEW || i == S_COVERS || i == S_RESUME ||
-			             i == S_FFWD || i == S_LANG || i == S_HOTKEYS || i == S_SFX || i == S_UPDATE ||
+			             i == S_FFWD || i == S_LANG || i == S_HOTKEYS || i == S_SFX || i == S_MUSIC || i == S_UPDATE ||
 			             i == S_AUTOSTART || i == S_ALLCOVERS || i == S_AUTOFIX || i == S_POINTER)) continue;
 			map[n] = i;
 			labels[n] = allLabels[i];
@@ -2363,6 +2364,7 @@ static void settings(void)
 				values[k] = sn[cfg.menusfx >= 0 && cfg.menusfx <= 6 ? cfg.menusfx : 1];
 				break;
 			}
+			case S_MUSIC: values[k] = cfg.menumusic ? "On" : "Off"; break;
 			case S_AUTOSTART: values[k] = cfg.autostart ? "On" : "Off"; break;
 			case S_AUTOFIX: values[k] = cfg.autofix ? "On" : "Off"; break;
 			case S_UPDATE: values[k] = app_version(); break;
@@ -2582,6 +2584,7 @@ static void settings(void)
 		case S_HOTKEYS:  hotkeys(); transition(); break;
 		case S_THEME:    cfg.theme = (cfg.theme + THEME_COUNT + dir) % THEME_COUNT; break;
 		case S_SFX:      cfg.menusfx = (cfg.menusfx + 7 + dir) % 7; sfx_play(SFX_OK); break;
+		case S_MUSIC:    cfg.menumusic = !cfg.menumusic; audio_music(cfg.menumusic && !emu_game_loaded()); break;
 		case S_AUTOSTART:
 			cfg.autostart = !cfg.autostart;
 			if (cfg.autostart) status("The last game opens when WiiUStation starts. Hold B during the opening to go to the menu.");
@@ -4571,6 +4574,7 @@ int menu_run(void)
 		poll_touch();
 		uint32_t b = poll_buttons();
 		int activate = 0;
+		audio_music(cfg.menumusic && !loaded);          /* the menu music: only without a game */
 		if (b & WIIU_BTN_LEFT)  sel = nav(it, n, sel, -1, 0);
 		if (b & WIIU_BTN_RIGHT) sel = nav(it, n, sel, 1, 0);
 		if (b & WIIU_BTN_UP)    sel = nav(it, n, sel, 0, -1);

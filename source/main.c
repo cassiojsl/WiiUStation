@@ -126,6 +126,7 @@ static struct { const char *key; int *val; int min, max; } OPTS[] = {
 	{ "deadzone",   &cfg.deadzone,   0, 6 },
 	{ "multitap",   &cfg.multitap,   0, 1 },
 	{ "hires_fast", &cfg.hires_fast, 0, 2 },
+	{ "menumusic",  &cfg.menumusic,  0, 1 },
 	{ "tex565",     &cfg.tex565,     0, 1 },
 	{ "p1first",    &cfg.p1first,    0, 1 },
 	{ "pointer",    &cfg.pointer,    0, 2 },
@@ -320,7 +321,7 @@ const char *emu_autofix_name(void)
 static int global_only(const char *k)
 {
 	return !strcmp(k, "view") || !strcmp(k, "cover3d") || !strcmp(k, "menusfx") || !strcmp(k, "theme") || !strcmp(k, "autostart") || !strcmp(k, "autofix") || !strcmp(k, "sort") || !strcmp(k, "regionf") || !strcmp(k, "lang") || !strncmp(k, "hk", 2) || !strcmp(k, "games_dir") || !strcmp(k, "gpu_thread") ||
-	       !strcmp(k, "spu_thread") || !strcmp(k, "resume") || !strcmp(k, "ffwd") || !strcmp(k, "pointer") || !strcmp(k, "tex565");
+	       !strcmp(k, "spu_thread") || !strcmp(k, "resume") || !strcmp(k, "ffwd") || !strcmp(k, "pointer") || !strcmp(k, "tex565") || !strcmp(k, "menumusic");
 }
 
 #define GAMECFG_DIR WIIU_APP_DIR "/gamesettings"
@@ -1372,6 +1373,7 @@ int emu_load_game(const char *pathIn)
 	retro_get_system_av_info(&av);
 	emu_apply_settings();
 	load_memcard();
+	audio_music(0);                      /* the menu music stops while a game plays */
 	audio_init(av.timing.sample_rate);
 	covers_set_loaded_id(path, CdromId);
 	if (!covers_detect_id(path, gameId)) gameId[0] = 0;

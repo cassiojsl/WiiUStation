@@ -40,6 +40,8 @@ void audio_take_stats(unsigned *underruns, unsigned *drops)
 	audUnder = audDrop = 0;
 }
 
+static void music_mix(float *l, float *r);
+
 static void callback(void *ud, Uint8 *stream, int len)
 {
 	int16_t *out = (int16_t *)stream;
@@ -62,6 +64,12 @@ static void callback(void *ud, Uint8 *stream, int len)
 			r += sfxPlay[sfxPos];
 			sfxPos++;
 		}
+		{   /* the menu music (a few % of full scale) */
+			float ml, mr;
+			music_mix(&ml, &mr);
+			l += (int)(ml * 32767.0f);
+			r += (int)(mr * 32767.0f);
+		}
 		out[i * 2] = (int16_t)(l > 32767 ? 32767 : l < -32768 ? -32768 : l);
 		out[i * 2 + 1] = (int16_t)(r > 32767 ? 32767 : r < -32768 ? -32768 : r);
 	}
@@ -79,6 +87,155 @@ static float sinTab[SINN];
 static inline float tsin(float cycles)
 {
 	return sinTab[(int)(cycles * SINN) & (SINN - 1)];
+}
+
+
+/* ------------------------------------------------------------------------ */
+/* menu music: a slow, soft, generative ambient piece, made here from sine  */
+/* waves (no recording). Four chords of 8 seconds fade into each other      */
+/* (pads and a low note), a few bell notes from the chords sound now and    */
+/* then, and a stereo echo spreads it. Quiet by design.                     */
+/* ------------------------------------------------------------------------ */
+static volatile int musicTarget;       /* 1 = should play */
+static float musicGain;                /* 0..1, faded */
+static int musicWasOn;
+enum { MU_CHORDS = 4, MU_NOTES = 5, MU_BELLS = 8, MU_ECHO_L = 17900, MU_ECHO_R = 25300 };
+static const int MU_CH[MU_CHORDS][MU_NOTES] = {      /* MIDI notes: Dmaj9, Bm9, Gmaj9, Asus add9 */
+	{ 50, 57, 61, 64, 66 }, { 47, 54, 57, 61, 62 }, { 43, 50, 54, 57, 59 }, { 45, 52, 55, 59, 62 },
+};
+static float muFreq[128];
+static float muPad[MU_CHORDS][MU_NOTES][2];            /* oscillator phases */
+static float muBass[MU_CHORDS];
+static struct { float ph, ph2, inc, env, dec, panL, panR; int on; } muBell[MU_BELLS];
+static float muDlL[MU_ECHO_L], muDlR[MU_ECHO_R];
+static int muPosL, muPosR;
+static uint32_t muT, muRng, muStep;
+
+static uint32_t mu_rand(void)
+{
+	muRng = muRng * 1664525u + 1013904223u;
+	return muRng >> 8;
+}
+
+static void music_reset(void)
+{
+	if (!sinTab[SINN / 4]) for (int i = 0; i < SINN; i++) sinTab[i] = sinf(6.2831853f * i / SINN);
+	for (int n = 0; n < 128; n++) muFreq[n] = 440.0f * powf(2.0f, (n - 69) / 12.0f);
+	memset(muPad, 0, sizeof(muPad));
+	memset(muBass, 0, sizeof(muBass));
+	memset(muBell, 0, sizeof(muBell));
+	memset(muDlL, 0, sizeof(muDlL));
+	memset(muDlR, 0, sizeof(muDlR));
+	muPosL = muPosR = 0;
+	muT = 0;
+	muStep = 0xffffffffu;
+	muRng = 2024;
+}
+
+/* one stereo sample of the music (before the master volume), in -1..1 */
+static void music_sample(float *outL, float *outR)
+{
+	const double rate = outRate;
+	const uint32_t L = (uint32_t)(8.0 * rate), cycle = L * MU_CHORDS;
+	const float inv = 1.0f / (float)rate;
+	float padL = 0, padR = 0;
+
+	/* pads and the low note: each chord has a sin^2 window two chords long */
+	for (int i = 0; i < MU_CHORDS; i++) {
+		int64_t d = (int64_t)muT - (int64_t)i * L + L / 2;
+		if (d < 0) d += cycle;
+		if (d >= (int64_t)cycle) d -= cycle;
+		float u = (float)d / (2.0f * (float)L);
+		if (u >= 1.0f) continue;
+		float sw = tsin(u * 0.5f), w = sw * sw;
+		float sum = 0;
+		for (int k = 0; k < MU_NOTES; k++) {
+			float f = muFreq[MU_CH[i][k]];
+			muPad[i][k][0] += f * 0.9988f * inv; if (muPad[i][k][0] >= 1) muPad[i][k][0] -= 1;
+			muPad[i][k][1] += f * 1.0012f * inv; if (muPad[i][k][1] >= 1) muPad[i][k][1] -= 1;
+			float o = tsin(muPad[i][k][0]) + tsin(muPad[i][k][1]);
+			float amp = 0.030f - 0.003f * k;               /* the high notes a little softer */
+			sum += o * amp * (k & 1 ? 0.8f : 1.0f);
+			padL += o * amp * w * (k & 1 ? 0.65f : 1.0f);   /* a bit of stereo width: alternate notes lean */
+			padR += o * amp * w * (k & 1 ? 1.0f : 0.65f);
+		}
+		(void)sum;
+		muBass[i] += muFreq[MU_CH[i][0] - 12] * inv; if (muBass[i] >= 1) muBass[i] -= 1;
+		float b = tsin(muBass[i]) * 0.070f * w;
+		padL += b;
+		padR += b;
+	}
+	/* a slow swell over the whole thing */
+	float swell = 0.92f + 0.08f * tsin((float)muT * inv / 11.0f);
+	padL *= swell;
+	padR *= swell;
+
+	/* bell notes: every half second, sometimes */
+	if (muT % (L / 16) == 0 && muStep != muT / (L / 16)) {
+		muStep = muT / (L / 16);
+		int chord = (int)((muT / L) % MU_CHORDS);
+		if (mu_rand() % 100 < 56) {
+			int note = MU_CH[chord][mu_rand() % MU_NOTES] + 12 * (1 + (int)(mu_rand() % 2));
+			for (int b = 0; b < MU_BELLS; b++)
+				if (!muBell[b].on) {
+					float pan = (mu_rand() & 1) ? 0.30f : 0.70f;
+					muBell[b].on = 1;
+					muBell[b].ph = muBell[b].ph2 = 0;
+					muBell[b].inc = muFreq[note > 120 ? 120 : note] * inv;
+					muBell[b].env = 1.0f;
+					muBell[b].dec = expf(-1.0f / (1.1f * (float)rate));
+					muBell[b].panL = 1.0f - pan;
+					muBell[b].panR = pan;
+					break;
+				}
+		}
+	}
+	float bellL = 0, bellR = 0;
+	for (int b = 0; b < MU_BELLS; b++) {
+		if (!muBell[b].on) continue;
+		muBell[b].ph += muBell[b].inc; if (muBell[b].ph >= 1) muBell[b].ph -= 1;
+		muBell[b].ph2 += muBell[b].inc * 2.76f; if (muBell[b].ph2 >= 1) muBell[b].ph2 -= 1;
+		float v = (tsin(muBell[b].ph) + 0.18f * tsin(muBell[b].ph2)) * muBell[b].env * 0.060f;
+		muBell[b].env *= muBell[b].dec;
+		if (muBell[b].env < 0.002f) muBell[b].on = 0;
+		bellL += v * muBell[b].panL * 1.4f;
+		bellR += v * muBell[b].panR * 1.4f;
+	}
+
+	/* a cross-fed stereo echo (different lengths left and right) */
+	float wetL = muDlL[muPosL], wetR = muDlR[muPosR];
+	float inL = padL * 0.25f + bellL * 0.8f, inR = padR * 0.25f + bellR * 0.8f;
+	muDlL[muPosL] = inL + wetR * 0.46f;
+	muDlR[muPosR] = inR + wetL * 0.46f;
+	if (++muPosL >= MU_ECHO_L) muPosL = 0;
+	if (++muPosR >= MU_ECHO_R) muPosR = 0;
+
+	*outL = padL + bellL + wetL * 0.60f;
+	*outR = padR + bellR + wetR * 0.60f;
+	if (++muT >= cycle) muT = 0;
+}
+
+/* mixed into the sound device's callback: fades in and out, silent when off */
+static void music_mix(float *l, float *r)
+{
+	const float step = 1.0f / (float)(1.5 * outRate);
+	if (musicTarget && !musicWasOn) { music_reset(); musicWasOn = 1; }
+	if (musicTarget) { if (musicGain < 1) musicGain += step; if (musicGain > 1) musicGain = 1; }
+	else if (musicGain > 0) { musicGain -= step * 1.5f; if (musicGain < 0) musicGain = 0; }
+	if (musicGain <= 0) { musicWasOn = musicTarget; *l = *r = 0; return; }
+	float ml, mr;
+	music_sample(&ml, &mr);
+	const float vol = 0.60f * musicGain;       /* the master volume: low */
+	*l = ml * vol;
+	*r = mr * vol;
+}
+
+/* the menu music on or off (fades); opens the sound device if it is closed */
+void audio_music(int on)
+{
+	on = on ? 1 : 0;
+	if (on && !opened) audio_init(44100.0);
+	musicTarget = on;
 }
 
 /* p: phase in cycles; wood: the fading factor of the marimba's overtone */

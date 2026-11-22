@@ -532,3 +532,5 @@
 545|Experimental: envía la imagen a la pantalla sin convertirla. Más rápido. Si la imagen sale negra o con colores erróneos, desactívalo.
 546|#Imagen
 547|Envía la imagen a la pantalla sin convertirla: mucho más rápido en menús pesados. Si la imagen sale negra o con colores erróneos, desactívalo.
+548|Música de los menús
+549|Música de fondo suave y baja en los menús. Desactivada por defecto.

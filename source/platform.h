@@ -96,6 +96,7 @@ typedef struct {
 	int deadzone;       /* analog stick dead zone, in 5% steps */
 	int multitap;       /* 4 players on port 1 */
 	int tex565;         /* 16-bit picture sent to the screen without converting it */
+	int menumusic;      /* soft background music in the menus */
 	int hires_fast;     /* 640x480 frames: 0 full, 1 half the lines when slow (auto), 2 always */
 	int p1first;        /* player 1: 0 the GamePad (when on), 1 the first Pro/Classic/Wii Remote */
 	int pointer;        /* Wii Remote pointer in the menu: 0 off, 1 GamePad sensor bar, 2 TV sensor bar */
@@ -189,6 +190,7 @@ size_t audio_target_frames(void);
 enum { SFX_MOVE, SFX_OK, SFX_BACK, SFX_ERROR, SFX_INTRO, SFX_COUNT };
 void sfx_prepare(void);
 void sfx_play(int id);
+void audio_music(int on);              /* the menu music on or off (fades) */
 
 /* ---- input (input.c) ---- */
 enum {
