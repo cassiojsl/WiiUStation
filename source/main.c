@@ -273,9 +273,27 @@ static int ci_contains(const char *hay, const char *needle)
 	return 0;
 }
 
+/* Um Jammer Lammy plays the guitar through the SPU's decode buffers and its
+ * reverb unit: the core must keep the buffers in SPU (little endian) byte
+ * order and the reverb must stay on. Only this game gets that. */
+extern int wiiustation_decode_le;      /* patches/0005 */
+static int ujlFix;
+
+static int is_ujl(const char *name, const char *id)
+{
+	static const char *const ids[] = { "SCUS-94408", "SCES-01753", "SCPS-45391", "SCPS-91226" };
+	if (ci_contains(name, "jammer lammy")) return 1;
+	for (size_t i = 0; id && id[0] && i < sizeof(ids) / sizeof(ids[0]); i++)
+		if (!strcmp(id, ids[i])) return 1;
+	return 0;
+}
+
 static void autofix_detect(const char *name, const char *id)
 {
 	autofixMask = 0;
+	ujlFix = cfg.autofix && is_ujl(name, id);
+	wiiustation_decode_le = ujlFix;
+	if (ujlFix) wlog("game fix: Um Jammer Lammy sound (decode buffers byte order, reverb on)");
 	if (!cfg.autofix) return;
 	for (size_t k = 0; k < sizeof(AUTOFIX) / sizeof(AUTOFIX[0]); k++) {
 		if (!ci_contains(name, AUTOFIX[k].match) && !(id && id[0] && !strcmp(id, AUTOFIX[k].match))) continue;
@@ -515,7 +533,7 @@ static const char *core_var(const char *key)
 		return cfg.dithering == 0 ? "disabled" : cfg.dithering == 1 ? "enabled" : "force";
 	if (!strcmp(key, "pcsx_rearmed_bios")) return cfg.bios_hle ? "HLE" : "auto";
 	if (!strcmp(key, "pcsx_rearmed_show_bios_bootlogo")) return cfg.bootlogo ? "enabled" : "disabled";
-	if (!strcmp(key, "pcsx_rearmed_spu_reverb")) return cfg.reverb ? "enabled" : "disabled";
+	if (!strcmp(key, "pcsx_rearmed_spu_reverb")) return cfg.reverb || ujlFix ? "enabled" : "disabled";
 	if (!strcmp(key, "pcsx_rearmed_multitap")) return cfg.multitap ? "port 1" : "disabled";
 	if (!strcmp(key, "pcsx_rearmed_region"))
 		return cfg.region == 1 ? "NTSC" : cfg.region == 2 ? "PAL" : "auto";

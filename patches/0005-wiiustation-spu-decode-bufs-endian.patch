@@ -1,13 +1,27 @@
 diff --git a/plugins/dfsound/spu.c b/plugins/dfsound/spu.c
-index c4891c3b..419781d6 100644
+index c4891c3b..e62d6bb1 100644
 --- a/plugins/dfsound/spu.c
 +++ b/plugins/dfsound/spu.c
-@@ -579,7 +579,7 @@ static noinline void do_decode_bufs(unsigned short *mem, int which,
+@@ -569,6 +569,10 @@ static void mix_chan_rvb(int *SSumLR, int count, int lv, int rv, int *rvb)
+ 
+ // 0x0800-0x0bff  Voice 1
+ // 0x0c00-0x0fff  Voice 3
++// WiiUStation: set for the one game that reads these buffers (Um Jammer
++// Lammy): the data is stored in SPU (little endian) byte order
++int wiiustation_decode_le;
++
+ static noinline void do_decode_bufs(unsigned short *mem, int which,
+  int count, int decode_pos)
+ {
+@@ -579,7 +583,10 @@ static noinline void do_decode_bufs(unsigned short *mem, int which,
   while (count-- > 0)
    {
     cursor &= 0x1ff;
 -   dst[cursor] = *src++;
-+   dst[cursor] = HTOLE16((unsigned short)*src++);   // SPU RAM is little endian
++   {
++    unsigned short v = *src++;
++    dst[cursor] = wiiustation_decode_le ? HTOLE16(v) : v;
++   }
     cursor++;
    }
  
