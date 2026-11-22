@@ -51,6 +51,7 @@ void *video_open_font(int size)
 static uint32_t *conv;
 static uint32_t lut565[0x10000];
 static uint64_t convTicks;          /* time spent converting frames (performance readout) */
+static uint64_t updTicks;           /* ... of which SDL_UpdateTexture */
 
 static void build_lut(void)
 {
@@ -234,14 +235,26 @@ void video_upload(const void *data, unsigned w, unsigned h, size_t pitch)
 			for (unsigned x = 0; x < w; x++) dst[x] = src[x] | 0xff000000u;
 		}
 	} else {
+		/* RGB565 -> ARGB8888 by arithmetic (the bits are repeated into the low
+		 * bits, so white stays white). A 256 KB lookup table does not fit the
+		 * Espresso's caches and cost 17 ms for a 640x480 frame. */
 		for (unsigned y = 0; y < h; y++) {
 			const uint16_t *src = (const uint16_t *)((const uint8_t *)data + y * pitch);
 			uint32_t *dst = conv + y * w;
-			for (unsigned x = 0; x < w; x++) dst[x] = lut565[src[x]];
+			for (unsigned x = 0; x < w; x++) {
+				uint32_t p = src[x];
+				dst[x] = 0xff000000u
+				       | ((p & 0xF800u) << 8) | ((p & 0xE000u) << 3)
+				       | ((p & 0x07E0u) << 5) | ((p & 0x0600u) >> 1)
+				       | ((p & 0x001Fu) << 3) | ((p & 0x001Cu) >> 2);
+			}
 		}
 	}
+	const uint64_t c1 = SDL_GetPerformanceCounter();
 	SDL_UpdateTexture(frameTex, &r, conv, (int)(w * 4));
-	convTicks += SDL_GetPerformanceCounter() - c0;
+	const uint64_t c2 = SDL_GetPerformanceCounter();
+	updTicks += c2 - c1;
+	convTicks += c2 - c0;
 
 	if (cfg.aspect == WIIU_ASPECT_ZOOM && ((n++ % 15) == 0 || (int)w != frameW || (int)h != frameH))
 		measure_borders(data, w, h, pitch);
@@ -269,6 +282,14 @@ double video_take_conv_ms(void)
 {
 	double ms = (double)convTicks * 1000.0 / (double)SDL_GetPerformanceFrequency();
 	convTicks = 0;
+	return ms;
+}
+
+/* ... and how much of it was the texture upload (SDL_UpdateTexture) */
+double video_take_upd_ms(void)
+{
+	double ms = (double)updTicks * 1000.0 / (double)SDL_GetPerformanceFrequency();
+	updTicks = 0;
 	return ms;
 }
 

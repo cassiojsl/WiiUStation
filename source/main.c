@@ -1945,7 +1945,7 @@ static void run_game(void)
 	 * one: 60 fps would drop to 30. */
 	OSTime tEmu = 0, tDraw = 0, tWait = 0;
 	int spuDiagT = 0, spuDiagN = 0, slowLogN = 0;
-	double lastFps = 0, lastEmuMs = 0, lastConvMs = 0, lastDrawMs = 0, lastWaitMs = 0;
+	double lastFps = 0, lastUpdMs = 0, lastEmuMs = 0, lastConvMs = 0, lastDrawMs = 0, lastWaitMs = 0;
 	double busyAvg = 0;
 	int vsOn = cfg.vsync;
 	const double frameMs = 1000.0 / fps;
@@ -2060,6 +2060,7 @@ static void run_game(void)
 			{
 				const double k = 1000.0 / OSSecondsToTicks(1) / 60.0;      /* ticks -> ms per frame */
 				double convMs = video_take_conv_ms() / 60.0;
+				lastUpdMs = video_take_upd_ms() / 60.0;
 				if (cfg.show_fps) video_set_timing(tEmu * k, convMs, tDraw * k, tWait * k, vsOn);
 				lastFps = secs > 0 ? 60.0 / secs : 0; lastEmuMs = tEmu * k; lastConvMs = convMs; lastDrawMs = tDraw * k; lastWaitMs = tWait * k;
 			}
@@ -2070,8 +2071,8 @@ static void run_game(void)
 			if (lastFps > 0 && lastFps < 45 && slowLogN < 40) {
 				static unsigned prevReads;
 				static unsigned long long prevUs;
-				wlog("slow: %.1f fps; per frame: emulation %.1f ms, picture conversion %.1f ms, drawing %.1f ms, waiting %.1f ms; screen %dx%d; CHD: %u hunk reads, %.1f ms per frame",
-				     lastFps, lastEmuMs, lastConvMs, lastDrawMs, lastWaitMs, video_game_width(), video_game_height(),
+				wlog("slow: %.1f fps; per frame: emulation %.1f ms, picture conversion %.1f ms (texture upload %.1f ms), drawing %.1f ms, waiting %.1f ms; screen %dx%d; CHD: %u hunk reads, %.1f ms per frame",
+				     lastFps, lastEmuMs, lastConvMs, lastUpdMs, lastDrawMs, lastWaitMs, video_game_width(), video_game_height(),
 				     wiiustation_chd_reads - prevReads, (double)(wiiustation_chd_us - prevUs) / 1000.0 / 60.0);
 				prevReads = wiiustation_chd_reads;
 				prevUs = wiiustation_chd_us;

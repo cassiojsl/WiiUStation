@@ -310,6 +310,7 @@ void update_cleanup(void);
 const char *update_available(void);
 int  update_check(char *tag, size_t tn, char *err, size_t en);
 void update_cancel(void);          /* stop the running download */
+double video_take_upd_ms(void);
 int  video_game_width(void);
 int  video_game_height(void);
 const char *update_notes(void);     /* release text of the newest version found */   /* 1 newer, 0 current, -1 error */
