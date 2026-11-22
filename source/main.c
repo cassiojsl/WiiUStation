@@ -15,6 +15,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <coreinit/exception.h>
+#include <coreinit/memorymap.h>
+#include <coreinit/memdefaultheap.h>
+#include <coreinit/debug.h>
+#include <coreinit/screen.h>
 #include <coreinit/core.h>
 #include <coreinit/context.h>
 #include <string.h>
@@ -2064,16 +2068,33 @@ static volatile int wdActive, wdQuit;
 static const char *volatile wdStage = "";
 
 /* A crash inside the app (a bad access, a jump to garbage...) normally ends in the system's error screen or in a
- * frozen picture.  These callbacks keep what the CPU says about it for the watchdog thread to write to the log. */
+ * frozen picture.  These callbacks keep what the CPU says about it (registers and the chain of calls); the watchdog
+ * thread then writes it to the log, shows it on both screens like RetroArch does, and goes back to the menu. */
 static volatile int excSeen;
-static struct { int type, core; unsigned srr0, dar, dsisr, lr, sp, r3, r4, r5; } excInfo;
+#define EXC_BT 14
+static struct { int type, core; unsigned srr0, dar, dsisr, lr, ctr, cr, xer, gpr[32]; unsigned bt[EXC_BT]; int nbt; } excInfo;
+
+static int stack_ok(unsigned a) { return a >= 0x10000000u && a < 0xE0000000u && !(a & 3) && OSEffectiveToPhysical(a); }
 
 static BOOL on_exception(OSContext *c, int type)
 {
 	if (!excSeen) {
 		excInfo.type = type; excInfo.core = (int)OSGetCoreId();
 		excInfo.srr0 = c->srr0; excInfo.dar = c->dar; excInfo.dsisr = c->dsisr;
-		excInfo.lr = c->lr; excInfo.sp = c->gpr[1]; excInfo.r3 = c->gpr[3]; excInfo.r4 = c->gpr[4]; excInfo.r5 = c->gpr[5];
+		excInfo.lr = c->lr; excInfo.ctr = c->ctr; excInfo.cr = c->cr; excInfo.xer = c->xer;
+		for (int i = 0; i < 32; i++) excInfo.gpr[i] = c->gpr[i];
+		/* the chain of calls: [sp] is the caller's frame, [sp+4] the address it will return to */
+		unsigned sp = c->gpr[1];
+		excInfo.bt[excInfo.nbt++] = c->srr0;
+		if (c->lr) excInfo.bt[excInfo.nbt++] = c->lr;
+		for (int i = 0; i < EXC_BT - 2 && stack_ok(sp); i++) {
+			unsigned next = *(volatile unsigned *)sp;
+			if (!stack_ok(next + 4) || next <= sp) break;
+			unsigned ret = *(volatile unsigned *)(next + 4);
+			if (!ret) break;
+			excInfo.bt[excInfo.nbt++] = ret;
+			sp = next;
+		}
 		excSeen = 1;
 	}
 	for (;;) OSSleepTicks(OSMillisecondsToTicks(100));   /* this thread stops here; the watchdog reports and leaves */
@@ -2084,6 +2105,49 @@ static BOOL on_isi(OSContext *c) { return on_exception(c, 3); }
 static BOOL on_align(OSContext *c) { return on_exception(c, 5); }
 static BOOL on_prog(OSContext *c) { return on_exception(c, 6); }
 
+/* the crash report as text lines (the same for the log and for the screen) */
+static int exc_report(char lines[][64], int max)
+{
+	int n = 0;
+	const char *kind = "";
+	char buf[96];
+	if (excInfo.type == 2) {
+		kind = (excInfo.dsisr & 0x40000000) ? "unmapped memory" : (excInfo.dsisr & 0x08000000) ? "protected memory" : "memory";
+		snprintf(lines[n++], 64, "DSI: instr at %08X bad %s %s at %08X", excInfo.srr0,
+		         (excInfo.dsisr & 0x02000000) ? "write to" : "read from", kind, excInfo.dar);
+	} else if (excInfo.type == 3) snprintf(lines[n++], 64, "ISI: instruction fetch at %08X failed", excInfo.srr0);
+	else if (excInfo.type == 5) snprintf(lines[n++], 64, "ALIGN: instr at %08X, address %08X", excInfo.srr0, excInfo.dar);
+	else snprintf(lines[n++], 64, "PROGRAM: illegal instruction at %08X", excInfo.srr0);
+	for (int r = 0; r < 32 && n < max; r += 4)
+		snprintf(lines[n++], 64, "r%-2d %08X r%-2d %08X r%-2d %08X r%-2d %08X", r, excInfo.gpr[r],
+		         r + 1, excInfo.gpr[r + 1], r + 2, excInfo.gpr[r + 2], r + 3, excInfo.gpr[r + 3]);
+	if (n < max) snprintf(lines[n++], 64, "lr %08X ctr %08X cr %08X xer %08X dsisr %08X", excInfo.lr, excInfo.ctr,
+	                      excInfo.cr, excInfo.xer, excInfo.dsisr);
+	for (int i = 0; i < excInfo.nbt && n < max; i++) {
+		buf[0] = 0;
+		OSGetSymbolName(excInfo.bt[i], buf, sizeof(buf) - 1);
+		snprintf(lines[n++], 64, "%08X: %.50s", excInfo.bt[i], buf[0] ? buf : "<unknown>");
+	}
+	return n;
+}
+
+/* draws the report on the TV and the GamePad with OSScreen (the way RetroArch does), best effort */
+static void exc_show(char lines[][64], int n)
+{
+	OSScreenInit();
+	for (int sc = 0; sc < 2; sc++) {
+		OSScreenID id = sc ? SCREEN_DRC : SCREEN_TV;
+		uint32_t size = OSScreenGetBufferSizeEx(id);
+		void *mem = MEMAllocFromDefaultHeapEx(size, 0x100);
+		if (!mem) continue;
+		OSScreenSetBufferEx(id, mem);
+		OSScreenEnableEx(id, 1);
+		OSScreenClearBufferEx(id, 0x00000000);
+		for (int i = 0; i < n; i++) OSScreenPutFontEx(id, 0, i, lines[i]);
+		OSScreenFlipBuffersEx(id);
+	}
+}
+
 static int watchdog_thread(void *ud)
 {
 	(void)ud;
@@ -2093,13 +2157,16 @@ static int watchdog_thread(void *ud)
 	while (!wdQuit) {
 		for (int w = 0; w < 10 && !excSeen; w++) SDL_Delay(100);
 		if (excSeen) {
+			static char lines[40][64];
 			extern uint32_t wiiustation_jit_size; extern void *wiiustation_jit_base(void);
-			static const char *const names[] = { [2] = "DSI (bad data access)", [3] = "ISI (bad instruction fetch)", [5] = "alignment", [6] = "program (illegal instruction)" };
-			wlog("CRASH INSIDE THE APP: %s on core %d: at %08x (called from %08x), address %08x, dsisr %08x, sp %08x, r3 %08x r4 %08x r5 %08x; Lightrec code area %08x +%x; PS1 pc=%08x",
-			     names[excInfo.type], excInfo.core, excInfo.srr0, excInfo.lr, excInfo.dar, excInfo.dsisr, excInfo.sp,
-			     excInfo.r3, excInfo.r4, excInfo.r5, (unsigned)(uintptr_t)wiiustation_jit_base(), wiiustation_jit_size,
+			int n = exc_report(lines, 38);
+			wlog("CRASH INSIDE THE APP on core %d (core %d is the emulator's):", excInfo.core, (int)OSGetCoreId());
+			for (int i = 0; i < n; i++) wlog("  %s", lines[i]);
+			wlog("  Lightrec code area %08x +%x; PS1 pc=%08x", (unsigned)(uintptr_t)wiiustation_jit_base(), wiiustation_jit_size,
 			     wiiustation_ps1_state(&(unsigned){0}));
 			wlog_exit();
+			exc_show(lines, n);                /* readable for 30 s, then back to the menu */
+			SDL_Delay(30000);
 			SYSLaunchMenu();
 			SDL_Delay(4000);
 			_Exit(1);
