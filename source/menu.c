@@ -1042,6 +1042,8 @@ typedef struct {
 	float hy;          /* animated highlight position (screen y) */
 	int hyInit;
 	int lastSel;       /* the selection of the previous frame (the list follows it only when it changes) */
+	float target;      /* where the list is gliding to (kept between frames) */
+	int tgtInit;
 } list_t;
 
 static int clampi(int v, int lo, int hi) { return v < lo ? lo : v > hi ? hi : v; }
@@ -1061,16 +1063,21 @@ static int list_run(list_t *L, const char **labels, const char **values, int cou
 		L->scroll -= (float)T.dy / ROW_H;
 	if (!T.down) {
 		/* keep the selection visible when using buttons; glide there */
-		float target = (float)(int)(L->scroll + 0.5f);
+		if (!L->tgtInit) { L->target = L->scroll; L->tgtInit = 1; }
+		float target = L->target;
 		/* bring the selection into view only when it changed (the buttons, a tap):
 		 * after a drag the list stays where the finger left it */
 		if (L->sel != L->lastSel) {
-			if (L->sel < target) target = L->sel;
-			if (L->sel >= target + ROWS) target = L->sel - ROWS + 1;
+			if (L->sel < target) target = (float)L->sel;
+			if (L->sel >= target + ROWS) target = (float)(L->sel - ROWS + 1);
 		}
+		if (target > maxFirst) target = (float)maxFirst;
+		if (target < 0) target = 0;
+		L->target = target;
 		L->scroll += (target - L->scroll) * 0.35f;
 		if (fabsf(target - L->scroll) < 0.01f) L->scroll = target;
 	}
+	else { L->target = (float)(int)(L->scroll + 0.5f); L->tgtInit = 1; }
 	L->lastSel = L->sel;
 	if (L->scroll < 0) L->scroll = 0;
 	if (L->scroll > maxFirst) L->scroll = maxFirst;
@@ -2045,7 +2052,7 @@ rescan:
 	}
 	if (!keepSel) {
 		L.sel = 0;
-		L.scroll = 0;
+		L.scroll = 0; L.tgtInit = 0;
 		L.hyInit = 0;
 		memset(&G, 0, sizeof(G));
 		transition();
