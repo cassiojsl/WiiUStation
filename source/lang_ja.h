@@ -519,3 +519,4 @@
 { "Cancelling...", "キャンセル中..." },
 { "Download cancelled.", "ダウンロードを中止しました。" },
 { "B: cancel the download", "B: ダウンロードを中止" },
+{ "B: cancel and go back", "B: 中止して戻る" },

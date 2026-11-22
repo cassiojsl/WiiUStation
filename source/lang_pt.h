@@ -55,6 +55,7 @@
 { "Auto uses a DualShock for games that support it. Light guns and the mouse use the GamePad screen.", "Auto usa DualShock nos jogos compatíveis. Pistolas e mouse usam a tela do GamePad." },
 { "Automatic fix for this game: %s", "Correção automática para este jogo: %s" },
 { "Automatic game fixes", "Correções automáticas por jogo" },
+{ "B: cancel and go back", "B: cancelar e voltar" },
 { "B: cancel the download", "B: cancelar o download" },
 { "B: stop", "B: parar" },
 { "BIOS files", "Arquivos da BIOS" },

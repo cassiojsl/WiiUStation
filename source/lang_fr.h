@@ -498,3 +498,4 @@
 { "Cancelling...", "Annulation..." },
 { "Download cancelled.", "Téléchargement annulé." },
 { "B: cancel the download", "B : annuler le téléchargement" },
+{ "B: cancel and go back", "B : annuler et revenir" },

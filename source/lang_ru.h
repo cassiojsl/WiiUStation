@@ -515,3 +515,4 @@
 { "Cancelling...", "Отмена..." },
 { "Download cancelled.", "Загрузка отменена." },
 { "B: cancel the download", "B: отменить загрузку" },
+{ "B: cancel and go back", "B: отменить и вернуться" },

@@ -518,3 +518,4 @@
 531|Abbrechen...
 532|Download abgebrochen.
 533|B: Download abbrechen
+534|B: abbrechen und zurück

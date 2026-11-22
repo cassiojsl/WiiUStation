@@ -532,3 +532,4 @@ Cancel
 Cancelling...
 Download cancelled.
 B: cancel the download
+B: cancel and go back

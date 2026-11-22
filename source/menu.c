@@ -2837,7 +2837,7 @@ static void update_screen(void)
 {
 	char tag[32] = "", err[128] = "", line1[256], line2[256];
 	int state = 0;      /* 0 checking, 1 newer, 2 current, 3 error, 4 downloading, 5 installed, 6 failed */
-	int checked = 0, cancelling = 0;
+	int checked = 0, cancelling = 0, leaveAfter = 0;
 	transition();
 	for (;;) {
 		poll_touch();
@@ -2849,7 +2849,11 @@ static void update_screen(void)
 			int st = update_progress(&f);
 			if (st == 2) { state = 5; sfx_play(SFX_OK); }
 			else if (st == -1) { state = 6; sfx_play(SFX_ERROR); }
-			else if (st == 3) { state = 1; status("Download cancelled."); }
+			else if (st == 3) {
+				state = 1;
+				if (leaveAfter) return;          /* Back / B / HOME: the download stopped, leave */
+				status("Download cancelled.");
+			}
 			else {
 				SDL_Color bg = th(26, 32, 60), fg = th(0, 140, 220);
 				rrect(240, 380, 800, 26, 13, bg, 255);
@@ -2882,7 +2886,7 @@ static void update_screen(void)
 			text(fontItem, 640, 480, "What's new", WHITE, 1);
 			notesTap = tap_in(500, 450, 280, 60);
 		}
-		draw_footer(state == 1 ? "A: download and install   X: what's new" : state == 5 ? "X: what's new" : state == 4 ? "B: cancel the download" : NULL);
+		draw_footer(state == 1 ? "A: download and install   X: what's new" : state == 5 ? "X: what's new" : state == 4 ? "B: cancel and go back" : NULL);
 		present();
 		if (notesTap || ((state == 1 || state == 5) && (b & WIIU_BTN_X))) {
 			notes_screen();
@@ -2896,7 +2900,7 @@ static void update_screen(void)
 			continue;
 		}
 		if (state == 4) {                  /* downloading: B / Back / HOME cancel it */
-			if (back || (b & WIIU_BTN_B) || wiiu_quit) { update_cancel(); cancelling = 1; }
+			if (back || (b & WIIU_BTN_B) || wiiu_quit) { update_cancel(); cancelling = 1; leaveAfter = 1; }
 			continue;
 		}
 		cancelling = 0;

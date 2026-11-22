@@ -518,3 +518,4 @@
 531|Annulation...
 532|Téléchargement annulé.
 533|B : annuler le téléchargement
+534|B : annuler et revenir
