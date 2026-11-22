@@ -392,6 +392,7 @@ const char *update_available(void)
  * through Aroma's RPX loader, the new file takes the old one's place and
  * the app is started again. ---- */
 #include <coreinit/dynload.h>
+#include <coreinit/mcp.h>
 #include <coreinit/title.h>
 
 static int installPending;
@@ -468,4 +469,29 @@ void update_cleanup(void)
 		remove(p);
 	}
 	closedir(d);
+}
+
+/* the console and the loader, for the log: Wii U system version, region, model
+ * and the Aroma loader version (no serial number: nothing that identifies the console) */
+void wiiu_env_info(char *out, size_t n)
+{
+	char sys[64] = "?", model[24] = "?";
+	uint32_t rl = 0;
+	int h = MCP_Open();
+	if (h >= 0) {
+		MCPSystemVersion v;
+		MCPSysProdSettings ps;
+		memset(&v, 0, sizeof(v));
+		memset(&ps, 0, sizeof(ps));
+		if (MCP_GetSystemVersion(h, &v) >= 0)
+			snprintf(sys, sizeof(sys), "%u.%u.%u%c", (unsigned)v.major, (unsigned)v.minor, (unsigned)v.patch, v.region ? v.region : ' ');
+		if (MCP_GetSysProdSettings(h, &ps) >= 0) {
+			snprintf(model, sizeof(model), "%.15s", ps.model_number);
+			snprintf(sys + strlen(sys), sizeof(sys) - strlen(sys), ", product area %d", (int)ps.product_area);
+		}
+		MCP_Close(h);
+	}
+	rl_ver ver = (rl_ver)rl_find("RL_GetVersion");
+	if (!ver || ver(&rl) != 0) rl = 0;
+	snprintf(out, n, "console: system %s, model %s, Aroma loader v%u", sys, model, (unsigned)rl);
 }

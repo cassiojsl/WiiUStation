@@ -1,0 +1,21 @@
+diff --git a/libpcsxcore/cdrom.c b/libpcsxcore/cdrom.c
+index 11c435f8..c16392e4 100644
+--- a/libpcsxcore/cdrom.c
++++ b/libpcsxcore/cdrom.c
+@@ -1811,3 +1811,16 @@ void LidInterrupt(void) {
+ 	getCdInfo();
+ 	cdrLidSeekInterrupt();
+ }
++
++/* WiiUStation: one line about the drive for the app's log (what the disc is doing) */
++#include <stdio.h>
++void wiiustation_cd_info(char *out, int n)
++{
++	snprintf(out, n, "cd: drive state %d, status %02x, %s%s%s, track %u at %02x:%02x:%02x, mode %02x, file %u channel %u, sectors read %u",
++		(int)cdr.DriveState, (unsigned)cdr.StatP,
++		cdr.Reading ? "reading" : "not reading",
++		cdr.Play ? ", audio track playing" : "",
++		cdr.AdpcmActive ? ", XA playing" : "",
++		(unsigned)cdr.subq.Track, (unsigned)cdr.subq.Absolute[0], (unsigned)cdr.subq.Absolute[1], (unsigned)cdr.subq.Absolute[2],
++		(unsigned)cdr.Mode, (unsigned)cdr.CurFile, (unsigned)cdr.CurChannel, (unsigned)cdr.sectorsRead);
++}

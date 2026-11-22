@@ -311,6 +311,7 @@ int update_finish(void);             /* at exit: 1 = the new version is starting
 void update_cleanup(void);
 const char *update_available(void);
 int  update_check(char *tag, size_t tn, char *err, size_t en);
+void wiiu_env_info(char *out, size_t n);   /* console and loader versions, for the log */
 void update_cancel(void);          /* stop the running download */
 double video_take_upd_ms(void);
 int  video_game_width(void);

@@ -20,11 +20,12 @@
 #define LOG_OLD    WIIU_APP_DIR "/log.old.txt"
 #define RUN_FLAG   WIIU_APP_DIR "/running.flag"
 #define LOG_MAX    (256 * 1024)
-#define LINES_MAX  700                     /* per run */
+#define LINES_MAX  500                     /* per run: routine lines (sound, slow stretches, alive) */
+#define IMPORTANT_MAX 1500                 /* per run: loads, errors, sessions, exits are always kept */
 
 static FILE *lf;
 static SDL_mutex *lock;
-static int lines;
+static int lines, important;
 static char last[400];
 
 void wlog(const char *fmt, ...)
@@ -38,13 +39,21 @@ void wlog(const char *fmt, ...)
 	b[strcspn(b, "\r\n")] = 0;
 	if (!b[0]) return;
 	if (lock) SDL_LockMutex(lock);
-	if (strcmp(b, last) && lines < LINES_MAX) {       /* no repeats, no floods */
+	/* what matters when something went wrong is never dropped: only the
+	 * routine lines (sound state, slow stretches, alive) have a limit */
+	int routine = !strncmp(b, "spu ", 4) || !strncmp(b, "slow:", 5) || !strncmp(b, "alive", 5) || !strncmp(b, "cd:", 3);
+	int room = routine ? lines < LINES_MAX : important < IMPORTANT_MAX;
+	if (strcmp(b, last) && room) {                    /* no repeats, no floods */
 		time_t now = time(NULL);
 		struct tm *tm = localtime(&now);
 		char ts[16] = "--:--:--";
 		if (tm) strftime(ts, sizeof(ts), "%H:%M:%S", tm);
 		fprintf(lf, "[%s] %s\n", ts, b);
-		if (++lines == LINES_MAX) fprintf(lf, "(more messages in this run are not logged)\n");
+		if (routine) {
+			if (++lines == LINES_MAX) fprintf(lf, "(more routine lines in this run are not logged)\n");
+		} else {
+			important++;
+		}
 		fflush(lf);
 		snprintf(last, sizeof(last), "%s", b);
 	}
@@ -60,7 +69,7 @@ void wlog_init(void)
 		rename(LOG_FILE, LOG_OLD);
 	}
 	int crashed = stat(RUN_FLAG, &st) == 0;
-	char was[160] = "";
+	char was[420] = "";
 	if (crashed) {                       /* what the previous run was doing */
 		FILE *rf = fopen(RUN_FLAG, "r");
 		if (rf) {
@@ -78,7 +87,10 @@ void wlog_init(void)
 	fprintf(lf, "\n===== WiiUStation %s - %s =====\n", app_version(), date);
 	fflush(lf);
 	if (crashed) {
-		if (strncmp(was, "playing ", 8) == 0) wlog("the previous run did not end normally (crash or power off) while %s", was);
+		if (strncmp(was, "playing ", 8) == 0) {
+			wlog("the previous run did not end normally (crash or power off) while %s", was);
+			wlog("(that was the last state it saved: the freeze or crash came right after it)");
+		}
 		else wlog("the previous run did not end normally (crash or power off)");
 	}
 	FILE *f = fopen(RUN_FLAG, "w");

@@ -1146,6 +1146,7 @@ void emu_apply_settings(void)
  * every sector it reads (fan translations, fixes). */
 extern char wiiustation_ppf_path[];
 extern void wiiustation_spu_diag(char *out, int n);
+extern void wiiustation_cd_info(char *out, int n);   /* patches/0007 */
 extern unsigned wiiustation_chd_reads;           /* patches/0006 */
 extern unsigned long long wiiustation_chd_us;
 static int ppfActive, ppfFromDisc;
@@ -1242,6 +1243,11 @@ static void log_session_summary(void)
 static void log_system(void)
 {
 	const OSSystemInfo *si = OSGetSystemInfo();
+	{
+		char env[160];
+		wiiu_env_info(env, sizeof(env));
+		wlog("%s", env);
+	}
 	if (si)
 		wlog("system: Espresso %u MHz, bus %u MHz, language setting %d, games folder %s",
 		     (unsigned)(si->coreClockSpeed / 1000000), (unsigned)(si->busClockSpeed / 1000000), cfg.lang, cfg.games_dir);
@@ -2185,6 +2191,25 @@ static void run_game(void)
 					sessWindows++;
 				}
 				log_controllers(0);
+				/* a heartbeat every ~5 s kept for the next start (if the console freezes the
+				 * last one says what the game was doing), and one line in the log every minute */
+				{
+					static uint32_t hbAt, hbLog;
+					uint32_t nowMs = SDL_GetTicks();
+					if (nowMs - hbAt >= 5000) {
+						char cd[220], hb[400], act[480];
+						hbAt = nowMs;
+						wiiustation_cd_info(cd, sizeof(cd));
+						snprintf(hb, sizeof(hb), "%.1f fps, screen %dx%d, emulation %.1f ms; %s",
+						         secs > 0 ? 60.0 / secs : 0.0, video_game_width(), video_game_height(), tEmu * 1000.0 / OSSecondsToTicks(1) / 60.0, cd);
+						snprintf(act, sizeof(act), "playing %.100s | %s", gameName, hb);
+						wlog_activity(act);
+						if (nowMs - hbLog >= 60000) {
+							hbLog = nowMs;
+							wlog("alive: %s", hb);
+						}
+					}
+				}
 				lastFps = secs > 0 ? 60.0 / secs : 0; lastEmuMs = tEmu * k; lastConvMs = convMs; lastDrawMs = tDraw * k; lastWaitMs = tWait * k;
 			}
 			tEmu = tDraw = tWait = 0;
