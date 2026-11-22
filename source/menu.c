@@ -4658,7 +4658,7 @@ static int games_folder_ok(void)
 static int pick_folder(int usb)
 {
 	char dirp[512];
-	if (!browse(usb ? "USB games folder" : "Games folder", dirp, sizeof(dirp), usb ? 2 : 1)) return 0;
+	if (!browse(usb ? "USB games folder" : usbfs_mounted() ? "SD games folder" : "Games folder", dirp, sizeof(dirp), usb ? 2 : 1)) return 0;
 	if (usb) { strncpy(cfg.games_dir_usb, dirp, sizeof(cfg.games_dir_usb) - 1); cfg.games_dir_usb[sizeof(cfg.games_dir_usb) - 1] = 0; }
 	else { strncpy(cfg.games_dir, dirp, sizeof(cfg.games_dir) - 1); cfg.games_dir[sizeof(cfg.games_dir) - 1] = 0; }
 	browsePath[0] = 0;
@@ -4909,9 +4909,7 @@ int menu_run(void)
 				{
 					int tw = 0;
 					TTF_SizeUTF8(fontItem, tr("Choose games folder"), &tw, NULL);
-					int x0 = r.x + (r.w - tw - 52) / 2;
-					folder_icon(x0, r.y + 12, 36);
-					text(fontItem, x0 + 52, r.y + r.h / 2, "Choose games folder", WHITE, 0);
+					text(fontItem, r.x + r.w / 2, r.y + r.h / 2, "Choose games folder", WHITE, 1);
 				}
 				break;
 			case H_RECENT: {
