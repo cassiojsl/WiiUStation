@@ -373,7 +373,7 @@ static void settings_defaults(void)
 	cfg.autofix = 1;
 	for (int i = 0; i < NCOREOPT; i++) cfg.core[i] = COREOPT[i].def;
 	memcpy(cfg.hk, default_hotkeys, sizeof(cfg.hk));
-	strcpy(cfg.games_dir, WIIU_ISO_DIR);
+	strcpy(cfg.games_dir, WIIU_SD_ROOT);     /* no folder of its own: games are usually in a folder at the root of the SD card */
 	strcpy(cfg.games_dir_usb, "usb:");
 	cfg.games_src = 0;
 	memcpy(cfg.map, default_map, sizeof(cfg.map));
@@ -2516,7 +2516,6 @@ int main(int argc, char **argv)
 		if (wd) SDL_DetachThread(wd);
 	}
 	wiiu_input_init();
-	wiiu_mkdirs(WIIU_ISO_DIR);
 	wiiu_mkdirs(WIIU_BIOS_DIR);
 	wiiu_mkdirs(WIIU_SAVE_DIR);
 	wiiu_mkdirs(WIIU_STATE_DIR);

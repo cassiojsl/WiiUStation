@@ -2015,8 +2015,8 @@ static int browse(const char *title, char *out, size_t outsz, int pickDir)
 	                   merged ? MERGED : src == 1 ? cfg.games_dir_usb : cfg.games_dir;
 	int ret = 0;
 
-	if (pickDir == 2) strcpy(browsePath, cfg.games_dir_usb[0] ? cfg.games_dir_usb : "usb:");
-	else if (pickDir) strcpy(browsePath, cfg.games_dir);
+	if (pickDir == 2) strcpy(browsePath, "usb:");              /* the folder pickers open at the root of the drive */
+	else if (pickDir) strcpy(browsePath, WIIU_SD_ROOT);
 	else if (merged) { if (!path_in_games(browsePath)) strcpy(browsePath, MERGED); }
 	else if (!browsePath[0] || strncmp(browsePath, root, strlen(root))) strcpy(browsePath, root);
 	if (strcmp(browsePath, MERGED)) {
@@ -4851,8 +4851,7 @@ int menu_run(void)
 			if (!nrec) {
 				rrect(50, 168, 1180, 170, 22, card, 200);
 				if (games_folder_ok()) {
-					text(fontItem, 640, 230, "Tap Games to choose a game.", WHITE, 1);
-					text_wrap(fontSmall, 640, 280, 1000, "Put your games in sd:/wiiu/apps/WiiUStation/games", GREY);
+					text(fontItem, 640, 250, "Tap Games to choose a game.", WHITE, 1);
 				} else {
 					text(fontItem, 640, 214, "Choose the folder with your games to start.", WHITE, 1);
 				}
