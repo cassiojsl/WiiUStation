@@ -1,0 +1,18 @@
+diff --git a/libpcsxcore/r3000a.c b/libpcsxcore/r3000a.c
+index 288ea9aa..c5c9ee59 100644
+--- a/libpcsxcore/r3000a.c
++++ b/libpcsxcore/r3000a.c
+@@ -42,6 +42,13 @@ R3000Acpu *psxCpu = NULL;
+ psxRegisters psxRegs;
+ #endif
+ 
++/* WiiUStation: where the emulated CPU is, for the app's watchdog (read from another thread) */
++unsigned wiiustation_ps1_state(unsigned *cycle)
++{
++	*cycle = (unsigned)psxRegs.cycle;
++	return (unsigned)psxRegs.pc;
++}
++
+ int psxInit() {
+ 	assert(PSXINT_COUNT <= ARRAY_SIZE(psxRegs.intCycle));
+ 	assert(ARRAY_SIZE(psxRegs.intCycle) == ARRAY_SIZE(psxRegs.event_cycles));

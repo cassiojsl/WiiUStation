@@ -2049,6 +2049,40 @@ static int hotkey_pressed(void)
 	return 0;
 }
 
+
+/* ---- the watchdog: if the game loop stops producing frames, say where (in the log) ----
+ * A freeze that takes the whole console leaves nothing behind, but a loop stuck in one
+ * place leaves its marks here: the stage of the loop and where the emulated CPU is. */
+extern unsigned wiiustation_ps1_state(unsigned *cycle);     /* patches/0009 */
+static volatile unsigned wdFrames;
+static volatile int wdActive, wdQuit;
+static const char *volatile wdStage = "";
+
+static int watchdog_thread(void *ud)
+{
+	(void)ud;
+	unsigned lastFrames = 0;
+	uint32_t lastChange = SDL_GetTicks();
+	int reports = 0;
+	while (!wdQuit) {
+		SDL_Delay(1000);
+		uint32_t now = SDL_GetTicks();
+		if (!wdActive || wdFrames != lastFrames) {
+			lastFrames = wdFrames;
+			lastChange = now;
+			reports = 0;
+			continue;
+		}
+		uint32_t idle = now - lastChange;
+		if ((reports == 0 && idle >= 4000) || (reports == 1 && idle >= 12000) || (reports == 2 && idle >= 40000)) {
+			unsigned cyc = 0, pc = wiiustation_ps1_state(&cyc);
+			wlog("STUCK: no frame for %u s; stage: %s; PS1 pc=%08x cycle=%u", (unsigned)(idle / 1000), wdStage, pc, cyc);
+			reports++;
+		}
+	}
+	return 0;
+}
+
 static void run_game(void)
 {
 	OSTime last = OSGetSystemTime(), fpsStart = last;
@@ -2057,6 +2091,7 @@ static void run_game(void)
 	const OSTime frameTicks = (OSTime)(OSSecondsToTicks(1) / fps);
 
 	assign_pads();
+	wdActive = 1;
 	wiiu_input_pointer_menu(0);          /* the pointer is for the menu only */
 	log_controllers(1);
 	wiiu_home_button_ingame(1);
@@ -2149,14 +2184,19 @@ static void run_game(void)
 			ffMuted = 0;
 		}
 		OSTime t0 = OSGetSystemTime();
+		wdStage = "emulating a frame (retro_run)";
 		retro_run();
 		OSTime t1 = OSGetSystemTime();
+		wdStage = "drawing the frame";
 		video_draw_game(0);
 		OSTime t2 = OSGetSystemTime();
 		if (ff) video_osd(">> Fast forward");
+		wdStage = "presenting the frame";
 		video_present();
 		OSTime t3 = OSGetSystemTime();
+		wdStage = "system events";
 		if (!pump_events()) break;
+		wdFrames++;
 		tEmu += t1 - t0; tDraw += t2 - t1; tWait += t3 - t2;
 		if (cfg.vsync && !ff) {
 			double busy = (double)(t2 - t0) * 1000.0 / OSSecondsToTicks(1);
@@ -2250,6 +2290,7 @@ wlog("spu %s", d);
 		}
 	}
 
+	wdActive = 0;
 	ffwdMask = 0xffffffffu;
 	hkHide = 0;
 	if (pauseAt) playPaused += OSGetSystemTime() - pauseAt;
@@ -2331,6 +2372,10 @@ int main(int argc, char **argv)
 	app_folder_move();
 	update_cleanup();
 	wlog_init();
+	{
+		SDL_Thread *wd = SDL_CreateThreadWithStackSize(watchdog_thread, "watchdog", 64 * 1024, NULL);
+		if (wd) SDL_DetachThread(wd);
+	}
 	wiiu_input_init();
 	wiiu_mkdirs(WIIU_ISO_DIR);
 	wiiu_mkdirs(WIIU_BIOS_DIR);
