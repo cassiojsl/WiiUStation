@@ -534,3 +534,4 @@
 547|Envía la imagen a la pantalla sin convertirla: mucho más rápido en menús pesados. Si la imagen sale negra o con colores erróneos, desactívalo.
 548|Música de los menús
 549|Música de fondo suave y baja en los menús. Desactivada por defecto.
+550|Bloque libre

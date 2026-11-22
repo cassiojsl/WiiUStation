@@ -534,3 +534,4 @@
 547|Stuurt het beeld zonder omzetting naar het scherm: veel sneller in zware menu's. Is het beeld zwart of zijn de kleuren fout, zet het dan uit.
 548|Menumuziek
 549|Zachte, stille achtergrondmuziek in de menu's. Standaard uit.
+550|Vrij blok

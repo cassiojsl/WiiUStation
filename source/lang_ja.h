@@ -535,3 +535,4 @@
 { "Sends the picture to the screen without converting it: much faster in heavy menus. If the picture is black or the colours are wrong, turn it off.", "画像を変換せずに画面へ送ります。重いメニューでかなり高速です。画面が黒くなったり色が変なときはオフにしてください。" },
 { "Menu music", "メニューの音楽" },
 { "Soft, quiet background music in the menus. Off by default.", "メニューで流れる静かなBGMです。初期設定ではオフです。" },
+{ "Free block", "空きブロック" },

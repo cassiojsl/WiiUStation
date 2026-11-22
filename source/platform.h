@@ -336,7 +336,10 @@ typedef struct {
 	int first, blocks;           /* first block (1..15), blocks used */
 	char fname[24];              /* name in the directory, e.g. BASLUS-00594... */
 	char title[96];              /* title from the save, as ASCII */
-	uint32_t icon[256];          /* 16x16 ARGB, 0 = transparent */
+	uint32_t icon[256];          /* 16x16 ARGB, 0 = transparent (the first frame) */
+	int frames;                  /* 1..3 animation frames of the icon */
+	uint32_t anim[3][256];       /* the frames */
+	uint8_t chain[15];           /* the blocks of the save, in order (1..15) */
 } mc_save_t;
 int  mc_load(const char *path, uint8_t *card);
 int  mc_save(const char *path, const uint8_t *card);

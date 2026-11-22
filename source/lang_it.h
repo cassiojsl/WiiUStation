@@ -519,3 +519,4 @@
 { "Sends the picture to the screen without converting it: much faster in heavy menus. If the picture is black or the colours are wrong, turn it off.", "Invia l'immagine allo schermo senza convertirla: molto più veloce nei menu pesanti. Se l'immagine è nera o i colori sono sbagliati, disattivalo." },
 { "Menu music", "Musica dei menu" },
 { "Soft, quiet background music in the menus. Off by default.", "Musica di sottofondo dolce e leggera nei menu. Disattivata per impostazione predefinita." },
+{ "Free block", "Blocco libero" },

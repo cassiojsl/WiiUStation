@@ -534,3 +534,4 @@
 547|Sendet das Bild ohne Umwandlung an den Bildschirm: viel schneller in aufwendigen Menüs. Ist das Bild schwarz oder sind die Farben falsch, schalte es aus.
 548|Menümusik
 549|Sanfte, leise Hintergrundmusik in den Menüs. Standardmäßig aus.
+550|Freier Block

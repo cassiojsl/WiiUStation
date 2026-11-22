@@ -534,3 +534,4 @@
 547|Invia l'immagine allo schermo senza convertirla: molto più veloce nei menu pesanti. Se l'immagine è nera o i colori sono sbagliati, disattivalo.
 548|Musica dei menu
 549|Musica di sottofondo dolce e leggera nei menu. Disattivata per impostazione predefinita.
+550|Blocco libero

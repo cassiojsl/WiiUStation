@@ -548,3 +548,4 @@ Experimental: sends the picture to the screen without converting it. Faster. If 
 Sends the picture to the screen without converting it: much faster in heavy menus. If the picture is black or the colours are wrong, turn it off.
 Menu music
 Soft, quiet background music in the menus. Off by default.
+Free block

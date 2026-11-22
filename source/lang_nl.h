@@ -510,3 +510,4 @@
 { "Sends the picture to the screen without converting it: much faster in heavy menus. If the picture is black or the colours are wrong, turn it off.", "Stuurt het beeld zonder omzetting naar het scherm: veel sneller in zware menu's. Is het beeld zwart of zijn de kleuren fout, zet het dan uit." },
 { "Menu music", "Menumuziek" },
 { "Soft, quiet background music in the menus. Off by default.", "Zachte, stille achtergrondmuziek in de menu's. Standaard uit." },
+{ "Free block", "Vrij blok" },

@@ -199,6 +199,7 @@
 { "For the neGcon: how far the stick moves before steering starts.", "Para o neGcon: quanto o analógico anda antes de começar a virar." },
 { "Force", "Forçar" },
 { "Frame skip", "Pular quadros" },
+{ "Free block", "Bloco livre" },
 { "GPL-2.0-or-later. Source code is available on GitHub.", "GPL-2.0 ou posterior. O código-fonte está no GitHub." },
 { "GPU fixes", "Correções da GPU" },
 { "GPU rendering on core 2", "Desenho da GPU no núcleo 2" },

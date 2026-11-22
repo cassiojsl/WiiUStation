@@ -99,6 +99,7 @@ int mc_list(const uint8_t *card, mc_save_t *out, int max)
 		/* count the chain */
 		int blk = b, guard = 0;
 		while (guard++ < 15) {
+			s->chain[s->blocks] = (uint8_t)blk;
 			s->blocks++;
 			const uint8_t *e = card + blk * FRAME;
 			unsigned next = e[8] | (e[9] << 8);
@@ -115,11 +116,17 @@ int mc_list(const uint8_t *card, mc_save_t *out, int max)
 				uint32_t r = (c & 31) << 3, g = ((c >> 5) & 31) << 3, bl = ((c >> 10) & 31) << 3;
 				pal[i] = c == 0 ? 0 : (0xFFu << 24) | (r << 16) | (g << 8) | bl;
 			}
-			const uint8_t *ic = t + FRAME;
-			for (int i = 0; i < 128; i++) {
-				s->icon[i * 2]     = pal[ic[i] & 15];
-				s->icon[i * 2 + 1] = pal[ic[i] >> 4];
+			/* the display flag (0x11, 0x12, 0x13) says how many frames the icon has */
+			int frames = t[2] == 0x12 ? 2 : t[2] == 0x13 ? 3 : 1;
+			s->frames = frames;
+			for (int f = 0; f < frames; f++) {
+				const uint8_t *ic = t + FRAME * (1 + f);
+				for (int i = 0; i < 128; i++) {
+					s->anim[f][i * 2]     = pal[ic[i] & 15];
+					s->anim[f][i * 2 + 1] = pal[ic[i] >> 4];
+				}
 			}
+			memcpy(s->icon, s->anim[0], sizeof(s->icon));
 		}
 		if (!s->title[0]) snprintf(s->title, sizeof(s->title), "%s", s->fname);
 		n++;

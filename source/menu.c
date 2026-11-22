@@ -3662,46 +3662,54 @@ static int pick_card(const char *title, const char *skip, char *out, size_t on)
 	}
 }
 
+/* One memory card like the PlayStation's own screen: the 15 blocks as a grid of
+ * big, animated icons, with the selected save's details beside it. */
 static void card_view(const char *file)
 {
+	enum { COLS = 5, CW = 140, GAP = 10, GX = 60, GY = 128 };
 	static uint8_t card[MC_SIZE], other[MC_SIZE];
 	static mc_save_t saves[15];
-	SDL_Texture *icons[15] = { 0 };
+	SDL_Texture *icons[15][3] = { { 0 } };
+	int owner[15];                         /* block cell -> index in saves, or -1 */
+	int part[15];                          /* position of the cell in its save (0 = the first block) */
 	char path[600], title[96], inuse[600];
 	snprintf(path, sizeof(path), "%s/%s", WIIU_SAVE_DIR, file);
 	pretty_name(file, title, sizeof(title));
 	int locked = emu_memcard_path(inuse, sizeof(inuse)) && !strcmp(inuse, path);
-	int n = 0, sel = 0, reload = 1;
+	int n = 0, cell = 0, reload = 1;
 	uint32_t delArm = 0;
-	list_t L = { 0, 0 };
 	transition();
 	for (;;) {
 		if (reload) {
-			for (int i = 0; i < 15; i++) if (icons[i]) { SDL_DestroyTexture(icons[i]); icons[i] = NULL; }
+			for (int i = 0; i < 15; i++)
+				for (int f = 0; f < 3; f++) if (icons[i][f]) { SDL_DestroyTexture(icons[i][f]); icons[i][f] = NULL; }
 			n = mc_load(path, card) ? mc_list(card, saves, 15) : 0;
+			for (int c = 0; c < 15; c++) { owner[c] = -1; part[c] = 0; }
 			for (int i = 0; i < n; i++) {
-				SDL_Surface *sf = SDL_CreateRGBSurfaceWithFormatFrom(saves[i].icon, 16, 16, 32, 64, SDL_PIXELFORMAT_ARGB8888);
-				if (sf) { icons[i] = SDL_CreateTextureFromSurface(R, sf); SDL_FreeSurface(sf); }
-				if (icons[i]) SDL_SetTextureScaleMode(icons[i], SDL_ScaleModeNearest);
+				int fr = saves[i].frames > 0 ? saves[i].frames : 1;
+				for (int f = 0; f < fr; f++) {
+					SDL_Surface *sf = SDL_CreateRGBSurfaceWithFormatFrom(saves[i].anim[f], 16, 16, 32, 64, SDL_PIXELFORMAT_ARGB8888);
+					if (sf) { icons[i][f] = SDL_CreateTextureFromSurface(R, sf); SDL_FreeSurface(sf); }
+					if (icons[i][f]) {
+						SDL_SetTextureScaleMode(icons[i][f], SDL_ScaleModeNearest);
+						SDL_SetTextureBlendMode(icons[i][f], SDL_BLENDMODE_BLEND);
+					}
+				}
+				for (int k = 0; k < saves[i].blocks; k++) {
+					int c = saves[i].chain[k] - 1;
+					if (c >= 0 && c < 15) { owner[c] = i; part[c] = k; }
+				}
 			}
-			if (sel >= n) sel = n ? n - 1 : 0;
-			L.sel = sel;
+			if (cell < 0 || cell > 14) cell = 0;
 			reload = 0;
-		}
-		const char *labels[15], *values[15];
-		char blk[15][16];
-		for (int i = 0; i < n; i++) {
-			labels[i] = saves[i].title;
-			snprintf(blk[i], sizeof(blk[i]), tr(saves[i].blocks > 1 ? "%d blocks" : "%d block"), saves[i].blocks);
-			values[i] = blk[i];
 		}
 		poll_touch();
 		uint32_t b = poll_buttons();
-		if (n) {
-			if (b & WIIU_BTN_UP)   L.sel = L.sel > 0 ? L.sel - 1 : n - 1;
-			if (b & WIIU_BTN_DOWN) L.sel = L.sel < n - 1 ? L.sel + 1 : 0;
-		}
-		sel = L.sel;
+		if (b & WIIU_BTN_LEFT)  { if (cell % COLS > 0) cell--; }
+		if (b & WIIU_BTN_RIGHT) { if (cell % COLS < COLS - 1) cell++; }
+		if (b & WIIU_BTN_UP)    { if (cell >= COLS) cell -= COLS; }
+		if (b & WIIU_BTN_DOWN)  { if (cell + COLS < 15) cell += COLS; }
+
 		draw_background();
 		int back = draw_header(title, 1);
 		{
@@ -3709,23 +3717,60 @@ static void card_view(const char *file)
 			snprintf(info, sizeof(info), tr("%d of 15 blocks free"), mc_free_blocks(card));
 			header_sub(title, info, GREY);
 		}
-		if (n) {
-			list_run(&L, labels, values, n, 0, NULL, NULL);
-			/* icons in front of the rows */
-			int first = (int)L.scroll;
-			for (int i = first; i < n && i < first + ROWS; i++)
-				if (icons[i]) {
-					SDL_Rect r = { LIST_X - 70, LIST_Y + (int)((i - L.scroll) * ROW_H) + 8, 48, 48 };
-					if (r.y >= LIST_Y - 8) SDL_RenderCopy(R, icons[i], NULL, &r);
+		uint32_t tick = SDL_GetTicks();
+		/* the grid */
+		for (int c = 0; c < 15; c++) {
+			int x = GX + (c % COLS) * (CW + GAP), y = GY + (c / COLS) * (CW + GAP);
+			if (hover_in(x, y, CW, CW)) cell = c;
+			if (tap_in(x, y, CW, CW)) cell = c;
+			int o = owner[c];
+			int mine = o >= 0 && cell >= 0 && owner[cell] == o;          /* a block of the selected save */
+			rrect(x, y, CW, CW, 16, th(14, 18, 40), o >= 0 ? 215 : 130);
+			if (o >= 0) {
+				int fr = saves[o].frames > 0 ? saves[o].frames : 1;
+				SDL_Texture *t = icons[o][(tick / 260) % fr];
+				if (t) {
+					SDL_Rect d = { x + (CW - 96) / 2, y + (CW - 96) / 2, 96, 96 };
+					SDL_SetTextureAlphaMod(t, part[c] == 0 ? 255 : 120);   /* the next blocks of a long save are dimmed */
+					SDL_RenderCopy(R, t, NULL, &d);
 				}
-		} else {
-			text(fontItem, 640, 360, "This memory card is empty.", GREY, 1);
+				if (part[c] > 0) text(fontSmall, x + CW - 14, y + CW - 14, "...", GREY, 2);
+			} else {
+				text(fontSmall, x + CW / 2, y + CW / 2, "-", DIM, 1);
+			}
+			if (c == cell) outline(x - 2, y - 2, CW + 4, CW + 4, th(0, 140, 220), 255, 4);
+			else if (mine) outline(x, y, CW, CW, th(0, 140, 220), 140, 2);
+		}
+		/* the selected save, on the right */
+		{
+			const int PX = GX + COLS * (CW + GAP) + 20, PY = GY, PW = 1280 - PX - 40, PH = 3 * (CW + GAP) - GAP;
+			rrect(PX, PY, PW, PH, 18, th(14, 18, 40), 215);
+			int o = cell >= 0 ? owner[cell] : -1;
+			if (o >= 0) {
+				int fr = saves[o].frames > 0 ? saves[o].frames : 1;
+				SDL_Texture *t = icons[o][(tick / 260) % fr];
+				if (t) {
+					SDL_Rect d = { PX + PW / 2 - 64, PY + 24, 128, 128 };
+					SDL_SetTextureAlphaMod(t, 255);
+					SDL_RenderCopy(R, t, NULL, &d);
+				}
+				text_wrap(fontItem, PX + PW / 2, PY + 190, PW - 40, saves[o].title, WHITE);
+				char line[96];
+				const char *reg = saves[o].fname[1] == 'A' ? "USA" : saves[o].fname[1] == 'E' ? "Europe" : saves[o].fname[1] == 'I' ? "Japan" : "";
+				snprintf(line, sizeof(line), "%.10s%s%s", saves[o].fname + 2, reg[0] ? "   \xc2\xb7   " : "", reg);
+				text(fontSmall, PX + PW / 2, PY + PH - 90, line, GREY, 1);
+				snprintf(line, sizeof(line), tr(saves[o].blocks > 1 ? "%d blocks" : "%d block"), saves[o].blocks);
+				text(fontSmall, PX + PW / 2, PY + PH - 56, line, GREY, 1);
+			} else {
+				text(fontItem, PX + PW / 2, PY + PH / 2 - 14, n ? "Free block" : "This memory card is empty.", GREY, 1);
+			}
 		}
 		draw_footer(locked ? "This card belongs to the game that is running: close the game to change it" :
 		            n ? "Y: delete   X: copy to another card" : NULL);
 		present();
 		if (back || (b & WIIU_BTN_B) || wiiu_quit) break;
-		if (!n || locked) continue;
+		int sel = cell >= 0 ? owner[cell] : -1;
+		if (!n || locked || sel < 0) continue;
 		if (b & WIIU_BTN_Y) {
 			if (delArm && SDL_GetTicks() - delArm < 3000) {
 				mc_delete(card, saves[sel].first);
@@ -3754,7 +3799,8 @@ static void card_view(const char *file)
 			transition();
 		}
 	}
-	for (int i = 0; i < 15; i++) if (icons[i]) SDL_DestroyTexture(icons[i]);
+	for (int i = 0; i < 15; i++)
+		for (int f = 0; f < 3; f++) if (icons[i][f]) SDL_DestroyTexture(icons[i][f]);
 }
 
 static void memcards(void)

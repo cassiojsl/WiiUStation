@@ -534,3 +534,4 @@
 547|Envoie l'image à l'écran sans la convertir : bien plus rapide dans les menus lourds. Si l'image est noire ou les couleurs fausses, désactivez-le.
 548|Musique des menus
 549|Musique de fond douce et discrète dans les menus. Désactivée par défaut.
+550|Bloc libre
