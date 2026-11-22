@@ -519,3 +519,5 @@
 532|Téléchargement annulé.
 533|B : annuler le téléchargement
 534|B : annuler et revenir
+535|Automatique
+536|Pointez la Wiimote vers la GamePad. Sa barre de capteurs n'est allumée que si une Wiimote est connectée et utilisée.

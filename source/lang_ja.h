@@ -520,3 +520,5 @@
 { "Download cancelled.", "ダウンロードを中止しました。" },
 { "B: cancel the download", "B: ダウンロードを中止" },
 { "B: cancel and go back", "B: 中止して戻る" },
+{ "Automatic", "自動" },
+{ "Point the Wii Remote at the GamePad. Its sensor bar is on only while a Wii Remote is connected and used.", "リモコンをGamePadに向けます。センサーバーはリモコンが接続され使用中のときだけ点灯します。" },

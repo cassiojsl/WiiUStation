@@ -519,3 +519,5 @@
 532|Download geannuleerd.
 533|B: download annuleren
 534|B: annuleren en terug
+535|Automatisch
+536|Richt de Wii Remote op het GamePad. De sensorbalk staat alleen aan als er een Wii Remote is verbonden en gebruikt wordt.

@@ -519,3 +519,5 @@
 532|Download annullato.
 533|B: annulla il download
 534|B: annulla e torna indietro
+535|Automatico
+536|Punta il Wii Remote verso il GamePad. La sua barra sensore è accesa solo se c'è un Wii Remote collegato e in uso.

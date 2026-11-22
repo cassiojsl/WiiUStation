@@ -533,3 +533,5 @@ Cancelling...
 Download cancelled.
 B: cancel the download
 B: cancel and go back
+Automatic
+Point the Wii Remote at the GamePad. Its sensor bar is on only while a Wii Remote is connected and used.

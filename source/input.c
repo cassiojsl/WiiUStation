@@ -108,20 +108,21 @@ void wiiu_input_init(void)
 }
 
 static int pointerMenu = 1;
+static OSTime wiiActive;               /* the last time a Wii Remote button was used */
 
 /* the pointer is for the menu: in a game it must not click, and the
- * GamePad's sensor bar is switched off */
+ * GamePad's sensor bar is switched off. Automatic (1): the GamePad's bar is on
+ * only while a Wii Remote is connected and was used in the last 30 seconds
+ * (a button press wakes it up again). */
 void wiiu_input_pointer_menu(int on)
 {
 	pointerMenu = on;
-	if (!on) wiiu_input_sensor_bar(0);
-	else {
-		int remote = 0;
-		for (int i = 1; i < WIIU_MAX_PADS; i++)
-			if (pads[i].connected && pads[i].kind >= PADKIND_REMOTE) remote = 1;
-		/* the GamePad's bar only while a Wii Remote is there to use it */
-		wiiu_input_sensor_bar(cfg.pointer == 1 && !remote ? 0 : cfg.pointer);
-	}
+	if (!on) { wiiu_input_sensor_bar(0); return; }
+	if (cfg.pointer != 1) { wiiu_input_sensor_bar(cfg.pointer); return; }
+	int remote = 0;
+	for (int i = 1; i < WIIU_MAX_PADS; i++)
+		if (pads[i].connected && pads[i].kind >= PADKIND_REMOTE) remote = 1;
+	wiiu_input_sensor_bar(remote && OSGetSystemTime() - wiiActive < OSSecondsToTicks(30) ? 1 : 0);
 }
 
 /* where the Wii Remote's pointer finds its sensor bar: 0 none (the GamePad's
@@ -214,6 +215,7 @@ static void update_now(void)
 				 * Nunchuk (stick + C and Z). */
 				uint32_t b = ks.hold, o = 0, raw = 0;
 				int nun = ks.extensionType == WPAD_EXT_NUNCHUK || ks.extensionType == WPAD_EXT_MPLUS_NUNCHUK;
+				if (!(p->connected && p->kind >= PADKIND_REMOTE)) wiiActive = OSGetSystemTime();   /* it just connected */
 				p->connected = 1;
 				p->kind = nun ? PADKIND_NUNCHUK : PADKIND_REMOTE;
 				if (b & WPAD_BUTTON_1)     raw |= 1u << WR_1;
@@ -244,6 +246,7 @@ static void update_now(void)
 					if (b & WPAD_BUTTON_DOWN)  raw |= 1u << WR_RIGHT;
 				}
 				p->wraw = raw;
+				if (raw || (b & WPAD_BUTTON_HOME)) wiiActive = OSGetSystemTime();
 				/* the menu: a fixed layout */
 				if (raw & (1u << WR_UP))    o |= WIIU_BTN_UP;
 				if (raw & (1u << WR_DOWN))  o |= WIIU_BTN_DOWN;

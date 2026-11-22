@@ -834,7 +834,37 @@ static void draw_footer(const char *hint)
 static uint32_t fadeStart;
 static void transition(void) { fadeStart = SDL_GetTicks(); }
 
-/* the Wii Remote pointer: a ring with a dot, hidden when it rests for a while */
+/* the Wii Remote pointer: a white hand (a closed fist while A is held), its
+ * fingertip on the point; hidden when it rests for a while */
+static void draw_hand(float hx, float hy, int fist)
+{
+	/* (x, y, w, h, radius) from the fingertip, in pixels */
+	static const int open[][5] = {
+		{ -5, 18, 38, 30, 12 },                                   /* palm */
+		{ -4, 0, 9, 30, 4 }, { 5, 2, 9, 28, 4 },                 /* index, middle */
+		{ 14, 5, 9, 25, 4 }, { 23, 10, 9, 20, 4 },               /* ring, little */
+		{ -19, 26, 18, 11, 5 },                                   /* thumb */
+	};
+	static const int closed[][5] = {
+		{ -5, 12, 38, 34, 12 },                                   /* fist */
+		{ -4, 4, 9, 16, 4 }, { 5, 3, 9, 17, 4 },                 /* knuckles */
+		{ 14, 4, 9, 16, 4 }, { 23, 6, 9, 14, 4 },
+		{ -19, 22, 18, 11, 5 },
+	};
+	const int (*r)[5] = fist ? closed : open;
+	for (int pass = 0; pass < 2; pass++) {
+		int g = pass == 0 ? 3 : 0;                               /* dark edge first */
+		SDL_Color c = pass == 0 ? (SDL_Color){ 20, 24, 40, 255 } : (SDL_Color){ 250, 250, 252, 255 };
+		for (int i = 0; i < 6; i++)
+			rrect((int)hx + r[i][0] - g, (int)hy + r[i][1] - g, r[i][2] + 2 * g, r[i][3] + 2 * g, r[i][4] + g, c, pass == 0 ? 210 : 255);
+	}
+	if (!fist) {                                                 /* lines between the fingers */
+		static const int sep[][4] = { { 4, 9, 2, 18 }, { 13, 12, 2, 14 }, { 22, 17, 2, 9 } };
+		for (int i = 0; i < 3; i++)
+			fill((int)hx + sep[i][0], (int)hy + sep[i][1], sep[i][2], sep[i][3], (SDL_Color){ 20, 24, 40, 255 }, 110);
+	}
+}
+
 static void draw_pointers(void)
 {
 	static float lx[WIIU_MAX_PADS], ly[WIIU_MAX_PADS];
@@ -849,13 +879,7 @@ static void draw_pointers(void)
 			ly[i] = w->ptr_y;
 		}
 		if (now - moved[i] > 5000) continue;
-		float ring[2 * 24], dot[2 * 12];
-		for (int k = 0; k < 24; k++) { ring[k * 2] = w->ptr_x + cosf(k * 0.2617994f) * 17; ring[k * 2 + 1] = w->ptr_y + sinf(k * 0.2617994f) * 17; }
-		poly(ring, 24, (SDL_Color){ 0, 0, 0, 255 }, 200);
-		for (int k = 0; k < 24; k++) { ring[k * 2] = w->ptr_x + cosf(k * 0.2617994f) * 12; ring[k * 2 + 1] = w->ptr_y + sinf(k * 0.2617994f) * 12; }
-		poly(ring, 24, WHITE, (w->held & WIIU_BTN_TOUCH) ? 255 : 220);
-		for (int k = 0; k < 12; k++) { dot[k * 2] = w->ptr_x + cosf(k * 0.5235988f) * 4; dot[k * 2 + 1] = w->ptr_y + sinf(k * 0.5235988f) * 4; }
-		poly(dot, 12, th(0, 140, 220), 255);
+		draw_hand(w->ptr_x, w->ptr_y, (w->held & WIIU_BTN_TOUCH) != 0);
 	}
 }
 
@@ -2182,7 +2206,7 @@ static void settings(void)
 			 * everything from the CPU core down) */
 			if (loaded && i > S_SCOPE && i < S_CORE) continue;
 			/* about the emulator, not the game: only in the home screen's Settings */
-			if (loaded && (i == S_BIOSCHECK || i == S_AUTOFIX || i == S_UPDATE || i == S_POINTER)) continue;
+			if (loaded && (i == S_BIOSCHECK || i == S_AUTOFIX || i == S_UPDATE)) continue;
 			/* app-wide options are hidden while editing one game's settings */
 			if (game && (i == S_GAMES || i == S_VIEW || i == S_COVERS || i == S_RESUME ||
 			             i == S_FFWD || i == S_LANG || i == S_HOTKEYS || i == S_SFX || i == S_UPDATE ||
@@ -2261,7 +2285,7 @@ static void settings(void)
 			case S_DEADZONE: snprintf(dzs, sizeof(dzs), "%d%%", cfg.deadzone * 5); values[k] = dzs; break;
 			case S_MTAP:   values[k] = cfg.multitap ? "On" : "Off"; break;
 			case S_P1FIRST: values[k] = cfg.p1first ? "Wii controllers" : "GamePad"; break;
-			case S_POINTER: values[k] = cfg.pointer == 0 ? "Off" : cfg.pointer == 1 ? "GamePad sensor bar" : "TV sensor bar"; break;
+			case S_POINTER: values[k] = cfg.pointer == 0 ? "Off" : cfg.pointer == 1 ? "Automatic" : "TV sensor bar"; break;
 			case S_RUMBLE: values[k] = cfg.rumble ? "On" : "Off"; break;
 			case S_REGION: values[k] = cfg.region == 0 ? "Auto" : cfg.region == 1 ? "NTSC (60 Hz)" : "PAL (50 Hz)"; break;
 			case S_BIOS:   values[k] = cfg.bios_hle ? "Built-in" : "Auto"; break;
@@ -2429,7 +2453,7 @@ static void settings(void)
 		case S_P1FIRST: cfg.p1first = !cfg.p1first;
 		                status("Applies the next time a game is loaded."); break;
 		case S_POINTER: cfg.pointer = (cfg.pointer + 3 + dir) % 3;
-		                if (cfg.pointer == 1) status("Point the Wii Remote at the GamePad. Its sensor bar is on only while a Wii Remote is connected.");
+		                if (cfg.pointer == 1) status("Point the Wii Remote at the GamePad. Its sensor bar is on only while a Wii Remote is connected and used.");
 		                else if (cfg.pointer == 2) status("Point the Wii Remote at the TV. Needs the sensor bar of the TV.");
 		                break;
 		case S_CONTROLS: controls(); transition(); break;

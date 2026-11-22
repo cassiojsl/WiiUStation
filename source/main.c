@@ -343,6 +343,7 @@ static void settings_defaults(void)
 	cfg.analog2 = PAD_AUTO;
 	cfg.deadzone = 1;     /* 5% */
 	cfg.multitap = 0;
+	cfg.pointer = 1;      /* Wii Remote pointer: automatic */
 	cfg.region = 0;
 	cfg.resume = 1;
 	cfg.ffwd = 1;         /* hold R3 */

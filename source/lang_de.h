@@ -487,3 +487,5 @@
 { "Download cancelled.", "Download abgebrochen." },
 { "B: cancel the download", "B: Download abbrechen" },
 { "B: cancel and go back", "B: abbrechen und zurück" },
+{ "Automatic", "Automatisch" },
+{ "Point the Wii Remote at the GamePad. Its sensor bar is on only while a Wii Remote is connected and used.", "Richte die Wii Remote auf das GamePad. Dessen Sensorleiste ist nur an, solange eine Wii Remote verbunden ist und benutzt wird." },

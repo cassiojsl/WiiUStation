@@ -519,3 +519,5 @@
 532|Download abgebrochen.
 533|B: Download abbrechen
 534|B: abbrechen und zurück
+535|Automatisch
+536|Richte die Wii Remote auf das GamePad. Dessen Sensorleiste ist nur an, solange eine Wii Remote verbunden ist und benutzt wird.

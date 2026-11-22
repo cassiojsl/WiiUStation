@@ -516,3 +516,5 @@
 { "Download cancelled.", "Загрузка отменена." },
 { "B: cancel the download", "B: отменить загрузку" },
 { "B: cancel and go back", "B: отменить и вернуться" },
+{ "Automatic", "Автоматически" },
+{ "Point the Wii Remote at the GamePad. Its sensor bar is on only while a Wii Remote is connected and used.", "Наведите Wii Remote на GamePad. Его сенсорная панель включена только при подключённом и используемом Wii Remote." },
