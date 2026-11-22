@@ -3479,6 +3479,39 @@ static int file_there(const char *fmt, const char *a, const char *b)
 	return stat(p, &st) == 0;
 }
 
+/* the download of the game details: a bar and Cancel (B / Back cancel it too). 1 done, 0 failed, -1 cancelled */
+static int gamedb_download_screen(const char *title)
+{
+	int cancelling = 0;
+	if (!gamedb_start()) return 0;
+	transition();
+	for (;;) {
+		poll_touch();
+		uint32_t b = poll_buttons();
+		float f;
+		int st = gamedb_progress(&f);
+		if (st != 1) {
+			sfx_play(st == 2 ? SFX_OK : SFX_ERROR);
+			return st == 2 ? 1 : st == 3 ? -1 : 0;
+		}
+		draw_background();
+		int back = draw_header(title, 1);
+		text(fontItem, 640, 300, "Downloading game details...", WHITE, 1);
+		SDL_Color bg = th(26, 32, 60), fg = th(0, 140, 220);
+		rrect(240, 380, 800, 26, 13, bg, 255);
+		rrect(240, 380, (int)(800 * (f < 0.02f ? 0.02f : f)), 26, 13, fg, 255);
+		char pct[16];
+		snprintf(pct, sizeof(pct), "%d%%", (int)(f * 100));
+		text(fontSmall, 640, 428, pct, GREY, 1);
+		rrect(500, 470, 280, 60, 30, th(26, 32, 60), 255);
+		outline(500, 470, 280, 60, th(0, 140, 220), 255, 2);
+		text(fontItem, 640, 500, cancelling ? "Cancelling..." : "Cancel", WHITE, 1);
+		draw_footer("B: cancel and go back");
+		present();
+		if (tap_in(500, 470, 280, 60) || back || (b & WIIU_BTN_B) || wiiu_quit) { gamedb_cancel(); cancelling = 1; }
+	}
+}
+
 /* "Action / Mini Games" -> each word translated on its own ("/" and "&" separate them) */
 static void genre_text(const char *in, char *out, size_t n)
 {
@@ -3622,11 +3655,8 @@ static void game_info(entry_t *e, const char *dir)
 				continue;
 			}
 			if (row == I_DATE && dbState == 0) {
-				draw_background();
-				draw_header(title, 1);
-				text(fontItem, 640, 330, "Downloading game details...", WHITE, 1);
-				present();
-				status(gamedb_download() ? "Game details downloaded." : "Could not download the game details.");
+				int r = gamedb_download_screen(title);
+				status(r > 0 ? "Game details downloaded." : r < 0 ? "Download cancelled." : "Could not download the game details.");
 				rebuild = 1;
 				transition();
 				continue;
