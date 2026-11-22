@@ -535,3 +535,4 @@
 548|Menumuziek
 549|Zachte, stille achtergrondmuziek in de menu's. Standaard uit.
 550|Vrij blok
+551|Gedetailleerd

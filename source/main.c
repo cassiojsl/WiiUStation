@@ -115,7 +115,7 @@ static struct { const char *key; int *val; int min, max; } OPTS[] = {
 	{ "gpu_thread", &cfg.gpu_thread, 0, 1 },
 	{ "spu_thread", &cfg.spu_thread, 0, 1 },
 	{ "frameskip",  &cfg.frameskip,  0, 1 },
-	{ "show_fps",   &cfg.show_fps,   0, 1 },
+	{ "show_fps",   &cfg.show_fps,   0, 2 },
 	{ "aspect",     &cfg.aspect,     0, 3 },
 	{ "filter",     &cfg.filter,     0, 2 },
 	{ "fx",         &cfg.fx,         0, FX_COUNT - 1 },
@@ -2353,7 +2353,7 @@ static void run_game(void)
 				const double k = 1000.0 / OSSecondsToTicks(1) / 60.0;      /* ticks -> ms per frame */
 				double convMs = video_take_conv_ms() / 60.0;
 				lastUpdMs = video_take_upd_ms() / 60.0;
-				if (cfg.show_fps) video_set_timing(tEmu * k, convMs, tDraw * k, tWait * k, vsOn);
+				video_set_timing(cfg.show_fps == 2 ? tEmu * k : -1, convMs, tDraw * k, tWait * k, vsOn);   /* only in the Detailed mode */
 				if (!ff && secs > 0) {                 /* the session summary */
 					double f = 60.0 / secs;
 					sessFpsSum += f;

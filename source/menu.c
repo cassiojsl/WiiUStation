@@ -2382,7 +2382,7 @@ static void settings(void)
 			                           cfg.ffwd == 2 ? "Press R3 (toggle)" : "Hold ZL+ZR"; break;
 			case S_FFSPEED: snprintf(ffs, sizeof(ffs), "%dx", cfg.ffspeed); values[k] = ffs; break;
 			case S_VSYNC:  values[k] = cfg.vsync ? "On" : "Off"; break;
-			case S_FPS:    values[k] = cfg.show_fps ? "On" : "Off"; break;
+			case S_FPS:    values[k] = cfg.show_fps == 2 ? "Detailed" : cfg.show_fps ? "On" : "Off"; break;
 			case S_AUDIO:  values[k] = cfg.audio ? "On" : "Off"; break;
 			case S_ASPECT: values[k] = cfg.aspect == WIIU_ASPECT_4_3 ? "4:3" :
 			                           cfg.aspect == WIIU_ASPECT_ZOOM ? "4:3 Auto zoom" :
@@ -2528,7 +2528,7 @@ static void settings(void)
 		case S_SKIP:    cfg.frameskip = !cfg.frameskip; break;
 		case S_FFWD:    cfg.ffwd = (cfg.ffwd + 4 + dir) % 4; break;
 		case S_FFSPEED: cfg.ffspeed = 2 + (cfg.ffspeed - 2 + 3 + dir) % 3; break;
-		case S_FPS:     cfg.show_fps = !cfg.show_fps; break;
+		case S_FPS:     cfg.show_fps = (cfg.show_fps + 3 + dir) % 3; break;
 		case S_AUDIO:   cfg.audio = !cfg.audio; break;
 		case S_ASPECT: {
 			static const int ord[4] = { WIIU_ASPECT_4_3, WIIU_ASPECT_ZOOM, WIIU_ASPECT_STRETCH, WIIU_ASPECT_INTEGER };

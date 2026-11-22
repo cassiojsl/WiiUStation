@@ -535,3 +535,4 @@
 548|Música de los menús
 549|Música de fondo suave y baja en los menús. Desactivada por defecto.
 550|Bloque libre
+551|Detallado

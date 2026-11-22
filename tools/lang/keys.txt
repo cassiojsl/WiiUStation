@@ -549,3 +549,4 @@ Sends the picture to the screen without converting it: much faster in heavy menu
 Menu music
 Soft, quiet background music in the menus. Off by default.
 Free block
+Detailed

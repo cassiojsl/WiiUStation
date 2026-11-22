@@ -334,6 +334,10 @@ static int timTexW, timTexH, timDirty;
 void video_set_timing(double emu, double conv_, double draw, double wait, int vsync)
 {
 	char s[96];
+	if (emu < 0) {                       /* not in the Detailed mode */
+		if (timingLine[0]) { timingLine[0] = 0; timDirty = 1; }
+		return;
+	}
 	snprintf(s, sizeof(s), "emu %.1f (picture %.1f)   draw %.1f   wait %.1f ms   VSync %s",
 	         emu, conv_, draw, wait, vsync ? "on" : "off");
 	if (strcmp(s, timingLine)) { strcpy(timingLine, s); timDirty = 1; }
