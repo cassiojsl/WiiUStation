@@ -19,6 +19,7 @@
 #define LOG_FILE   WIIU_APP_DIR "/log.txt"
 #define LOG_OLD    WIIU_APP_DIR "/log.old.txt"
 #define RUN_FLAG   WIIU_APP_DIR "/running.flag"
+#define PC_FLAG    WIIU_APP_DIR "/lastpc.txt"
 #define LOG_MAX    (256 * 1024)
 #define LINES_MAX  500                     /* per run: routine lines (sound, slow stretches, alive) */
 #define IMPORTANT_MAX 1500                 /* per run: loads, errors, sessions, exits are always kept */
@@ -77,6 +78,14 @@ void wlog_init(void)
 			fclose(rf);
 		}
 	}
+	char lastpc[200] = "";
+	if (crashed) {
+		FILE *pf = fopen(PC_FLAG, "r");
+		if (pf) {
+			if (fgets(lastpc, sizeof(lastpc), pf)) lastpc[strcspn(lastpc, "\r\n")] = 0;
+			fclose(pf);
+		}
+	}
 	lf = fopen(LOG_FILE, "a");
 	if (!lf) return;
 	lock = SDL_CreateMutex();
@@ -92,6 +101,7 @@ void wlog_init(void)
 			wlog("(that was the last state it saved: the freeze or crash came right after it)");
 		}
 		else wlog("the previous run did not end normally (crash or power off)");
+		if (lastpc[0]) wlog("last position seen by the watchdog: %s", lastpc);
 	}
 	FILE *f = fopen(RUN_FLAG, "w");
 	if (f) { fputs("running\n", f); fclose(f); }
@@ -107,9 +117,18 @@ void wlog_activity(const char *what)
 	fclose(f);
 }
 
+void wlog_lastpc(const char *what)
+{
+	FILE *f = fopen(PC_FLAG, "w");
+	if (!f) return;
+	fprintf(f, "%s\n", what);
+	fclose(f);
+}
+
 void wlog_exit(void)
 {
 	wlog("exit");
 	remove(RUN_FLAG);
+	remove(PC_FLAG);
 	if (lf) { fclose(lf); lf = NULL; }
 }

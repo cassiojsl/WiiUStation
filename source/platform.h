@@ -305,6 +305,7 @@ void update_check_background(void);
 const char *update_error(void);
 void wlog(const char *fmt, ...);        /* log.txt */
 void wlog_init(void);
+void wlog_lastpc(const char *what);     /* the emulated CPU position, once a second, for after a freeze */
 void wlog_activity(const char *what);   /* kept for the next start if the app dies */
 void audio_take_stats(unsigned *underruns, unsigned *drops);
 void wlog_exit(void);

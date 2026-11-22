@@ -2067,6 +2067,12 @@ static int watchdog_thread(void *ud)
 	while (!wdQuit) {
 		SDL_Delay(1000);
 		uint32_t now = SDL_GetTicks();
+		if (wdActive) {          /* where the emulated CPU is, for after a freeze of the whole console */
+			char pos[160];
+			unsigned cyc0 = 0, pc0 = wiiustation_ps1_state(&cyc0);
+			snprintf(pos, sizeof(pos), "t=%u s, frames=%u, stage: %s, PS1 pc=%08x cycle=%u", now / 1000, wdFrames, wdStage, pc0, cyc0);
+			wlog_lastpc(pos);
+		}
 		if (!wdActive || wdFrames != lastFrames) {
 			lastFrames = wdFrames;
 			lastChange = now;
