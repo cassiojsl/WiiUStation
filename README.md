@@ -28,7 +28,7 @@ sd:/wiiu/apps/WiiUStation/
 ├── screenshots/
 ├── gamesettings/  per-game settings
 ├── favorites.txt, recent.txt
-├── log.txt     what happened (games loaded or not and why, errors); last_error.txt: the last game that did not load
+├── log.txt     what happened (system, settings, games loaded or not and why, fps, crash reports); last_error.txt: the last game that did not load
 └── settings.cfg
 ```
 
@@ -37,9 +37,11 @@ The games folder can be anywhere on the SD card: set it in
 
 ## Controls
 
-The GamePad, Pro Controller, Classic Controller and Wii Remote (sideways)
-all work. Players are assigned in this order: GamePad first, then the other
-controllers.
+The GamePad, Pro Controller, Classic Controller, Wii Remote (sideways) and
+Wii Remote with Nunchuk all work. Players are assigned in this order:
+GamePad first, then the other controllers (Settings → Who is player 1 puts
+the Wii controllers first). The Wii Remote buttons can be remapped in
+Settings → Button mapping.
 
 | Wii U | PlayStation |
 |---|---|
@@ -50,6 +52,10 @@ controllers.
 
 - In a game, **HOME**, **L3 + R3** or **touching the GamePad** opens the menu.
   In the menu, HOME opens the Wii U HOME Menu.
+- A Wii Remote also works as a **pointer** in the menus: point at the screen,
+  **A** chooses and **B** goes back (Settings → Wii Remote pointer:
+  Automatic, On or Off). The GamePad's sensor bar is only on while a Wii
+  Remote is connected and in use.
 - The menu is built for touch. A single tap opens an item and dragging
   scrolls. In the settings, tap the ◀ ▶ arrows to change a value. **X**
   changes the game browser view: Carousel, Grid, Compact grid or List.
@@ -57,6 +63,9 @@ controllers.
 ## Features
 
 - **Lightrec** dynarec, running in the Cafe OS codegen (JIT) area.
+- **Hi-res speed-up** (on by default): games that draw 640x480 frames run
+  much faster by showing every other line. **Direct 16-bit picture** (on by
+  default) makes the heaviest menus run at 60 fps.
 - **Threaded GPU** on Espresso core 2. Optional threaded sound on core 0.
 - **Covers**: the game ID is read from the disc image (SYSTEM.CNF), the PBP
   header, the file name, or the running game (CHD). The cover is downloaded
@@ -124,11 +133,17 @@ controllers.
   and shows the picture in 16:9.
 - **Light gun by motion**: with GunCon or Justifier, "Aim with GamePad
   motion" aims by turning the GamePad (L re-centres, ZR shoots).
-- **Memory cards**: view the saves of each card with their icons, delete
-  them and copy them between cards. Cards from other emulators (`.mcr`,
+- **Memory cards**: view the saves of each card as a PlayStation-style grid
+  of animated icons, delete them and copy them between cards. Cards from other emulators (`.mcr`,
   `.mcd`) copied to `WiiUStation/saves` show up too.
 - **Gallery** of screenshots, **menu sounds** and an opening animation, the
-  GamePad **battery** next to the clock.
+  GamePad **battery** next to the clock. Optional soft **menu music**
+  (Settings → Menu music, off by default).
+- **Show FPS** has three modes: Off, On and Detailed (frame time breakdown).
+- **Crash report**: if the app crashes, the report (registers and the chain
+  of calls) is shown on both screens and saved in `log.txt`, and the app
+  returns to the Wii U menu. A game that stops producing frames for 20 s is
+  closed the same way.
 - The game is saved when you go to the HOME Menu, in case the app is closed
   from there.
 - **Game information** (− → Information): game ID, region, size, play
