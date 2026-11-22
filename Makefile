@@ -87,6 +87,8 @@ $(BUILD): core
 	@# the version is a -D in the compile line, which make does not notice: when it
 	@# changes, the file that shows it is built again
 	@echo "$(APP_VERSION)" | cmp -s - $@/appver.txt || { echo "$(APP_VERSION)" > $@/appver.txt; touch $(TOPDIR)/source/update.c; }
+	@# the version also goes inside the .wuhb as a plain text file (a tool can read it from the SD card)
+	@printf 'WIIUSTATION-VERSION:%s:END\n' "$(APP_VERSION)" | cmp -s - $(TOPDIR)/content/version.txt || { printf 'WIIUSTATION-VERSION:%s:END\n' "$(APP_VERSION)" > $(TOPDIR)/content/version.txt; rm -f $(TOPDIR)/$(notdir $(TARGET)).wuhb; }
 	@$(MAKE) --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
 
 clean:
