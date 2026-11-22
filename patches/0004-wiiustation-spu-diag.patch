@@ -1,0 +1,39 @@
+diff --git a/plugins/dfsound/spu.c b/plugins/dfsound/spu.c
+index 3f8be392..c4891c3b 100644
+--- a/plugins/dfsound/spu.c
++++ b/plugins/dfsound/spu.c
+@@ -1592,4 +1592,34 @@ void spu_get_debug_info(int *chans_out, int *run_chans, int *fmod_chans_out, int
+  (void)SkipADSR;
+ }
+ 
++// WiiUStation: a one-line snapshot of the SPU state for the app's log
++void wiiustation_spu_diag(char *out, int n)
++{
++ int ch, aud = 0, rvb = 0, noise = 0, fm = 0, k;
++ char chs[160];
++ chs[0] = 0;
++ for (ch = 0; ch < 24; ch++) {
++  if (!(spu.dwChannelsAudible & (1u << ch))) continue;
++  aud++;
++  if (spu.s_chan[ch].bRVBActive) rvb++;
++  if (spu.s_chan[ch].bNoise) noise++;
++  if (spu.s_chan[ch].bFMod) fm++;
++  if (aud <= 4) {
++   k = (int)strlen(chs);
++   snprintf(chs + k, sizeof(chs) - k, " [%d @%05x p%04x v%d/%d%s%s]", ch,
++    (unsigned)(spu.s_chan[ch].pCurr - spu.spuMemC), spu.s_chan[ch].iRawPitch,
++    spu.s_chan[ch].iLeftVolume >> 8, spu.s_chan[ch].iRightVolume >> 8,
++    spu.s_chan[ch].bRVBActive ? " R" : "", spu.s_chan[ch].bNoise ? " N" : "");
++  }
++ }
++ snprintf(out, n,
++  "ctrl=%04x rvbEnd=%04x irq=%04x rvbVol=%d/%d iir=%d wall=%d apf=%d/%d comb=%d,%d,%d,%d in=%d/%d "
++  "chans=%d rvb=%d noise=%d fmod=%d%s",
++  spu.spuCtrl, regAreaGet(H_SPUReverbAddr), regAreaGet(H_SPUirqAddr),
++  spu.rvb->VolLeft, spu.rvb->VolRight, spu.rvb->vIIR, spu.rvb->vWALL,
++  spu.rvb->vAPF1, spu.rvb->vAPF2, spu.rvb->vCOMB1, spu.rvb->vCOMB2,
++  spu.rvb->vCOMB3, spu.rvb->vCOMB4, spu.rvb->vLIN, spu.rvb->vRIN,
++  aud, rvb, noise, fm, chs);
++}
++
+ // vim:shiftwidth=1:expandtab

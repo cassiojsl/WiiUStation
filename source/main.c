@@ -1083,6 +1083,7 @@ void emu_apply_settings(void)
  * game, or <GAME-ID>.ppf in WiiUStation/patches. The core applies it to
  * every sector it reads (fan translations, fixes). */
 extern char wiiustation_ppf_path[];
+extern void wiiustation_spu_diag(char *out, int n);
 static int ppfActive, ppfFromDisc;
 
 static void find_ppf(const char *gamefile)
@@ -1879,6 +1880,7 @@ static void run_game(void)
 	 * frame that misses the refresh would otherwise wait for the next
 	 * one: 60 fps would drop to 30. */
 	OSTime tEmu = 0, tDraw = 0, tWait = 0;
+	int spuDiagT = 0, spuDiagN = 0;
 	double busyAvg = 0;
 	int vsOn = cfg.vsync;
 	const double frameMs = 1000.0 / fps;
@@ -1997,6 +1999,14 @@ static void run_game(void)
 			tEmu = tDraw = tWait = 0;
 			fpsStart = now;
 			frames = 0;
+			/* sound state for the log: every 3 s, the first 25 times */
+			if (spuDiagN < 25 && ++spuDiagT >= 3) {
+				char d[400];
+				spuDiagT = 0;
+				wiiustation_spu_diag(d, sizeof(d));
+				wlog("spu %s", d);
+				spuDiagN++;
+			}
 		}
 	}
 
