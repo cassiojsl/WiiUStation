@@ -1,0 +1,57 @@
+diff --git a/libpcsxcore/lightrec/mem_wiiu.c b/libpcsxcore/lightrec/mem_wiiu.c
+index d4506ce2..7a027ebf 100644
+--- a/libpcsxcore/lightrec/mem_wiiu.c
++++ b/libpcsxcore/lightrec/mem_wiiu.c
+@@ -6,6 +6,7 @@
+ #include <coreinit/memorymap.h>
+ #include <malloc.h>
+ #include <stdbool.h>
++#include <string.h>
+ 
+ #include "../memmap.h"
+ #include "../psxhw.h"
+@@ -42,6 +43,13 @@ static void* psx_mem;
+ static void* psx_parallel;
+ static void* psx_scratch;
+ static void* psx_bios;
++/* WiiUStation: memory right after the 4 RAM mirrors.  Games sometimes read (or write) a little past the top of
++ * RAM, typically with a stack pointer at the 8 MB mark.  Lightrec's direct accesses do not check it, and the host
++ * address was unmapped (a DSI crash).  Real hardware returns junk there; this gives it harmless memory. */
++#define PSX_GUARD_VA   0x800000
++#define PSX_GUARD_SIZE 0x100000
++static void* psx_guard_mem;
++static void* psx_guard_va;
+ 
+ int lightrec_init_mmap(void) {
+ 	psx_mem      = memalign(OS_PAGE_SIZE, 0x200000);
+@@ -70,6 +78,17 @@ int lightrec_init_mmap(void) {
+ 	}
+ 	psxRegs.ptrs.psxM = (void*)avail_va;
+ 
++	psx_guard_mem = memalign(OS_PAGE_SIZE, PSX_GUARD_SIZE);
++	if (psx_guard_mem) {
++		memset(psx_guard_mem, 0xff, PSX_GUARD_SIZE);
++		psx_guard_va = wiiu_mmap(avail_va + PSX_GUARD_VA, PSX_GUARD_SIZE, psx_guard_mem);
++		if (psx_guard_va == MAP_FAILED) {
++			free(psx_guard_mem);
++			psx_guard_mem = NULL;
++			psx_guard_va = NULL;
++		}
++	}
++
+ 	psxRegs.ptrs.psxP = wiiu_mmap(avail_va + 0x1f000000, 0x10000, psx_parallel);
+ 	psxRegs.ptrs.psxH = wiiu_mmap(avail_va + 0x1f800000, 0x10000, psx_scratch);
+ 	psxRegs.ptrs.psxR = wiiu_mmap(avail_va + 0x1fc00000, 0x80000, psx_bios);
+@@ -100,6 +119,12 @@ cleanup_allocations:
+ }
+ 
+ void lightrec_free_mmap(void) {
++	if (psx_guard_mem) {
++		wiiu_unmap(psx_guard_va, PSX_GUARD_SIZE);
++		free(psx_guard_mem);
++		psx_guard_mem = NULL;
++		psx_guard_va = NULL;
++	}
+ 	for (int i = 0; i < 4; i++)
+ 		wiiu_unmap(psxRegs.ptrs.psxM + 0x200000 * i, 0x200000);
+ 	wiiu_unmap(psxRegs.ptrs.psxP, 0x10000);
