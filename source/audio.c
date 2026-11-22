@@ -91,27 +91,28 @@ static inline float tsin(float cycles)
 
 
 /* ------------------------------------------------------------------------ */
-/* menu music: a slow, warm, dreamy ambient piece, made here from sine      */
-/* waves and a little filtered noise (no recording). Four chords of 8 s     */
-/* fade into each other as an airy pad with a deep drone; a soft, wooden    */
-/* "marimba" plays a gentle wandering line; a long reverb spreads it all.   */
-/* Quiet by design.                                                         */
+/* menu music: a slow, nostalgic, quietly mysterious ambient piece, made    */
+/* here from sine waves and a little filtered noise (no recording). Four    */
+/* chords of 12 s in D minor fade into each other as a hollow, organ-like   */
+/* pad over a deep drone; now and then a music box plays a short falling    */
+/* phrase; a long, dark reverb spreads it all. Quiet by design.             */
 /* ------------------------------------------------------------------------ */
 static volatile int musicTarget;       /* 1 = should play */
 static float musicGain;                /* 0..1, faded */
 static int musicWasOn;
-enum { MU_CHORDS = 4, MU_NOTES = 5, MU_PLUCKS = 10, MU_RV = 2500 };
-static const int MU_CH[MU_CHORDS][MU_NOTES] = {      /* MIDI notes: Dmaj9, Bm9, Gmaj9, Asus add9 */
-	{ 50, 57, 61, 64, 66 }, { 47, 54, 57, 61, 62 }, { 43, 50, 54, 57, 59 }, { 45, 52, 55, 59, 62 },
+enum { MU_CHORDS = 4, MU_NOTES = 5, MU_PLUCKS = 10, MU_QUEUE = 6, MU_RV = 2500 };
+static const int MU_CH[MU_CHORDS][MU_NOTES] = {      /* MIDI notes: Dm9, Bb maj9, Gm9, A sus */
+	{ 50, 57, 62, 64, 65 }, { 46, 53, 57, 62, 64 }, { 43, 50, 53, 58, 60 }, { 45, 52, 57, 62, 64 },
 };
+static const int MU_SCALE[9] = { 74, 77, 79, 81, 84, 86, 89, 91, 93 };   /* D minor pentatonic, high */
 static float muFreq[128];
 static float muPad[MU_CHORDS][MU_NOTES][2];            /* oscillator phases */
 static float muBass[MU_CHORDS][2];
 static struct { float ph, ph2, inc, env, env2, dec, dec2, amp, panL, panR; int on; } muPl[MU_PLUCKS];
-static uint32_t muT, muRng, muStep;
-static int muWalk;                                     /* the marimba line wanders along the chord notes */
+static struct { uint32_t at; int note; float vel; int on; } muQ[MU_QUEUE];
+static uint32_t muT, muAbs, muRng, muNextPhrase;
 static float muLfo, muVib;
-static float muAirA, muAirB, muAirLo1, muAirLo2;       /* the filtered noise ("breath") */
+static float muAirLo1, muAirLo2;                       /* the filtered noise ("breath") */
 /* a small stereo reverb: four combs and two all-passes per side (the classic layout) */
 static const int RV_C[4] = { 1116, 1188, 1277, 1356 }, RV_A[2] = { 556, 441 };
 static float rvComb[2][4][MU_RV], rvAp[2][2][MU_RV], rvLp[2][4];
@@ -130,13 +131,13 @@ static void music_reset(void)
 	memset(muPad, 0, sizeof(muPad));
 	memset(muBass, 0, sizeof(muBass));
 	memset(muPl, 0, sizeof(muPl));
+	memset(muQ, 0, sizeof(muQ));
 	memset(rvComb, 0, sizeof(rvComb));
 	memset(rvAp, 0, sizeof(rvAp));
 	memset(rvLp, 0, sizeof(rvLp));
-	muT = 0;
-	muStep = 0xffffffffu;
-	muRng = 2024;
-	muWalk = 5;
+	muT = muAbs = 0;
+	muRng = 1999;
+	muNextPhrase = (uint32_t)(5.0 * outRate);          /* the first phrase after five seconds */
 	muLfo = muVib = 0;
 	muAirLo1 = muAirLo2 = 0;
 	for (int c = 0; c < 2; c++) {
@@ -158,8 +159,8 @@ static float rv_side(int c, float in)
 	float sum = 0;
 	for (int i = 0; i < 4; i++) {
 		float y = rvComb[c][i][rvCi[c][i]];
-		rvLp[c][i] = y * 0.62f + rvLp[c][i] * 0.38f;            /* the highs fade first */
-		rvComb[c][i][rvCi[c][i]] = in + rvLp[c][i] * 0.86f;
+		rvLp[c][i] = y * 0.50f + rvLp[c][i] * 0.50f;            /* the highs fade first: a dark tail */
+		rvComb[c][i][rvCi[c][i]] = in + rvLp[c][i] * 0.89f;
 		if (++rvCi[c][i] >= rvCn[c][i]) rvCi[c][i] = 0;
 		sum += y;
 	}
@@ -176,16 +177,16 @@ static float rv_side(int c, float in)
 static void music_sample(float *outL, float *outR)
 {
 	const double rate = outRate;
-	const uint32_t L = (uint32_t)(8.0 * rate), cycle = L * MU_CHORDS;
+	const uint32_t L = (uint32_t)(12.0 * rate), cycle = L * MU_CHORDS;
 	const float inv = 1.0f / (float)rate;
 	float padL = 0, padR = 0;
 
-	/* a slow vibrato for the pad (about 4.6 Hz, very shallow) */
-	muLfo += 4.6f * inv; if (muLfo >= 1) muLfo -= 1;
-	muVib = 1.0f + 0.0016f * tsin(muLfo);
+	/* a slow, shallow vibrato for the pad */
+	muLfo += 4.2f * inv; if (muLfo >= 1) muLfo -= 1;
+	muVib = 1.0f + 0.0013f * tsin(muLfo);
 
-	/* the pad: each chord has a sin^2 window two chords long; every note is two detuned voices with
-	 * a few soft overtones (an airy, vocal-like colour) */
+	/* the pad: each chord has a sin^2 window two chords long. The voice is hollow (odd overtones
+	 * only, like an organ or a clarinet), two detuned voices per note, which gives the mysterious colour */
 	for (int i = 0; i < MU_CHORDS; i++) {
 		int64_t d = (int64_t)muT - (int64_t)i * L + L / 2;
 		if (d < 0) d += cycle;
@@ -195,11 +196,11 @@ static void music_sample(float *outL, float *outR)
 		float sw = tsin(u * 0.5f), w = sw * sw;
 		for (int k = 0; k < MU_NOTES; k++) {
 			float f = muFreq[MU_CH[i][k]] * muVib;
-			muPad[i][k][0] += f * 0.9985f * inv; if (muPad[i][k][0] >= 1) muPad[i][k][0] -= 1;
-			muPad[i][k][1] += f * 1.0015f * inv; if (muPad[i][k][1] >= 1) muPad[i][k][1] -= 1;
+			muPad[i][k][0] += f * 0.9982f * inv; if (muPad[i][k][0] >= 1) muPad[i][k][0] -= 1;
+			muPad[i][k][1] += f * 1.0018f * inv; if (muPad[i][k][1] >= 1) muPad[i][k][1] -= 1;
 			float a = muPad[i][k][0], b = muPad[i][k][1];
-			float o = tsin(a) + tsin(b) + 0.34f * (tsin(a * 2) + tsin(b * 2)) + 0.12f * (tsin(a * 3) + tsin(b * 3));
-			float amp = (0.026f - 0.0025f * k) * w;
+			float o = tsin(a) + tsin(b) + 0.22f * (tsin(a * 3) + tsin(b * 3)) + 0.07f * (tsin(a * 5) + tsin(b * 5));
+			float amp = (0.026f - 0.0022f * k) * w;
 			padL += o * amp * (k & 1 ? 0.70f : 1.0f);          /* alternate notes lean left / right */
 			padR += o * amp * (k & 1 ? 1.0f : 0.70f);
 		}
@@ -207,63 +208,65 @@ static void music_sample(float *outL, float *outR)
 		float r1 = muFreq[MU_CH[i][0] - 12], r2 = muFreq[MU_CH[i][0] - 12 + 7];
 		muBass[i][0] += r1 * inv; if (muBass[i][0] >= 1) muBass[i][0] -= 1;
 		muBass[i][1] += r2 * inv; if (muBass[i][1] >= 1) muBass[i][1] -= 1;
-		float bs = (tsin(muBass[i][0]) * 0.075f + tsin(muBass[i][1]) * 0.020f) * w;
+		float bs = (tsin(muBass[i][0]) * 0.085f + tsin(muBass[i][1]) * 0.022f) * w;
 		padL += bs;
 		padR += bs;
 	}
-	/* a very slow swell over everything */
-	float swell = 0.90f + 0.10f * tsin((float)muT * inv / 13.0f);
+	/* a very slow breathing of the whole pad (about 17 s a breath) */
+	float swell = 0.86f + 0.14f * tsin((float)muT * inv / 17.0f);
 	padL *= swell;
 	padR *= swell;
 
-	/* the "breath": noise through a band that drifts slowly up and down */
+	/* the "breath": noise through a band that drifts very slowly */
 	{
 		float n = ((float)((int32_t)(mu_rand() & 0xffff) - 32768)) / 32768.0f;
-		float c1 = 0.10f + 0.08f * tsin((float)muT * inv / 17.0f + 0.2f);   /* the upper edge of the band */
-		float c2 = c1 * 0.30f;                                              /* the lower edge */
+		float c1 = 0.06f + 0.05f * tsin((float)muT * inv / 23.0f + 0.2f);   /* the upper edge of the band */
+		float c2 = c1 * 0.28f;                                              /* the lower edge */
 		muAirLo1 += (n - muAirLo1) * c1;
 		muAirLo2 += (n - muAirLo2) * c2;
-		float air = (muAirLo1 - muAirLo2) * 0.060f * (0.5f + 0.5f * tsin((float)muT * inv / 9.0f));
+		float air = (muAirLo1 - muAirLo2) * 0.085f * (0.4f + 0.6f * tsin((float)muT * inv / 14.0f + 0.5f) * tsin((float)muT * inv / 14.0f + 0.5f));
 		padL += air;
-		padR -= air * 0.8f;                                                 /* a touch of width */
+		padR -= air * 0.8f;
 	}
 
-	/* the marimba line: a gentle wandering pattern, half a second per step */
-	if (muT % (L / 16) == 0 && muStep != muT / (L / 16)) {
-		muStep = muT / (L / 16);
-		int chord = (int)((muT / L) % MU_CHORDS), step = (int)(muStep % 16);
-		static const int prob[16] = { 95, 0, 35, 55, 70, 0, 25, 60, 85, 0, 50, 30, 70, 0, 40, 55 };
-		if ((int)(mu_rand() % 100) < prob[step]) {
-			/* the notes of the chord over two octaves, walking up and down one step at a time */
-			int tones[2 * MU_NOTES], nt = 0;
-			for (int k = 0; k < MU_NOTES; k++) tones[nt++] = MU_CH[chord][k] + 12;
-			for (int k = 0; k < MU_NOTES; k++) tones[nt++] = MU_CH[chord][k] + 24;
-			muWalk += (int)(mu_rand() % 3) - 1 + ((mu_rand() % 4 == 0) ? 2 : 0);
-			if (muWalk < 0) muWalk = 1;
-			if (muWalk >= nt) muWalk = nt - 2;
-			int note = tones[muWalk];
-			for (int v = 0; v < MU_PLUCKS; v++)
-				if (!muPl[v].on) {
-					float pan = 0.25f + 0.5f * ((mu_rand() % 100) / 100.0f);
-					muPl[v].on = 1;
-					muPl[v].ph = muPl[v].ph2 = 0;
-					muPl[v].inc = muFreq[note > 120 ? 120 : note] * inv;
-					muPl[v].env = muPl[v].env2 = 1.0f;
-					muPl[v].dec = expf(-1.0f / (0.55f * (float)rate));     /* the body */
-					muPl[v].dec2 = expf(-1.0f / (0.07f * (float)rate));    /* the wooden knock fades fast */
-					muPl[v].amp = 0.050f * (0.65f + 0.35f * ((mu_rand() % 100) / 100.0f));
-					muPl[v].panL = 1.0f - pan;
-					muPl[v].panR = pan;
-					break;
-				}
+	/* the music box: every so often a short falling phrase of two to four notes */
+	if (muAbs >= muNextPhrase) {
+		int n = 2 + (int)(mu_rand() % 3), idx = 3 + (int)(mu_rand() % 6);
+		uint32_t at = muAbs + (uint32_t)(0.05 * rate);
+		for (int k = 0; k < n && k < MU_QUEUE; k++) {
+			muQ[k].at = at;
+			muQ[k].note = MU_SCALE[idx < 0 ? 0 : idx > 8 ? 8 : idx];
+			muQ[k].vel = 1.0f - 0.18f * k;
+			muQ[k].on = 1;
+			idx -= 1 + (int)(mu_rand() % 2);                 /* stepping down the scale */
+			at += (uint32_t)((1.1 + 0.7 * (mu_rand() % 100) / 100.0) * rate);
 		}
+		muNextPhrase = at + (uint32_t)((6.0 + 6.0 * (mu_rand() % 100) / 100.0) * rate);
+	}
+	for (int q = 0; q < MU_QUEUE; q++) {
+		if (!muQ[q].on || muQ[q].at != muAbs) continue;
+		muQ[q].on = 0;
+		for (int v = 0; v < MU_PLUCKS; v++)
+			if (!muPl[v].on) {
+				float pan = 0.30f + 0.40f * ((mu_rand() % 100) / 100.0f);
+				muPl[v].on = 1;
+				muPl[v].ph = muPl[v].ph2 = 0;
+				muPl[v].inc = muFreq[muQ[q].note] * inv;
+				muPl[v].env = muPl[v].env2 = 1.0f;
+				muPl[v].dec = expf(-1.0f / (1.7f * (float)rate));      /* a long ring */
+				muPl[v].dec2 = expf(-1.0f / (0.12f * (float)rate));    /* the bright knock fades fast */
+				muPl[v].amp = 0.040f * muQ[q].vel;
+				muPl[v].panL = 1.0f - pan;
+				muPl[v].panR = pan;
+				break;
+			}
 	}
 	float plL = 0, plR = 0;
 	for (int v = 0; v < MU_PLUCKS; v++) {
 		if (!muPl[v].on) continue;
 		muPl[v].ph += muPl[v].inc; if (muPl[v].ph >= 1) muPl[v].ph -= 1;
-		muPl[v].ph2 += muPl[v].inc * 4.0f; if (muPl[v].ph2 >= 1) muPl[v].ph2 -= 1;
-		float x = (tsin(muPl[v].ph) * muPl[v].env + 0.28f * tsin(muPl[v].ph2) * muPl[v].env2) * muPl[v].amp;
+		muPl[v].ph2 += muPl[v].inc * 4.07f; if (muPl[v].ph2 >= 1) muPl[v].ph2 -= 1;   /* a slightly sharp overtone: a music box */
+		float x = (tsin(muPl[v].ph) * muPl[v].env + 0.20f * tsin(muPl[v].ph2) * muPl[v].env2) * muPl[v].amp;
 		muPl[v].env *= muPl[v].dec;
 		muPl[v].env2 *= muPl[v].dec2;
 		if (muPl[v].env < 0.003f) muPl[v].on = 0;
@@ -271,10 +274,11 @@ static void music_sample(float *outL, float *outR)
 		plR += x * muPl[v].panR * 1.4f;
 	}
 
-	/* the reverb: a good part of the pad and most of the marimba go through it */
-	float rvL = rv_side(0, padL * 0.55f + plL * 0.9f), rvR = rv_side(1, padR * 0.55f + plR * 0.9f);
-	*outL = padL + plL + rvL * 1.7f;
-	*outR = padR + plR + rvR * 1.7f;
+	/* the reverb: a good part of the pad and most of the music box go through it */
+	float rvL = rv_side(0, padL * 0.55f + plL * 1.0f), rvR = rv_side(1, padR * 0.55f + plR * 1.0f);
+	*outL = padL + plL + rvL * 1.8f;
+	*outR = padR + plR + rvR * 1.8f;
+	muAbs++;
 	if (++muT >= cycle) muT = 0;
 }
 
