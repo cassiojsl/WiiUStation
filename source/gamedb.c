@@ -71,11 +71,13 @@ static int quoted(const char *line, char *out, size_t n)
 
 int gamedb_lookup(const char *serial, gamedb_t *out)
 {
-	static char cacheSerial[16];
-	static gamedb_t cache;
-	static int cacheFound;
+	/* the last 32 answers (also "not found"), for a list that is scrolled back and forth */
+	enum { NC = 32 };
+	static struct { char serial[16]; int found; gamedb_t d; } cache[NC];
+	static int next;
 	if (!serial || !serial[0]) return 0;
-	if (!strcmp(serial, cacheSerial)) { if (cacheFound) *out = cache; return cacheFound; }
+	for (int i = 0; i < NC; i++)
+		if (cache[i].serial[0] && !strcmp(cache[i].serial, serial)) { if (cache[i].found) *out = cache[i].d; return cache[i].found; }
 
 	FILE *f = fopen(DB_FILE, "r");
 	if (!f) return 0;
@@ -110,8 +112,9 @@ int gamedb_lookup(const char *serial, gamedb_t *out)
 		else if (!strncmp(k, "users ", 6) && quoted(k, val, sizeof(val))) cur.users = atoi(val);
 	}
 	fclose(f);
-	snprintf(cacheSerial, sizeof(cacheSerial), "%s", serial);
-	cacheFound = found;
-	if (found) { cache = cur; *out = cur; }
+	snprintf(cache[next].serial, sizeof(cache[next].serial), "%s", serial);
+	cache[next].found = found;
+	if (found) { cache[next].d = cur; *out = cur; }
+	next = (next + 1) % NC;
 	return found;
 }

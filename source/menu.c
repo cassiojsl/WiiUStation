@@ -1934,6 +1934,29 @@ static void go_up(void)
 	if (strlen(browsePath) < strlen(WIIU_SD_ROOT)) strcpy(browsePath, WIIU_SD_ROOT);
 }
 
+static void genre_text(const char *in, char *out, size_t n);
+static void date_text(const gamedb_t *d, char *out, size_t n);
+/* list view: under the cover, what the game details database knows (released, genre, developer, publisher) */
+static void list_details(const entry_t *e)
+{
+	static char lastId[16];
+	static Uint32 since;
+	if (strcmp(lastId, e->id)) { snprintf(lastId, sizeof(lastId), "%s", e->id); since = SDL_GetTicks(); }
+	if (!e->id[0] || !gamedb_present() || T.down || SDL_GetTicks() - since < 250) return;   /* not while the list is moving */
+	gamedb_t d;
+	if (!gamedb_lookup(e->id, &d)) return;
+	char l1[160] = "", date[32], genre[96];
+	date_text(&d, date, sizeof(date));
+	if (d.genre[0]) genre_text(d.genre, genre, sizeof(genre)); else genre[0] = 0;
+	snprintf(l1, sizeof(l1), "%s%s%s", date, date[0] && genre[0] ? "  \xc2\xb7  " : "", genre);
+	const int cx = COVER_X + COVER_W / 2, maxw = COVER_W;
+	rrect(COVER_X - 12, 568, COVER_W + 24, 92, 14, th(14, 18, 40), 190);
+	int y = 584;
+	if (l1[0]) { marquee(fontSmall, cx, y, maxw, l1, WHITE, 1, 1); y += 26; }
+	if (d.developer[0]) { marquee(fontSmall, cx, y, maxw, d.developer, GREY, 1, 1); y += 26; }
+	if (d.publisher[0]) marquee(fontSmall, cx, y, maxw, d.publisher, GREY, 1, 1);
+}
+
 /* Game browser (pickDir = 0) or folder picker (pickDir = 1).
  * Opens in the games folder. B goes up one level and leaves the browser
  * once it is back in the games folder; the on-screen Back button always
@@ -2189,7 +2212,13 @@ rescan:
 					e->idTried = 1;
 					if (!covers_detect_id(full, e->id)) e->id[0] = 0;
 				}
-				draw_cover(ecover(e), e->id[0] ? e->id : NULL);
+				char cap[64];
+				{
+					int r = entry_region(e->name, e->id);
+					snprintf(cap, sizeof(cap), "%s%s%s", e->id, r ? "  \xc2\xb7  " : "", r ? tr(r == 1 ? "USA" : r == 2 ? "Europe" : "Japan") : "");
+				}
+				draw_cover(ecover(e), e->id[0] ? cap : NULL);
+				list_details(e);
 			}
 		}
 		if (t >= 0) activate = t;
@@ -3469,6 +3498,14 @@ static void genre_text(const char *in, char *out, size_t n)
 	}
 }
 
+static void date_text(const gamedb_t *d, char *out, size_t n)
+{
+	if (d->year && d->month && d->day) snprintf(out, n, "%02d/%02d/%04d", d->day, d->month, d->year);
+	else if (d->year && d->month) snprintf(out, n, "%02d/%04d", d->month, d->year);
+	else if (d->year) snprintf(out, n, "%04d", d->year);
+	else out[0] = 0;
+}
+
 static void game_info(entry_t *e, const char *dir)
 {
 	enum { I_DATE, I_GENRE, I_DEV, I_PUB, I_PLAYERS, I_DESC, I_ID, I_REGION, I_DISCS, I_SIZE, I_TIME, I_LAST, I_STATES, I_RESUME, I_CARD, I_CHEATS, I_PATCH, I_OWN, I_COUNT };
@@ -3538,10 +3575,8 @@ static void game_info(entry_t *e, const char *dir)
 			rebuild = 0;
 			dbState = !gamedb_present() ? 0 : (e->id[0] && gamedb_lookup(e->id, &db)) ? 1 : 2;
 			if (dbState == 1) {
-				if (db.year && db.month && db.day) snprintf(v[I_DATE], 96, "%02d/%02d/%04d", db.day, db.month, db.year);
-				else if (db.year && db.month) snprintf(v[I_DATE], 96, "%02d/%04d", db.month, db.year);
-				else if (db.year) snprintf(v[I_DATE], 96, "%04d", db.year);
-				else snprintf(v[I_DATE], 96, "-");
+				date_text(&db, v[I_DATE], 96);
+				if (!v[I_DATE][0]) snprintf(v[I_DATE], 96, "-");
 				if (db.genre[0]) genre_text(db.genre, v[I_GENRE], 96); else snprintf(v[I_GENRE], 96, "-");
 				snprintf(v[I_DEV], 96, "%s", db.developer[0] ? db.developer : "-");
 				snprintf(v[I_PUB], 96, "%s", db.publisher[0] ? db.publisher : "-");
