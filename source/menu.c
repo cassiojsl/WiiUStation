@@ -514,7 +514,8 @@ static touch_t T;
 static int touchBlock;
 static int arrowGrab;        /* a carousel arrow is being held: its own sounds, no "tap" chime */
 /* the Wii Remote pointer moved this frame (position in menu pixels) */
-static struct { int moved, x, y; } P;
+static struct { int valid, moved, x, y; } P;
+static int ptrOnItem;                /* the pointer is over something that can be chosen (the cursor points) */
 
 static void poll_touch(void)
 {
@@ -522,16 +523,18 @@ static void poll_touch(void)
 	int on = gp->connected && (gp->held & WIIU_BTN_TOUCH);
 	wiiu_input_pointer_menu(1);
 	P.moved = 0;
+	P.valid = 0;
 	for (int i = 1; i < WIIU_MAX_PADS; i++) {
 		static float lx[WIIU_MAX_PADS], ly[WIIU_MAX_PADS];
 		const wiiu_pad_state *w = wiiu_input_get(i);
 		if (!w->connected || !w->ptr_valid) continue;
+		P.valid = 1;
+		P.x = (int)w->ptr_x;
+		P.y = (int)w->ptr_y;
 		if (fabsf(w->ptr_x - lx[i]) > 3 || fabsf(w->ptr_y - ly[i]) > 3) {
 			lx[i] = w->ptr_x;
 			ly[i] = w->ptr_y;
 			P.moved = 1;
-			P.x = (int)w->ptr_x;
-			P.y = (int)w->ptr_y;
 		}
 	}
 	if (!on)                                       /* a Wii Remote's pointer clicks like a finger */
@@ -575,7 +578,9 @@ static int tap_in(int x, int y, int w, int h)
  * highlight follows it, without a click */
 static int hover_in(int x, int y, int w, int h)
 {
-	return P.moved && P.x >= x && P.x < x + w && P.y >= y && P.y < y + h;
+	int in = P.valid && P.x >= x && P.x < x + w && P.y >= y && P.y < y + h;
+	if (in) ptrOnItem = 1;
+	return in && P.moved;
 }
 
 /* ------------------------------------------------------------------------ */
@@ -676,6 +681,7 @@ static int draw_header(const char *title, int showBack)
 			}
 		}
 	}
+	if (showBack && P.valid && P.x >= BACK_X && P.x < BACK_X + BACK_W && P.y >= BACK_Y && P.y < BACK_Y + BACK_H) ptrOnItem = 1;
 	return showBack && tap_in(BACK_X, BACK_Y, BACK_W, BACK_H);
 }
 
@@ -858,35 +864,54 @@ static void draw_footer(const char *hint)
 static uint32_t fadeStart;
 static void transition(void) { fadeStart = SDL_GetTicks(); }
 
-/* the Wii Remote pointer: a white hand (a closed fist while A is held), its
- * fingertip on the point; hidden when it rests for a while */
-static void draw_hand(float hx, float hy, int fist)
+/* the Wii Remote pointer: a hand with a grey edge and a soft white-to-grey
+ * fill, in three poses: pointing (over something to choose), open (idle)
+ * and a fist (A held). The fingertip of the pointing hand is the point. */
+enum { HAND_POINT, HAND_OPEN, HAND_FIST };
+static void draw_hand(float hx, float hy, int pose)
 {
 	/* (x, y, w, h, radius) from the fingertip, in pixels */
-	static const int open[][5] = {
-		{ -5, 18, 38, 30, 12 },                                   /* palm */
-		{ -4, 0, 9, 30, 4 }, { 5, 2, 9, 28, 4 },                 /* index, middle */
-		{ 14, 5, 9, 25, 4 }, { 23, 10, 9, 20, 4 },               /* ring, little */
-		{ -19, 26, 18, 11, 5 },                                   /* thumb */
+	static const int point[][5] = {
+		{ -5, 24, 38, 30, 12 },                                   /* hand */
+		{ -4, 0, 9, 36, 4 },                                      /* index finger */
+		{ 5, 24, 9, 14, 4 }, { 14, 26, 9, 14, 4 }, { 23, 30, 9, 12, 4 },   /* curled fingers */
+		{ -19, 36, 18, 11, 5 },                                   /* thumb */
 	};
-	static const int closed[][5] = {
-		{ -5, 12, 38, 34, 12 },                                   /* fist */
-		{ -4, 4, 9, 16, 4 }, { 5, 3, 9, 17, 4 },                 /* knuckles */
-		{ 14, 4, 9, 16, 4 }, { 23, 6, 9, 14, 4 },
+	static const int open[][5] = {
+		{ -5, 18, 38, 30, 12 },
+		{ -4, 0, 9, 30, 4 }, { 5, 2, 9, 28, 4 }, { 14, 5, 9, 25, 4 }, { 23, 10, 9, 20, 4 },
+		{ -19, 26, 18, 11, 5 },
+	};
+	static const int fist[][5] = {
+		{ -5, 12, 38, 34, 12 },
+		{ -4, 4, 9, 16, 4 }, { 5, 3, 9, 17, 4 }, { 14, 4, 9, 16, 4 }, { 23, 6, 9, 14, 4 },
 		{ -19, 22, 18, 11, 5 },
 	};
-	const int (*r)[5] = fist ? closed : open;
+	const int (*r)[5] = pose == HAND_POINT ? point : pose == HAND_OPEN ? open : fist;
+	const int top = -4, bottom = 60, bands = 8;
+	/* soft shadow, grey edge, then the fill in horizontal bands going from white to light grey */
 	for (int pass = 0; pass < 2; pass++) {
-		int g = pass == 0 ? 3 : 0;                               /* dark edge first */
-		SDL_Color c = pass == 0 ? (SDL_Color){ 20, 24, 40, 255 } : (SDL_Color){ 250, 250, 252, 255 };
+		int g = pass == 0 ? 6 : 3;
+		SDL_Color c = pass == 0 ? (SDL_Color){ 0, 0, 0, 255 } : (SDL_Color){ 98, 100, 108, 255 };
 		for (int i = 0; i < 6; i++)
-			rrect((int)hx + r[i][0] - g, (int)hy + r[i][1] - g, r[i][2] + 2 * g, r[i][3] + 2 * g, r[i][4] + g, c, pass == 0 ? 210 : 255);
+			rrect((int)hx + r[i][0] - g, (int)hy + r[i][1] - g + (pass == 0 ? 2 : 0), r[i][2] + 2 * g, r[i][3] + 2 * g, r[i][4] + g, c, pass == 0 ? 70 : 255);
 	}
-	if (!fist) {                                                 /* lines between the fingers */
-		static const int sep[][4] = { { 4, 9, 2, 18 }, { 13, 12, 2, 14 }, { 22, 17, 2, 9 } };
-		for (int i = 0; i < 3; i++)
-			fill((int)hx + sep[i][0], (int)hy + sep[i][1], sep[i][2], sep[i][3], (SDL_Color){ 20, 24, 40, 255 }, 110);
+	for (int k = 0; k < bands; k++) {
+		int y0 = (int)hy + top + (bottom - top) * k / bands, y1 = (int)hy + top + (bottom - top) * (k + 1) / bands;
+		uint8_t v = (uint8_t)(255 - 52 * k / (bands - 1));
+		SDL_RenderSetClipRect(R, &(SDL_Rect){ 0, y0, 1280, y1 - y0 });
+		for (int i = 0; i < 6; i++)
+			rrect((int)hx + r[i][0], (int)hy + r[i][1], r[i][2], r[i][3], r[i][4], (SDL_Color){ v, v, (uint8_t)(v + 2 > 255 ? 255 : v + 2), 255 }, 255);
 	}
+	SDL_RenderSetClipRect(R, NULL);
+	/* lines between the fingers */
+	static const int sepOpen[][4] = { { 4, 6, 2, 24 }, { 13, 9, 2, 21 }, { 22, 14, 2, 16 } };
+	static const int sepPoint[][4] = { { 13, 26, 2, 10 }, { 22, 30, 2, 8 } };
+	static const int sepFist[][4] = { { 4, 6, 2, 12 }, { 13, 6, 2, 12 }, { 22, 8, 2, 10 } };
+	const int (*sp)[4] = pose == HAND_OPEN ? sepOpen : pose == HAND_POINT ? sepPoint : sepFist;
+	int ns = pose == HAND_OPEN ? 3 : pose == HAND_POINT ? 2 : 3;
+	for (int i = 0; i < ns; i++)
+		fill((int)hx + sp[i][0], (int)hy + sp[i][1], sp[i][2], sp[i][3], (SDL_Color){ 98, 100, 108, 255 }, 230);
 }
 
 static void draw_pointers(void)
@@ -903,8 +928,9 @@ static void draw_pointers(void)
 			ly[i] = w->ptr_y;
 		}
 		if (now - moved[i] > 5000) continue;
-		draw_hand(w->ptr_x, w->ptr_y, (w->held & WIIU_BTN_TOUCH) != 0);
+		draw_hand(w->ptr_x, w->ptr_y, (w->held & WIIU_BTN_TOUCH) ? HAND_FIST : ptrOnItem ? HAND_POINT : HAND_OPEN);
 	}
+	ptrOnItem = 0;                       /* set again by the items drawn next frame */
 }
 
 static void present(void)
@@ -1055,10 +1081,11 @@ static int list_run(list_t *L, const char **labels, const char **values, int cou
 	int first = (int)L->scroll;
 	float frac = L->scroll - first;
 
-	if (P.moved && P.x >= LIST_X - 20 && P.x < LIST_X + LIST_W + 40 && P.y >= LIST_Y && P.y < LIST_Y + ROWS * ROW_H) {
+	if (P.valid && P.x >= LIST_X - 20 && P.x < LIST_X + LIST_W + 40 && P.y >= LIST_Y && P.y < LIST_Y + ROWS * ROW_H) {
 		int idx = first + (int)((P.y - LIST_Y) / ROW_H + frac);
 		float top = LIST_Y + (idx - L->scroll) * ROW_H;
-		if (idx >= 0 && idx < count && labels[idx][0] != '#' && top >= LIST_Y - 1 && top + ROW_H <= LIST_Y + ROWS * ROW_H + 1)
+		if (idx >= 0 && idx < count && labels[idx][0] != '#') ptrOnItem = 1;
+		if (P.moved && idx >= 0 && idx < count && labels[idx][0] != '#' && top >= LIST_Y - 1 && top + ROW_H <= LIST_Y + ROWS * ROW_H + 1)
 			L->sel = idx;                  /* the blue bar goes where the pointer is */
 	}
 
@@ -1633,6 +1660,7 @@ static int carousel_run(grid_t *G, entry_t *list, const char **labels, int count
 			} else {
 				if (!cfg.cover3d) outline(d2.x - 3, d2.y - 3, d2.w + 6, d2.h + 6, th(0, 140, 220), 255, 3);
 			}
+			if (P.valid && P.y >= GRID_Y && P.y < 560 && in_rect(d2, P.x, P.y)) ptrOnItem = 1;
 			if (T.tapped && T.ty >= GRID_Y && T.ty < 560 &&
 			    T.tx >= d2.x && T.tx < d2.x + d2.w && T.ty >= d2.y && T.ty < d2.y + d2.h) {
 				if (i == G->sel) tapped = i;
@@ -1668,6 +1696,7 @@ static int carousel_run(grid_t *G, entry_t *list, const char **labels, int count
 		for (int side = 0; side < 2; side++) {
 			SDL_Rect r = side ? aR : aL;
 			int hot = (arrowDir == (side ? 1 : -1)) || (P.moved && in_rect(r, P.x, P.y));
+			if (P.valid && in_rect(r, P.x, P.y)) ptrOnItem = 1;
 			int possible = side ? G->sel < count - 1 : G->sel > 0;
 			rrect(r.x, r.y, r.w, r.h, 20, th(14, 18, 40), hot ? 200 : 110);
 			if (hot) outline(r.x, r.y, r.w, r.h, th(0, 140, 220), 255, 3);
