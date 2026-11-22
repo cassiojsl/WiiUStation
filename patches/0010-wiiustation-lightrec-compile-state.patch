@@ -1,0 +1,36 @@
+diff --git a/deps/lightrec/lightrec.c b/deps/lightrec/lightrec.c
+index eb6eb5b3..1b378fa4 100644
+--- a/deps/lightrec/lightrec.c
++++ b/deps/lightrec/lightrec.c
+@@ -1538,8 +1538,31 @@ static void lightrec_reap_opcode_list(struct lightrec_state *state, void *data)
+ 	lightrec_free_opcode_list(state, data);
+ }
+ 
++/* WiiUStation: what the compiler is doing, for the app's watchdog */
++static volatile unsigned wiiustation_lr_pc, wiiustation_lr_count, wiiustation_lr_done;
++unsigned wiiustation_lr_state(unsigned *count, unsigned *done)
++{
++	*count = wiiustation_lr_count;
++	*done = wiiustation_lr_done;
++	return wiiustation_lr_pc;
++}
++
++static int lightrec_compile_block_impl(struct lightrec_cstate *cstate,
++				       struct block *block);
++
+ int lightrec_compile_block(struct lightrec_cstate *cstate,
+ 			   struct block *block)
++{
++	int ret;
++	wiiustation_lr_pc = block->pc;
++	wiiustation_lr_count++;
++	ret = lightrec_compile_block_impl(cstate, block);
++	wiiustation_lr_done = wiiustation_lr_count;
++	return ret;
++}
++
++static int lightrec_compile_block_impl(struct lightrec_cstate *cstate,
++				       struct block *block)
+ {
+ 	struct block *dead_blocks[ARRAY_SIZE(cstate->targets)];
+ 	u32 was_dead[ARRAY_SIZE(cstate->targets) / 8];

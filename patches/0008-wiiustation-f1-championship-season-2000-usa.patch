@@ -1,5 +1,5 @@
 diff --git a/libpcsxcore/database.c b/libpcsxcore/database.c
-index 60252735..9df7381a 100644
+index 60252735..5cb6ff1b 100644
 --- a/libpcsxcore/database.c
 +++ b/libpcsxcore/database.c
 @@ -36,6 +36,8 @@ static const char * const gpu_slow_llist_db[] =
@@ -11,16 +11,7 @@ index 60252735..9df7381a 100644
  	/* Final Fantasy IV */
  	"SCES03840", "SLPM86028", "SLUS01360",
  	/* NHL Face Off '97/98 */
-@@ -96,6 +98,8 @@ static const char * const f1_hack_db[] =
- 	"SLUS01134", "SCES02777", "SCES02778", "SCES02779",
- 	/* Formula One 2001 */
- 	"SCES03404", "SCES03423", "SCES03424", "SCES03524",
-+	/* F1 Championship Season 2000 (USA): same engine as F1 2000, froze the console on Lightrec */
-+	"SLUS01290",
- };
- 
- static const char * const alt_flip_db[] =
-@@ -217,6 +221,7 @@ gpu_timing_hack_db[] =
+@@ -217,6 +219,7 @@ gpu_timing_hack_db[] =
  	/* F1 2000 - flooding the GPU in menus */
  	{ 300*1024, { "SLUS01120", "SLES02722", "SLES02723", "SLES02724" } },
  	{ 300*1024, { "SLPS02758", "SLPM80564" } },

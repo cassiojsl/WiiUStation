@@ -2053,7 +2053,8 @@ static int hotkey_pressed(void)
 /* ---- the watchdog: if the game loop stops producing frames, say where (in the log) ----
  * A freeze that takes the whole console leaves nothing behind, but a loop stuck in one
  * place leaves its marks here: the stage of the loop and where the emulated CPU is. */
-extern unsigned wiiustation_ps1_state(unsigned *cycle);     /* patches/0009 */
+extern unsigned wiiustation_ps1_state(unsigned *cycle);
+extern unsigned wiiustation_lr_state(unsigned *count, unsigned *done);     /* patches/0009 */
 static volatile unsigned wdFrames;
 static volatile int wdActive, wdQuit;
 static const char *volatile wdStage = "";
@@ -2070,7 +2071,9 @@ static int watchdog_thread(void *ud)
 		if (wdActive) {          /* where the emulated CPU is, for after a freeze of the whole console */
 			char pos[160];
 			unsigned cyc0 = 0, pc0 = wiiustation_ps1_state(&cyc0);
-			snprintf(pos, sizeof(pos), "t=%u s, frames=%u, stage: %s, PS1 pc=%08x cycle=%u", now / 1000, wdFrames, wdStage, pc0, cyc0);
+			unsigned lrN = 0, lrD = 0, lrPc = wiiustation_lr_state(&lrN, &lrD);
+			snprintf(pos, sizeof(pos), "t=%u s, frames=%u, stage: %s, PS1 pc=%08x cycle=%u; Lightrec compiled %u blocks, last %08x %s",
+			         now / 1000, wdFrames, wdStage, pc0, cyc0, lrN, lrPc, lrD == lrN ? "(finished)" : "(UNFINISHED)");
 			wlog_lastpc(pos);
 		}
 		if (!wdActive || wdFrames != lastFrames) {
