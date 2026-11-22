@@ -547,3 +547,5 @@
 560|Le dossier de vos jeux sur la carte SD.
 561|Le dossier de vos jeux sur le lecteur USB.
 562|Dossier des jeux sur SD
+563|SD uniquement
+564|USB uniquement

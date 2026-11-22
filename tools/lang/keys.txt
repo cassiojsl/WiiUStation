@@ -561,3 +561,5 @@ Where your games are: the SD card, a USB drive or both.
 The folder with your games on the SD card.
 The folder with your games on the USB drive.
 SD games folder
+SD only
+USB only

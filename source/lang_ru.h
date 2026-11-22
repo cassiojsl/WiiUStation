@@ -543,3 +543,5 @@
 { "The folder with your games on the SD card.", "Папка с играми на SD-карте." },
 { "The folder with your games on the USB drive.", "Папка с играми на USB-накопителе." },
 { "SD games folder", "Папка с играми на SD" },
+{ "SD only", "Только SD" },
+{ "USB only", "Только USB" },

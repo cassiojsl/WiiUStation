@@ -522,3 +522,5 @@
 { "The folder with your games on the SD card.", "De map met je spellen op de SD-kaart." },
 { "The folder with your games on the USB drive.", "De map met je spellen op de USB-schijf." },
 { "SD games folder", "Spellenmap op SD" },
+{ "SD only", "Alleen SD" },
+{ "USB only", "Alleen USB" },

@@ -1244,6 +1244,8 @@ static int entry_region(const char *name, const char *id)
 static const char *sort_name(int v) { return v == 1 ? "Last played" : v == 2 ? "Most played" : "Name"; }
 static const char *regionf_name(int v)
 {
+	/* after the collections come the two source filters, only offered in the SD + USB view */
+	if (v >= 5 + emu_coll_count()) return v == 5 + emu_coll_count() ? "SD only" : "USB only";
 	if (v >= 5) return emu_coll_name(v - 5);
 	return v == 1 ? "USA" : v == 2 ? "Europe" : v == 3 ? "Japan" : v == 4 ? "Favourites" : "All games";
 }
@@ -2011,6 +2013,7 @@ static int browse(const char *title, char *out, size_t outsz, int pickDir)
 	char (*names)[272] = NULL;
 	const int src = src_effective();
 	const int merged = !pickDir && src == 2;
+	if (!merged && cfg.regionf >= 5 + emu_coll_count()) cfg.regionf = 0;        /* the source filters only exist in the SD + USB view */
 	const char *root = pickDir == 2 ? "usb:" : pickDir ? WIIU_SD_ROOT :
 	                   merged ? MERGED : src == 1 ? cfg.games_dir_usb : cfg.games_dir;
 	int ret = 0;
@@ -2051,7 +2054,11 @@ rescan:
 			snprintf(full, sizeof(full), "%s/%s", edir(&list[i], browsePath), list[i].name);
 			list[i].fav = !list[i].dir && emu_fav_is(full);
 			if (!list[i].dir && (favOnly || cfg.regionf == 4) && !list[i].fav) continue;
-			if (!list[i].dir && cfg.regionf >= 5 && !emu_coll_has(emu_coll_name(cfg.regionf - 5), full)) continue;
+			if (!list[i].dir && cfg.regionf >= 5 && cfg.regionf < 5 + emu_coll_count() && !emu_coll_has(emu_coll_name(cfg.regionf - 5), full)) continue;
+			if (cfg.regionf >= 5 + emu_coll_count() && !strcmp(browsePath, MERGED)) {      /* only SD / only USB, at the top of the SD + USB view */
+				int isUsb = list[i].base && is_usb_path(list[i].base);
+				if (isUsb != (cfg.regionf == 5 + emu_coll_count() + 1)) continue;
+			}
 			if (!list[i].dir && searchText[0]) {
 				pretty_name(list[i].name, nm, sizeof(nm));
 				if (!contains_ci(nm, searchText)) continue;
@@ -2193,7 +2200,7 @@ rescan:
 		}
 		if (!pickDir && (b & WIIU_BTN_ZR)) {
 			char m[96];
-			cfg.regionf = (cfg.regionf + 1) % (5 + emu_coll_count());
+			cfg.regionf = (cfg.regionf + 1) % (5 + emu_coll_count() + (merged ? 2 : 0));
 			settings_save();
 			snprintf(m, sizeof(m), tr("Showing: %s"), tr(regionf_name(cfg.regionf)));
 			status(m);
@@ -3515,8 +3522,9 @@ static void game_collections(entry_t *e, const char *dir)
 		if (act < n) {
 			char nm[64];
 			snprintf(nm, sizeof(nm), "%s", emu_coll_name(act));
+			int before = emu_coll_count();
 			emu_coll_toggle(nm, full);
-			if (cfg.regionf >= 5 + emu_coll_count()) cfg.regionf = 0;   /* its last game was removed */
+			if (emu_coll_count() != before && cfg.regionf >= 5) cfg.regionf = 0;   /* a collection went away (its last game was removed): the numbers shift */
 		} else {
 			char nm[64];
 			if (text_prompt("Collection name", "", nm, sizeof(nm)) && nm[0]) {

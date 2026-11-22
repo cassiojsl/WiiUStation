@@ -514,3 +514,5 @@
 { "The folder with your games on the SD card.", "Der Ordner mit deinen Spielen auf der SD-Karte." },
 { "The folder with your games on the USB drive.", "Der Ordner mit deinen Spielen auf dem USB-Laufwerk." },
 { "SD games folder", "Spieleordner auf SD" },
+{ "SD only", "Nur SD" },
+{ "USB only", "Nur USB" },

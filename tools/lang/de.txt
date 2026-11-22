@@ -547,3 +547,5 @@
 560|Der Ordner mit deinen Spielen auf der SD-Karte.
 561|Der Ordner mit deinen Spielen auf dem USB-Laufwerk.
 562|Spieleordner auf SD
+563|Nur SD
+564|Nur USB

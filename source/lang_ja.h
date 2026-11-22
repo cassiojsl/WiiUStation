@@ -547,3 +547,5 @@
 { "The folder with your games on the SD card.", "SDカード上のゲームフォルダ。" },
 { "The folder with your games on the USB drive.", "USBドライブ上のゲームフォルダ。" },
 { "SD games folder", "SDのゲームフォルダ" },
+{ "SD only", "SDのみ" },
+{ "USB only", "USBのみ" },
