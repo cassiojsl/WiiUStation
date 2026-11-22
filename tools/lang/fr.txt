@@ -521,3 +521,9 @@
 534|B : annuler et revenir
 535|Automatique
 536|Pointez la Wiimote vers la GamePad. Sa barre de capteurs n'est allumée que si une Wiimote est connectée et utilisée.
+537|Accélération haute résolution
+538|Certains menus s'affichent en 640x480 et sont lents. Automatique n'affiche que la moitié des lignes quand le jeu ralentit ; Toujours le fait en permanence.
+539|Toujours
+540|Les jeux en 640x480 n'affichent que la moitié des lignes : plus rapide, un peu moins net.
+541|Seulement quand le jeu ralentit.
+542|Toujours l'image complète.

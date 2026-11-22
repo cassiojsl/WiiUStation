@@ -125,6 +125,7 @@ static struct { const char *key; int *val; int min, max; } OPTS[] = {
 	{ "analog2",    &cfg.analog2,    -1, PAD_NEGCON },
 	{ "deadzone",   &cfg.deadzone,   0, 6 },
 	{ "multitap",   &cfg.multitap,   0, 1 },
+	{ "hires_fast", &cfg.hires_fast, 0, 2 },
 	{ "p1first",    &cfg.p1first,    0, 1 },
 	{ "pointer",    &cfg.pointer,    0, 2 },
 	{ "region",     &cfg.region,     0, 2 },
@@ -345,6 +346,7 @@ static void settings_defaults(void)
 	cfg.deadzone = 1;     /* 5% */
 	cfg.multitap = 0;
 	cfg.pointer = 1;      /* Wii Remote pointer: automatic */
+	cfg.hires_fast = 1;   /* 640x480: half the lines when the game is slow */
 	cfg.region = 0;
 	cfg.resume = 1;
 	cfg.ffwd = 1;         /* hold R3 */
@@ -1354,6 +1356,7 @@ int emu_load_game(const char *pathIn)
 		for (int i = 0; i < n; i++)
 			wlog("core: %s", coreLog[(coreLogN - n + i + 48 * 4) % 48]);
 	}
+	video_set_halve(cfg.hires_fast == 2);
 	sessStartMs = SDL_GetTicks();
 	sessWindows = sessSlow = 0;
 	sessFpsSum = 0;
@@ -2210,7 +2213,13 @@ static void run_game(void)
 						}
 					}
 				}
-				lastFps = secs > 0 ? 60.0 / secs : 0; lastEmuMs = tEmu * k; lastConvMs = convMs; lastDrawMs = tDraw * k; lastWaitMs = tWait * k;
+				lastFps = secs > 0 ? 60.0 / secs : 0;
+				if (cfg.hires_fast == 1) {             /* auto: a hi-res stretch under 50 fps twice in a row */
+					static int hiSlow;
+					if (lastFps > 0 && lastFps < 50 && video_game_height() >= 400) {
+						if (++hiSlow == 2) { video_set_halve(1); wlog("hi-res speed-up on: half of the lines of 640x480 frames"); }
+					} else hiSlow = 0;
+				} lastEmuMs = tEmu * k; lastConvMs = convMs; lastDrawMs = tDraw * k; lastWaitMs = tWait * k;
 			}
 			tEmu = tDraw = tWait = 0;
 			fpsStart = now;

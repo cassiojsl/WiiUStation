@@ -521,3 +521,9 @@
 534|B: abbrechen und zurück
 535|Automatisch
 536|Richte die Wii Remote auf das GamePad. Dessen Sensorleiste ist nur an, solange eine Wii Remote verbunden ist und benutzt wird.
+537|Beschleunigung bei hoher Auflösung
+538|Manche Menüs zeichnen in 640x480 und laufen langsam. Automatisch zeigt nur jede zweite Zeile, wenn das Spiel langsam ist; Immer tut das ständig.
+539|Immer
+540|Spiele in 640x480 zeigen nur jede zweite Zeile: schneller, etwas weniger scharf.
+541|Nur wenn das Spiel langsam läuft.
+542|Immer das volle Bild.

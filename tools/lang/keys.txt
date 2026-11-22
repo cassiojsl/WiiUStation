@@ -535,3 +535,9 @@ B: cancel the download
 B: cancel and go back
 Automatic
 Point the Wii Remote at the GamePad. Its sensor bar is on only while a Wii Remote is connected and used.
+Hi-res speed-up
+Some menus draw 640x480 and run slow. Auto shows half of the lines when the game is slow; Always does it all the time.
+Always
+Games that draw 640x480 show half of the lines: faster, a little less sharp.
+Only when the game runs slow.
+Always the full picture.

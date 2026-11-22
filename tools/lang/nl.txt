@@ -521,3 +521,9 @@
 534|B: annuleren en terug
 535|Automatisch
 536|Richt de Wii Remote op het GamePad. De sensorbalk staat alleen aan als er een Wii Remote is verbonden en gebruikt wordt.
+537|Versnelling bij hoge resolutie
+538|Sommige menu's tekenen in 640x480 en lopen traag. Automatisch toont de helft van de regels als het spel traag is; Altijd doet dat voortdurend.
+539|Altijd
+540|Spellen in 640x480 tonen de helft van de regels: sneller, iets minder scherp.
+541|Alleen als het spel traag loopt.
+542|Altijd het volledige beeld.

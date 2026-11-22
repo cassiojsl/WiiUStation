@@ -918,7 +918,8 @@ static void draw_pointers(void)
 			ly[i] = w->ptr_y;
 		}
 		if (now - moved[i] > 5000) continue;
-		draw_hand(w->ptr_x, w->ptr_y, (w->held & WIIU_BTN_TOUCH) ? HAND_FIST : ptrOnItem ? HAND_POINT : HAND_OPEN);
+		/* pointing by default; a fist only while dragging (the covers, a list) */
+		draw_hand(w->ptr_x, w->ptr_y, (w->held & WIIU_BTN_TOUCH) && T.down && T.dragging ? HAND_FIST : HAND_POINT);
 	}
 	ptrOnItem = 0;                       /* set again by the items drawn next frame */
 }
@@ -2240,12 +2241,12 @@ static int pick_games_folder(void);
 static void settings(void)
 {
 	enum { S_SCOPE, S_LANG, S_THEME, S_SFX, S_AUTOSTART, S_GAMES, S_VIEW, S_COVERS, S_ALLCOVERS, S_RESUME, S_CORE, S_SKIP, S_FFWD, S_FFSPEED, S_FPS, S_VSYNC, S_AUDIO,
-	       S_ASPECT, S_FILTER, S_BEZEL, S_WIDE, S_SCAN, S_CRT, S_FX, S_DRC, S_DITHER, S_PAD, S_GYRO, S_PAD2, S_DEADZONE, S_MTAP, S_P1FIRST, S_POINTER,
+	       S_ASPECT, S_FILTER, S_BEZEL, S_WIDE, S_SCAN, S_CRT, S_FX, S_DRC, S_DITHER, S_HIRES, S_PAD, S_GYRO, S_PAD2, S_DEADZONE, S_MTAP, S_P1FIRST, S_POINTER,
 	       S_CONTROLS, S_HOTKEYS, S_RUMBLE, S_REGION, S_BIOS, S_BIOSCHECK, S_LOGO, S_AUTOFIX, S_ADV, S_UPDATE, S_COUNT };
 	static const char *allLabels[S_COUNT] = {
 		"Settings for", "Language", "Theme colour", "Menu sounds", "Open the last game at start", "Games folder", "Game list", "Covers", "Download all covers...", "Continue where you left off", "CPU core",
 		"Frame skip", "Fast forward", "Fast forward speed", "Show FPS", "VSync (no tearing)", "Sound", "Screen",
-		"Picture", "Border", "Widescreen (16:9)", "Scanlines", "CRT mask", "Screen effect", "GamePad screen", "Dithering", "Player 1 controller", "Aim with GamePad motion",
+		"Picture", "Border", "Widescreen (16:9)", "Scanlines", "CRT mask", "Screen effect", "GamePad screen", "Dithering", "Hi-res speed-up", "Player 1 controller", "Aim with GamePad motion",
 		"Player 2+ controller", "Analog dead zone", "Multitap (up to 5 players)", "Who is player 1", "Wii Remote pointer", "Button mapping...", "Hotkeys...", "Vibration",
 		"Region", "BIOS", "Check BIOS files...", "PlayStation boot logo", "Automatic game fixes", "Advanced...", "Check for updates"
 	};
@@ -2277,6 +2278,7 @@ static void settings(void)
 		"Curved CRT glass, an LCD grid or a soft glow over the picture.",
 		"What the GamePad shows during a game: the same as the TV, only the game, nothing or touch buttons.",
 		"The PlayStation's dithering pattern. Off looks cleaner, Force adds it everywhere.",
+		"Some menus draw 640x480 and run slow. Auto shows half of the lines when the game is slow; Always does it all the time.",
 		"Auto uses a DualShock for games that support it. Light guns and the mouse use the GamePad screen.",
 		"With a light gun: aim by turning the GamePad.",
 		"The controller of the other players.",
@@ -2382,6 +2384,7 @@ static void settings(void)
 			case S_SCAN:   values[k] = cfg.scanlines ? "On" : "Off"; break;
 			case S_CRT:    values[k] = cfg.crt ? "On" : "Off"; break;
 			case S_DITHER: values[k] = cfg.dithering == 0 ? "Off" : cfg.dithering == 1 ? "On" : "Force"; break;
+			case S_HIRES:  values[k] = cfg.hires_fast == 0 ? "Off" : cfg.hires_fast == 1 ? "Auto" : "Always"; break;
 			case S_PAD:    values[k] = pad_type_name(cfg.analog); break;
 			case S_PAD2:   values[k] = pad_type_name(cfg.analog2); break;
 			case S_WIDE:   values[k] = cfg.widescreen ? "On" : "Off"; break;
@@ -2530,6 +2533,11 @@ static void settings(void)
 		case S_SCAN:   cfg.scanlines = !cfg.scanlines; break;
 		case S_CRT:    cfg.crt = !cfg.crt; break;
 		case S_DITHER: cfg.dithering = (cfg.dithering + 3 + dir) % 3; break;
+		case S_HIRES:  cfg.hires_fast = (cfg.hires_fast + 3 + dir) % 3;
+		               status(cfg.hires_fast == 2 ? "Games that draw 640x480 show half of the lines: faster, a little less sharp."
+		                    : cfg.hires_fast == 1 ? "Only when the game runs slow." : "Always the full picture.");
+		               video_set_halve(cfg.hires_fast == 2);
+		               break;
 		case S_PAD:
 			cfg.analog = (cfg.analog + 1 + PAD_COUNT + 1 + dir) % (PAD_COUNT + 1) - 1;   /* Auto .. Justifier */
 			switch (cfg.analog) {
@@ -4221,6 +4229,7 @@ static int choose_disc(const char *title, int ndisc, int current)
 			int x = 640 - tot / 2 + i * (w + gap);
 			SDL_Rect r = { x, 350, w, 140 };
 			if (tap_in(r.x, r.y, r.w, r.h)) { transition(); return i; }
+			if (hover_in(r.x, r.y, r.w, r.h)) sel = i;
 			rrect(r.x, r.y, r.w, r.h, 20, i == sel ? hl : btn, 255);
 			ring(r.x + w / 2.0f, r.y + 54, 30, 18, WHITE);
 			char d[16];
@@ -4551,6 +4560,9 @@ int menu_run(void)
 		if (b & WIIU_BTN_DOWN)  sel = nav(it, n, sel, 0, 1);
 		if (b & WIIU_BTN_A) activate = 1;
 		if ((b & WIIU_BTN_B) && loaded) return 1;
+		for (int i = 0; i < n; i++)
+			if (!T.tapped && hover_in(it[i].r.x, it[i].r.y, it[i].r.w, it[i].r.h))
+				sel = i;                                      /* the frame follows the pointer */
 		for (int i = 0; i < n; i++)
 			if (tap_in(it[i].r.x, it[i].r.y, it[i].r.w, it[i].r.h)) {
 				sel = i;

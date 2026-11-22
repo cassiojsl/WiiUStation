@@ -277,6 +277,22 @@ static void update_now(void)
 					p->touch_x = (int)p->ptr_x;
 					p->touch_y = (int)p->ptr_y;
 				}
+				if (p->ptr_valid) {
+					/* pointing at the screen the remote is held upright: the d-pad is
+					 * read as it is, A clicks, B goes back, 1 and 2 are the X and Y buttons */
+					o = 0;
+					if (b & WPAD_BUTTON_UP)    o |= WIIU_BTN_UP;
+					if (b & WPAD_BUTTON_DOWN)  o |= WIIU_BTN_DOWN;
+					if (b & WPAD_BUTTON_LEFT)  o |= WIIU_BTN_LEFT;
+					if (b & WPAD_BUTTON_RIGHT) o |= WIIU_BTN_RIGHT;
+					if (b & WPAD_BUTTON_B)     o |= WIIU_BTN_B;
+					if (b & WPAD_BUTTON_1)     o |= WIIU_BTN_X;
+					if (b & WPAD_BUTTON_2)     o |= WIIU_BTN_Y;
+					if (b & WPAD_BUTTON_PLUS)  o |= WIIU_BTN_PLUS;
+					if (b & WPAD_BUTTON_MINUS) o |= WIIU_BTN_MINUS;
+					if (b & WPAD_BUTTON_HOME)  o |= WIIU_BTN_HOME;
+					if (b & WPAD_BUTTON_A)     o |= WIIU_BTN_TOUCH;
+				}
 				p->held = o;
 			}
 		}

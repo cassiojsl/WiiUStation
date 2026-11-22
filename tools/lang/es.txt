@@ -521,3 +521,9 @@
 534|B: cancelar y volver
 535|Automático
 536|Apunta el Wii Remote al GamePad. Su barra sensora solo está encendida mientras haya un Wii Remote conectado y en uso.
+537|Aceleración en alta resolución
+538|Algunos menús dibujan a 640x480 y van lentos. Automático muestra la mitad de las líneas cuando el juego va lento; Siempre lo hace todo el tiempo.
+539|Siempre
+540|Los juegos que dibujan a 640x480 muestran la mitad de las líneas: más rápido, algo menos nítido.
+541|Solo cuando el juego va lento.
+542|Siempre la imagen completa.

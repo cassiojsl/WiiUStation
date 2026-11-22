@@ -219,6 +219,9 @@ static void crop_rect(SDL_Rect *src)
 	if (src->h < frameH * 3 / 4) { src->y = 0; src->h = frameH; }
 }
 
+static int halveOn;
+void video_set_halve(int on) { halveOn = on; }
+
 void video_upload(const void *data, unsigned w, unsigned h, size_t pitch)
 {
 	static unsigned n;
@@ -226,6 +229,10 @@ void video_upload(const void *data, unsigned w, unsigned h, size_t pitch)
 	framesIn++;
 	if (w > TEX_W) w = TEX_W;
 	if (h > TEX_H) h = TEX_H;
+	if (halveOn && h >= 400) {          /* hi-res: every other line, half the work (a field of an interlaced picture) */
+		pitch *= 2;
+		h /= 2;
+	}
 	SDL_Rect r = { 0, 0, (int)w, (int)h };
 	const uint64_t c0 = SDL_GetPerformanceCounter();
 	if (pixfmt == RETRO_PIXEL_FORMAT_XRGB8888) {
