@@ -527,3 +527,6 @@
 540|Spiele in 640x480 zeigen nur jede zweite Zeile: schneller, etwas weniger scharf.
 541|Nur wenn das Spiel langsam läuft.
 542|Immer das volle Bild.
+543|#Experimentell
+544|Direktes 16-Bit-Bild
+545|Experimentell: sendet das Bild ohne Umwandlung an den Bildschirm. Schneller. Ist das Bild schwarz oder sind die Farben falsch, schalte es aus.

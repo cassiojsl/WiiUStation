@@ -528,3 +528,6 @@
 { "Games that draw 640x480 show half of the lines: faster, a little less sharp.", "640x480の描画は半分のラインを表示します。速くなり、少し粗くなります。" },
 { "Only when the game runs slow.", "ゲームが重いときだけ。" },
 { "Always the full picture.", "常にフル画面。" },
+{ "#Experimental", "#実験的" },
+{ "Direct 16-bit picture", "16ビット直接表示" },
+{ "Experimental: sends the picture to the screen without converting it. Faster. If the picture is black or the colours are wrong, turn it off.", "実験的: 画像を変換せずに画面へ送ります。高速です。画面が黒くなったり色が変なときはオフにしてください。" },

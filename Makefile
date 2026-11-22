@@ -84,6 +84,9 @@ core:
 
 $(BUILD): core
 	@[ -d $@ ] || mkdir -p $@
+	@# the version is a -D in the compile line, which make does not notice: when it
+	@# changes, the file that shows it is built again
+	@echo "$(APP_VERSION)" | cmp -s - $@/appver.txt || { echo "$(APP_VERSION)" > $@/appver.txt; touch $(TOPDIR)/source/update.c; }
 	@$(MAKE) --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
 
 clean:

@@ -503,3 +503,6 @@
 { "Games that draw 640x480 show half of the lines: faster, a little less sharp.", "Spellen in 640x480 tonen de helft van de regels: sneller, iets minder scherp." },
 { "Only when the game runs slow.", "Alleen als het spel traag loopt." },
 { "Always the full picture.", "Altijd het volledige beeld." },
+{ "#Experimental", "#Experimenteel" },
+{ "Direct 16-bit picture", "Directe 16-bits beeld" },
+{ "Experimental: sends the picture to the screen without converting it. Faster. If the picture is black or the colours are wrong, turn it off.", "Experimenteel: stuurt het beeld zonder omzetting naar het scherm. Sneller. Is het beeld zwart of zijn de kleuren fout, zet het dan uit." },

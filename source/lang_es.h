@@ -515,3 +515,5 @@
 { "Games that draw 640x480 show half of the lines: faster, a little less sharp.", "Los juegos que dibujan a 640x480 muestran la mitad de las líneas: más rápido, algo menos nítido." },
 { "Only when the game runs slow.", "Solo cuando el juego va lento." },
 { "Always the full picture.", "Siempre la imagen completa." },
+{ "Direct 16-bit picture", "Imagen directa de 16 bits" },
+{ "Experimental: sends the picture to the screen without converting it. Faster. If the picture is black or the colours are wrong, turn it off.", "Experimental: envía la imagen a la pantalla sin convertirla. Más rápido. Si la imagen sale negra o con colores erróneos, desactívalo." },

@@ -541,3 +541,6 @@ Always
 Games that draw 640x480 show half of the lines: faster, a little less sharp.
 Only when the game runs slow.
 Always the full picture.
+#Experimental
+Direct 16-bit picture
+Experimental: sends the picture to the screen without converting it. Faster. If the picture is black or the colours are wrong, turn it off.

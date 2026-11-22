@@ -524,3 +524,6 @@
 { "Games that draw 640x480 show half of the lines: faster, a little less sharp.", "Игры в 640x480 показывают половину строк: быстрее, чуть менее чётко." },
 { "Only when the game runs slow.", "Только когда игра тормозит." },
 { "Always the full picture.", "Всегда полное изображение." },
+{ "#Experimental", "#Экспериментально" },
+{ "Direct 16-bit picture", "Прямое 16-битное изображение" },
+{ "Experimental: sends the picture to the screen without converting it. Faster. If the picture is black or the colours are wrong, turn it off.", "Экспериментально: отправляет картинку на экран без преобразования. Быстрее. Если экран чёрный или цвета неверные, выключите." },

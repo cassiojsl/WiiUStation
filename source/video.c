@@ -49,25 +49,31 @@ void *video_open_font(int size)
  * a black screen), and it forces alpha to 0xFF (XRGB8888 frames may carry
  * 0 in the unused byte). */
 static uint32_t *conv;
-static uint32_t lut565[0x10000];
+static uint32_t lutHi[256], lutLo[256];   /* RGB565 -> ARGB8888 as hi | lo: 2 KB, fits the cache */
 static uint64_t convTicks;          /* time spent converting frames (performance readout) */
 static uint64_t updTicks;           /* ... of which SDL_UpdateTexture */
+static int tex565;                  /* experimental: upload the 16-bit frame as it is */
+static const void *lastRaw;         /* the last frame as the core made it (valid until the next frame) */
+static size_t lastPitch;
 
 static void build_lut(void)
 {
-	for (int i = 0; i < 0x10000; i++) {
-		uint32_t r = (i >> 11) & 0x1f, g = (i >> 5) & 0x3f, b = i & 0x1f;
-		r = (r << 3) | (r >> 2);
-		g = (g << 2) | (g >> 4);
-		b = (b << 3) | (b >> 2);
-		lut565[i] = 0xff000000u | (r << 16) | (g << 8) | b;
+	for (int h = 0; h < 256; h++) {
+		uint32_t r5 = h >> 3, gh = h & 7;
+		uint32_t r8 = (r5 << 3) | (r5 >> 2);
+		lutHi[h] = 0xff000000u | (r8 << 16) | (((gh << 5) | (gh >> 1)) << 8);
+	}
+	for (int l = 0; l < 256; l++) {
+		uint32_t b5 = l & 31, gl = l >> 5;
+		uint32_t b8 = (b5 << 3) | (b5 >> 2);
+		lutLo[l] = ((gl << 2) << 8) | b8;
 	}
 }
 
 static void create_texture(void)
 {
 	if (frameTex) return;
-	frameTex = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888,
+	frameTex = SDL_CreateTexture(renderer, tex565 ? SDL_PIXELFORMAT_RGB565 : SDL_PIXELFORMAT_ARGB8888,
 	                             SDL_TEXTUREACCESS_STREAMING, TEX_W, TEX_H);
 	SDL_SetTextureBlendMode(frameTex, SDL_BLENDMODE_NONE);
 	if (!conv) conv = (uint32_t *)SDL_malloc(TEX_W * TEX_H * 4);
@@ -219,6 +225,37 @@ static void crop_rect(SDL_Rect *src)
 	if (src->h < frameH * 3 / 4) { src->y = 0; src->h = frameH; }
 }
 
+/* the frame as opaque ARGB8888 in conv (stride w) */
+static void convert_frame(const void *data, unsigned w, unsigned h, size_t pitch)
+{
+	if (pixfmt == RETRO_PIXEL_FORMAT_XRGB8888) {
+		for (unsigned y = 0; y < h; y++) {
+			const uint32_t *src = (const uint32_t *)((const uint8_t *)data + y * pitch);
+			uint32_t *dst = conv + y * w;
+			for (unsigned x = 0; x < w; x++) dst[x] = src[x] | 0xff000000u;
+		}
+	} else {
+		for (unsigned y = 0; y < h; y++) {
+			const uint16_t *src = (const uint16_t *)((const uint8_t *)data + y * pitch);
+			uint32_t *dst = conv + y * w;
+			for (unsigned x = 0; x < w; x++) {
+				uint32_t p = src[x];
+				dst[x] = lutHi[p >> 8] | lutLo[p & 255];
+			}
+		}
+	}
+}
+
+/* experimental 16-bit upload (Advanced): the texture is made again in the other format */
+void video_set_tex565(int on)
+{
+	on = on != 0;
+	if (on == tex565) return;
+	tex565 = on;
+	if (frameTex) { SDL_DestroyTexture(frameTex); frameTex = NULL; }
+	create_texture();
+}
+
 static int halveOn;
 void video_set_halve(int on) { halveOn = on; }
 
@@ -235,33 +272,22 @@ void video_upload(const void *data, unsigned w, unsigned h, size_t pitch)
 	}
 	SDL_Rect r = { 0, 0, (int)w, (int)h };
 	const uint64_t c0 = SDL_GetPerformanceCounter();
-	if (pixfmt == RETRO_PIXEL_FORMAT_XRGB8888) {
-		for (unsigned y = 0; y < h; y++) {
-			const uint32_t *src = (const uint32_t *)((const uint8_t *)data + y * pitch);
-			uint32_t *dst = conv + y * w;
-			for (unsigned x = 0; x < w; x++) dst[x] = src[x] | 0xff000000u;
-		}
+	if (tex565 && pixfmt == RETRO_PIXEL_FORMAT_RGB565) {
+		/* experimental: the 16-bit frame goes to the texture as it is (no conversion, half the bytes) */
+		lastRaw = data;
+		lastPitch = pitch;
+		SDL_UpdateTexture(frameTex, &r, data, (int)pitch);
+		const uint64_t c9 = SDL_GetPerformanceCounter();
+		updTicks += c9 - c0;
+		convTicks += c9 - c0;
 	} else {
-		/* RGB565 -> ARGB8888 by arithmetic (the bits are repeated into the low
-		 * bits, so white stays white). A 256 KB lookup table does not fit the
-		 * Espresso's caches and cost 17 ms for a 640x480 frame. */
-		for (unsigned y = 0; y < h; y++) {
-			const uint16_t *src = (const uint16_t *)((const uint8_t *)data + y * pitch);
-			uint32_t *dst = conv + y * w;
-			for (unsigned x = 0; x < w; x++) {
-				uint32_t p = src[x];
-				dst[x] = 0xff000000u
-				       | ((p & 0xF800u) << 8) | ((p & 0xE000u) << 3)
-				       | ((p & 0x07E0u) << 5) | ((p & 0x0600u) >> 1)
-				       | ((p & 0x001Fu) << 3) | ((p & 0x001Cu) >> 2);
-			}
-		}
+		convert_frame(data, w, h, pitch);
+		const uint64_t c1 = SDL_GetPerformanceCounter();
+		SDL_UpdateTexture(frameTex, &r, conv, (int)(w * 4));
+		const uint64_t c2 = SDL_GetPerformanceCounter();
+		updTicks += c2 - c1;
+		convTicks += c2 - c0;
 	}
-	const uint64_t c1 = SDL_GetPerformanceCounter();
-	SDL_UpdateTexture(frameTex, &r, conv, (int)(w * 4));
-	const uint64_t c2 = SDL_GetPerformanceCounter();
-	updTicks += c2 - c1;
-	convTicks += c2 - c0;
 
 	if (cfg.aspect == WIIU_ASPECT_ZOOM && ((n++ % 15) == 0 || (int)w != frameW || (int)h != frameH))
 		measure_borders(data, w, h, pitch);
@@ -934,6 +960,7 @@ int video_save_frame(const char *path, int width)
 	SDL_Surface *src, *dst;
 	int ok;
 	if (!haveFrame || !conv) return 0;
+	if (tex565 && lastRaw) convert_frame(lastRaw, frameW, frameH, lastPitch);   /* conv is not kept in this mode */
 	src = SDL_CreateRGBSurfaceWithFormatFrom(conv, frameW, frameH, 32, frameW * 4,
 	                                         SDL_PIXELFORMAT_ARGB8888);
 	if (!src) return 0;

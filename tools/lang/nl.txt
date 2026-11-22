@@ -527,3 +527,6 @@
 540|Spellen in 640x480 tonen de helft van de regels: sneller, iets minder scherp.
 541|Alleen als het spel traag loopt.
 542|Altijd het volledige beeld.
+543|#Experimenteel
+544|Directe 16-bits beeld
+545|Experimenteel: stuurt het beeld zonder omzetting naar het scherm. Sneller. Is het beeld zwart of zijn de kleuren fout, zet het dan uit.

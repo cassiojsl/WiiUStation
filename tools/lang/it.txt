@@ -527,3 +527,6 @@
 540|I giochi in 640x480 mostrano metà delle righe: più veloce, un po' meno nitido.
 541|Solo quando il gioco è lento.
 542|Sempre l'immagine completa.
+543|#Sperimentale
+544|Immagine diretta a 16 bit
+545|Sperimentale: invia l'immagine allo schermo senza convertirla. Più veloce. Se l'immagine è nera o i colori sono sbagliati, disattivalo.

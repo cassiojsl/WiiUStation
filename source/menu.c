@@ -2609,6 +2609,10 @@ static void advanced(void)
 		labels[n] = "#Sound effects"; kind[n++] = -1;
 	}
 	labels[n] = "Sound reverb"; kind[n++] = -4;
+	if (!settings_game_scope()) {
+		labels[n] = "#Experimental"; kind[n++] = -1;
+		labels[n] = "Direct 16-bit picture"; kind[n++] = -5;
+	}
 	for (int i = 0; i < core_opt_count() && n < MAXR - 2; i++) {
 		if (core_opt_section(i) && nt < 8) {
 			snprintf(titles[nt], sizeof(titles[nt]), "#%s", core_opt_section(i));
@@ -2626,6 +2630,7 @@ static void advanced(void)
 			case -2: values[r] = cfg.gpu_thread ? "On" : "Off"; break;
 			case -3: values[r] = cfg.spu_thread ? "On" : "Off"; break;
 			case -4: values[r] = cfg.reverb ? "On" : "Off"; break;
+			case -5: values[r] = cfg.tex565 ? "On" : "Off"; break;
 			default: values[r] = core_opt_value(kind[r]); break;
 			}
 		}
@@ -2652,6 +2657,7 @@ static void advanced(void)
 			if (k == -2) help = "Draws the picture on another CPU core. Faster. Applies on the next game.";
 			else if (k == -3) help = "Mixes sound on another CPU core. Turn off if there is no sound.";
 			else if (k == -4) help = "Echo effect of the real console. Off is a little faster.";
+			else if (k == -5) help = "Experimental: sends the picture to the screen without converting it. Faster. If the picture is black or the colours are wrong, turn it off.";
 			else if (k >= 0) help = core_opt_help(k);
 			draw_footer(help);
 		}
@@ -2663,6 +2669,7 @@ static void advanced(void)
 		case -2: cfg.gpu_thread = !cfg.gpu_thread; status("Applies the next time a game is loaded."); break;
 		case -3: cfg.spu_thread = !cfg.spu_thread; break;
 		case -4: cfg.reverb = !cfg.reverb; break;
+		case -5: cfg.tex565 = !cfg.tex565; video_set_tex565(cfg.tex565); break;
 		case -1: break;
 		default: core_opt_cycle(kind[L.sel], dir); break;
 		}
