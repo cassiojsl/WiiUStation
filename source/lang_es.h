@@ -517,3 +517,5 @@
 { "Always the full picture.", "Siempre la imagen completa." },
 { "Direct 16-bit picture", "Imagen directa de 16 bits" },
 { "Experimental: sends the picture to the screen without converting it. Faster. If the picture is black or the colours are wrong, turn it off.", "Experimental: envía la imagen a la pantalla sin convertirla. Más rápido. Si la imagen sale negra o con colores erróneos, desactívalo." },
+{ "#Picture", "#Imagen" },
+{ "Sends the picture to the screen without converting it: much faster in heavy menus. If the picture is black or the colours are wrong, turn it off.", "Envía la imagen a la pantalla sin convertirla: mucho más rápido en menús pesados. Si la imagen sale negra o con colores erróneos, desactívalo." },

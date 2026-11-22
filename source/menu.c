@@ -2610,7 +2610,7 @@ static void advanced(void)
 	}
 	labels[n] = "Sound reverb"; kind[n++] = -4;
 	if (!settings_game_scope()) {
-		labels[n] = "#Experimental"; kind[n++] = -1;
+		labels[n] = "#Picture"; kind[n++] = -1;
 		labels[n] = "Direct 16-bit picture"; kind[n++] = -5;
 	}
 	for (int i = 0; i < core_opt_count() && n < MAXR - 2; i++) {
@@ -2657,7 +2657,7 @@ static void advanced(void)
 			if (k == -2) help = "Draws the picture on another CPU core. Faster. Applies on the next game.";
 			else if (k == -3) help = "Mixes sound on another CPU core. Turn off if there is no sound.";
 			else if (k == -4) help = "Echo effect of the real console. Off is a little faster.";
-			else if (k == -5) help = "Experimental: sends the picture to the screen without converting it. Faster. If the picture is black or the colours are wrong, turn it off.";
+			else if (k == -5) help = "Sends the picture to the screen without converting it: much faster in heavy menus. If the picture is black or the colours are wrong, turn it off.";
 			else if (k >= 0) help = core_opt_help(k);
 			draw_footer(help);
 		}

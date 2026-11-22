@@ -348,6 +348,7 @@ static void settings_defaults(void)
 	cfg.multitap = 0;
 	cfg.pointer = 1;      /* Wii Remote pointer: automatic */
 	cfg.hires_fast = 1;   /* 640x480: half the lines when the game is slow */
+	cfg.tex565 = 1;       /* the 16-bit picture goes to the screen as it is (60 fps in heavy menus) */
 	cfg.region = 0;
 	cfg.resume = 1;
 	cfg.ffwd = 1;         /* hold R3 */

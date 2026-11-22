@@ -95,7 +95,7 @@ typedef struct {
 	int analog2;        /* players 2+: PAD_DIGITAL, PAD_DUALSHOCK or PAD_NEGCON */
 	int deadzone;       /* analog stick dead zone, in 5% steps */
 	int multitap;       /* 4 players on port 1 */
-	int tex565;         /* experimental 16-bit picture upload */
+	int tex565;         /* 16-bit picture sent to the screen without converting it */
 	int hires_fast;     /* 640x480 frames: 0 full, 1 half the lines when slow (auto), 2 always */
 	int p1first;        /* player 1: 0 the GamePad (when on), 1 the first Pro/Classic/Wii Remote */
 	int pointer;        /* Wii Remote pointer in the menu: 0 off, 1 GamePad sensor bar, 2 TV sensor bar */
@@ -316,7 +316,7 @@ int  update_check(char *tag, size_t tn, char *err, size_t en);
 void wiiu_env_info(char *out, size_t n);   /* console and loader versions, for the log */
 void update_cancel(void);          /* stop the running download */
 double video_take_upd_ms(void);
-void video_set_tex565(int on);       /* experimental: upload the 16-bit frame without converting it */
+void video_set_tex565(int on);       /* upload the 16-bit frame without converting it */
 void video_set_halve(int on);        /* show every other line of a 640x480 frame */
 int  video_game_width(void);
 int  video_game_height(void);

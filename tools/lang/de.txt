@@ -530,3 +530,5 @@
 543|#Experimentell
 544|Direktes 16-Bit-Bild
 545|Experimentell: sendet das Bild ohne Umwandlung an den Bildschirm. Schneller. Ist das Bild schwarz oder sind die Farben falsch, schalte es aus.
+546|#Bild
+547|Sendet das Bild ohne Umwandlung an den Bildschirm: viel schneller in aufwendigen Menüs. Ist das Bild schwarz oder sind die Farben falsch, schalte es aus.

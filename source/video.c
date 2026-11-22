@@ -52,7 +52,7 @@ static uint32_t *conv;
 static uint32_t lutHi[256], lutLo[256];   /* RGB565 -> ARGB8888 as hi | lo: 2 KB, fits the cache */
 static uint64_t convTicks;          /* time spent converting frames (performance readout) */
 static uint64_t updTicks;           /* ... of which SDL_UpdateTexture */
-static int tex565;                  /* experimental: upload the 16-bit frame as it is */
+static int tex565;                  /* upload the 16-bit frame as it is */
 static const void *lastRaw;         /* the last frame as the core made it (valid until the next frame) */
 static size_t lastPitch;
 
@@ -246,7 +246,7 @@ static void convert_frame(const void *data, unsigned w, unsigned h, size_t pitch
 	}
 }
 
-/* experimental 16-bit upload (Advanced): the texture is made again in the other format */
+/* 16-bit upload (Advanced): the texture is made again in the other format */
 void video_set_tex565(int on)
 {
 	on = on != 0;
@@ -271,9 +271,10 @@ void video_upload(const void *data, unsigned w, unsigned h, size_t pitch)
 		h /= 2;
 	}
 	SDL_Rect r = { 0, 0, (int)w, (int)h };
+	if (tex565 && pixfmt != RETRO_PIXEL_FORMAT_RGB565) video_set_tex565(0);   /* a 32-bit frame needs the 32-bit texture */
 	const uint64_t c0 = SDL_GetPerformanceCounter();
 	if (tex565 && pixfmt == RETRO_PIXEL_FORMAT_RGB565) {
-		/* experimental: the 16-bit frame goes to the texture as it is (no conversion, half the bytes) */
+		/* the 16-bit frame goes to the texture as it is (no conversion, half the bytes) */
 		lastRaw = data;
 		lastPitch = pitch;
 		SDL_UpdateTexture(frameTex, &r, data, (int)pitch);

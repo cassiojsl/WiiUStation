@@ -530,3 +530,5 @@
 543|#Sperimentale
 544|Immagine diretta a 16 bit
 545|Sperimentale: invia l'immagine allo schermo senza convertirla. Più veloce. Se l'immagine è nera o i colori sono sbagliati, disattivalo.
+546|#Immagine
+547|Invia l'immagine allo schermo senza convertirla: molto più veloce nei menu pesanti. Se l'immagine è nera o i colori sono sbagliati, disattivalo.

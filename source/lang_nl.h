@@ -506,3 +506,5 @@
 { "#Experimental", "#Experimenteel" },
 { "Direct 16-bit picture", "Directe 16-bits beeld" },
 { "Experimental: sends the picture to the screen without converting it. Faster. If the picture is black or the colours are wrong, turn it off.", "Experimenteel: stuurt het beeld zonder omzetting naar het scherm. Sneller. Is het beeld zwart of zijn de kleuren fout, zet het dan uit." },
+{ "#Picture", "#Beeld" },
+{ "Sends the picture to the screen without converting it: much faster in heavy menus. If the picture is black or the colours are wrong, turn it off.", "Stuurt het beeld zonder omzetting naar het scherm: veel sneller in zware menu's. Is het beeld zwart of zijn de kleuren fout, zet het dan uit." },

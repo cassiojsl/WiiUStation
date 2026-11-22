@@ -498,3 +498,5 @@
 { "#Experimental", "#Experimentell" },
 { "Direct 16-bit picture", "Direktes 16-Bit-Bild" },
 { "Experimental: sends the picture to the screen without converting it. Faster. If the picture is black or the colours are wrong, turn it off.", "Experimentell: sendet das Bild ohne Umwandlung an den Bildschirm. Schneller. Ist das Bild schwarz oder sind die Farben falsch, schalte es aus." },
+{ "#Picture", "#Bild" },
+{ "Sends the picture to the screen without converting it: much faster in heavy menus. If the picture is black or the colours are wrong, turn it off.", "Sendet das Bild ohne Umwandlung an den Bildschirm: viel schneller in aufwendigen Menüs. Ist das Bild schwarz oder sind die Farben falsch, schalte es aus." },
