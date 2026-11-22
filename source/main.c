@@ -2090,6 +2090,15 @@ static int watchdog_thread(void *ud)
 			wlog("STUCK: no frame for %u s; stage: %s; PS1 pc=%08x cycle=%u", (unsigned)(idle / 1000), wdStage, pc, cyc);
 			reports++;
 		}
+		/* the loop is stuck for good: write why, go back to the Wii U menu (and leave anyway if it does not answer) */
+		if (idle >= 20000 && wdActive) {
+			unsigned cyc = 0, pc = wiiustation_ps1_state(&cyc);
+			wlog("STUCK for %u s (stage: %s; PS1 pc=%08x): closing the app", (unsigned)(idle / 1000), wdStage, pc);
+			wlog_exit();
+			SYSLaunchMenu();
+			SDL_Delay(4000);
+			_Exit(1);
+		}
 	}
 	return 0;
 }
@@ -2170,6 +2179,7 @@ static void run_game(void)
 			video_osd(tr("Paused"));
 			video_present();
 			if (!pump_events()) break;
+			wdFrames++;                       /* paused is not stuck */
 			OSSleepTicks(OSMillisecondsToTicks(16));
 			continue;
 		}
