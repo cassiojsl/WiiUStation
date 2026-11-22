@@ -91,39 +91,89 @@ static inline float tsin(float cycles)
 
 
 /* ------------------------------------------------------------------------ */
-/* menu music: a slow, nostalgic, quietly mysterious ambient piece, made    */
-/* here from sine waves (no recording). Four chords of 12 s in D minor fade */
-/* into each other as a hollow, organ-like pad over a deep drone, and a     */
-/* long, dark reverb spreads it. No melody, no noise. Quiet by design.      */
+/* menu music: a slow, warm, relaxing ambient piece, made here from sine    */
+/* waves (no recording). It never loops: chords are picked one after the    */
+/* other from a set of soft chords, each lasting a different time, every    */
+/* note breathes on its own slow cycle and drifts in the stereo field, and  */
+/* a quiet, flute-like voice glides between notes of the chord now and      */
+/* then. A long, dark reverb spreads it. No bells, no noise. Quiet.         */
 /* ------------------------------------------------------------------------ */
 static volatile int musicTarget;       /* 1 = should play */
 static float musicGain;                /* 0..1, faded */
 static int musicWasOn;
-enum { MU_CHORDS = 4, MU_NOTES = 5, MU_RV = 2500 };
-static const int MU_CH[MU_CHORDS][MU_NOTES] = {      /* MIDI notes: Dm9, Bb maj9, Gm9, A sus */
-	{ 50, 57, 62, 64, 65 }, { 46, 53, 57, 62, 64 }, { 43, 50, 53, 58, 60 }, { 45, 52, 57, 62, 64 },
+enum { MU_CHORDS = 7, MU_NOTES = 5, MU_LAYERS = 4, MU_RV = 2500 };
+static const int MU_CH[MU_CHORDS][MU_NOTES] = {      /* MIDI notes; soft, open chords around D minor / F major */
+	{ 50, 57, 60, 64, 69 },     /* Dm9 (open) */
+	{ 53, 57, 60, 64, 67 },     /* F maj9 */
+	{ 46, 53, 57, 62, 65 },     /* Bb maj7 */
+	{ 43, 50, 53, 58, 62 },     /* Gm7 */
+	{ 48, 55, 60, 62, 64 },     /* C add9 */
+	{ 45, 52, 55, 60, 64 },     /* Am7 */
+	{ 50, 52, 57, 62, 64 },     /* D sus2 */
 };
 static float muFreq[128];
-static float muPad[MU_CHORDS][MU_NOTES][2];            /* oscillator phases */
-static float muBass[MU_CHORDS][2];
-static uint32_t muT;
+static struct {
+	int on, spawned, chord;
+	uint32_t t, att, hold, rel;
+	float ph[MU_NOTES][2];             /* oscillator phases */
+	float lfo[MU_NOTES], lfoInc[MU_NOTES];     /* each note's own slow breathing */
+	float pan[MU_NOTES], panInc[MU_NOTES];     /* ... and its slow drift in the stereo field */
+	float bass[2];
+} muLay[MU_LAYERS];
+static struct { int on; uint32_t t, len, rest; float f, tgt, ph, vibPh, pan; } muLead;
+static int muPrevChord, muCurChord;
+static uint32_t muRng;
 static float muLfo, muVib;
 /* a small stereo reverb: four combs and two all-passes per side (the classic layout) */
 static const int RV_C[4] = { 1116, 1188, 1277, 1356 }, RV_A[2] = { 556, 441 };
 static float rvComb[2][4][MU_RV], rvAp[2][2][MU_RV], rvLp[2][4];
 static int rvCi[2][4], rvAi[2][2], rvCn[2][4], rvAn[2][2];
 
+static uint32_t mu_rand(void)
+{
+	muRng = muRng * 1664525u + 1013904223u;
+	return muRng >> 8;
+}
+
+static float mu_unit(void) { return (float)(mu_rand() % 1000) / 1000.0f; }
+
+/* start the next chord as a new layer: it fades in while the old one fades out */
+static void music_spawn(int chord)
+{
+	for (int i = 0; i < MU_LAYERS; i++) {
+		if (muLay[i].on) continue;
+		memset(&muLay[i], 0, sizeof(muLay[i]));
+		muLay[i].on = 1;
+		muLay[i].chord = chord;
+		muLay[i].att = (uint32_t)(5.0 * outRate);
+		muLay[i].hold = (uint32_t)((3.0 + 5.0 * mu_unit()) * outRate);
+		muLay[i].rel = (uint32_t)(6.0 * outRate);
+		for (int k = 0; k < MU_NOTES; k++) {
+			muLay[i].lfo[k] = mu_unit();
+			muLay[i].lfoInc[k] = 1.0f / ((9.0f + 12.0f * mu_unit()) * (float)outRate);    /* a breath every 9-21 s */
+			muLay[i].pan[k] = mu_unit();
+			muLay[i].panInc[k] = 1.0f / ((25.0f + 20.0f * mu_unit()) * (float)outRate);   /* a drift every 25-45 s */
+		}
+		muPrevChord = muCurChord;
+		muCurChord = chord;
+		return;
+	}
+}
+
 static void music_reset(void)
 {
 	if (!sinTab[SINN / 4]) for (int i = 0; i < SINN; i++) sinTab[i] = sinf(6.2831853f * i / SINN);
 	for (int n = 0; n < 128; n++) muFreq[n] = 440.0f * powf(2.0f, (n - 69) / 12.0f);
-	memset(muPad, 0, sizeof(muPad));
-	memset(muBass, 0, sizeof(muBass));
+	memset(muLay, 0, sizeof(muLay));
+	memset(&muLead, 0, sizeof(muLead));
 	memset(rvComb, 0, sizeof(rvComb));
 	memset(rvAp, 0, sizeof(rvAp));
 	memset(rvLp, 0, sizeof(rvLp));
-	muT = 0;
+	muRng = SDL_GetTicks() * 2654435761u + 7;          /* a different piece every time */
 	muLfo = muVib = 0;
+	muPrevChord = muCurChord = 0;
+	muLead.rest = (uint32_t)(8.0 * outRate);
+	music_spawn((int)(mu_rand() % MU_CHORDS));
 	for (int c = 0; c < 2; c++) {
 		for (int i = 0; i < 4; i++) {
 			int n = (int)(RV_C[i] * outRate / 44100.0 + 0.5) + c * 23;
@@ -157,55 +207,96 @@ static float rv_side(int c, float in)
 	return sum * 0.25f;
 }
 
+/* the envelope of a layer: a smooth rise, a hold, a smooth fall (0 when over) */
+static float mu_env(uint32_t t, uint32_t att, uint32_t hold, uint32_t rel)
+{
+	if (t < att) { float s = tsin(0.25f * (float)t / (float)att); return s * s; }
+	if (t < att + hold) return 1.0f;
+	if (t < att + hold + rel) { float s = tsin(0.25f * (float)(t - att - hold) / (float)rel); return 1.0f - s * s; }
+	return -1.0f;
+}
+
 /* one stereo sample of the music (before the master volume), in -1..1 */
 static void music_sample(float *outL, float *outR)
 {
 	const double rate = outRate;
-	const uint32_t L = (uint32_t)(12.0 * rate), cycle = L * MU_CHORDS;
 	const float inv = 1.0f / (float)rate;
 	float padL = 0, padR = 0;
 
 	/* a slow, shallow vibrato for the pad */
 	muLfo += 4.2f * inv; if (muLfo >= 1) muLfo -= 1;
-	muVib = 1.0f + 0.0013f * tsin(muLfo);
+	muVib = 1.0f + 0.0012f * tsin(muLfo);
 
-	/* the pad: each chord has a sin^2 window two chords long. The voice is hollow (odd overtones
-	 * only, like an organ or a clarinet), two detuned voices per note, which gives the mysterious colour */
-	for (int i = 0; i < MU_CHORDS; i++) {
-		int64_t d = (int64_t)muT - (int64_t)i * L + L / 2;
-		if (d < 0) d += cycle;
-		if (d >= (int64_t)cycle) d -= cycle;
-		float u = (float)d / (2.0f * (float)L);
-		if (u >= 1.0f) continue;
-		float sw = tsin(u * 0.5f), w = sw * sw;
+	for (int i = 0; i < MU_LAYERS; i++) {
+		if (!muLay[i].on) continue;
+		float w = mu_env(muLay[i].t, muLay[i].att, muLay[i].hold, muLay[i].rel);
+		if (w < 0) { muLay[i].on = 0; continue; }
+		/* when this chord starts to fade, the next one is picked at random (never the same twice in a row) */
+		if (!muLay[i].spawned && muLay[i].t >= muLay[i].att + muLay[i].hold) {
+			int c;
+			do c = (int)(mu_rand() % MU_CHORDS); while (c == muLay[i].chord || c == muPrevChord);
+			muLay[i].spawned = 1;
+			music_spawn(c);
+		}
+		/* the pad: hollow (odd overtones), two detuned voices per note */
 		for (int k = 0; k < MU_NOTES; k++) {
-			float f = muFreq[MU_CH[i][k]] * muVib;
-			muPad[i][k][0] += f * 0.9982f * inv; if (muPad[i][k][0] >= 1) muPad[i][k][0] -= 1;
-			muPad[i][k][1] += f * 1.0018f * inv; if (muPad[i][k][1] >= 1) muPad[i][k][1] -= 1;
-			float a = muPad[i][k][0], b = muPad[i][k][1];
-			float o = tsin(a) + tsin(b) + 0.22f * (tsin(a * 3) + tsin(b * 3)) + 0.07f * (tsin(a * 5) + tsin(b * 5));
-			float amp = (0.026f - 0.0022f * k) * w;
-			padL += o * amp * (k & 1 ? 0.70f : 1.0f);          /* alternate notes lean left / right */
-			padR += o * amp * (k & 1 ? 1.0f : 0.70f);
+			float f = muFreq[MU_CH[muLay[i].chord][k]] * muVib;
+			muLay[i].ph[k][0] += f * 0.9982f * inv; if (muLay[i].ph[k][0] >= 1) muLay[i].ph[k][0] -= 1;
+			muLay[i].ph[k][1] += f * 1.0018f * inv; if (muLay[i].ph[k][1] >= 1) muLay[i].ph[k][1] -= 1;
+			float a = muLay[i].ph[k][0], b = muLay[i].ph[k][1];
+			float o = tsin(a) + tsin(b) + 0.20f * (tsin(a * 3) + tsin(b * 3)) + 0.06f * (tsin(a * 5) + tsin(b * 5));
+			muLay[i].lfo[k] += muLay[i].lfoInc[k]; if (muLay[i].lfo[k] >= 1) muLay[i].lfo[k] -= 1;
+			muLay[i].pan[k] += muLay[i].panInc[k]; if (muLay[i].pan[k] >= 1) muLay[i].pan[k] -= 1;
+			float breath = 0.72f + 0.28f * tsin(muLay[i].lfo[k]);          /* this note's own slow swell */
+			float pan = 0.5f + 0.5f * tsin(muLay[i].pan[k]);               /* and its drift between left and right */
+			float amp = (0.027f - 0.0018f * k) * w * breath;
+			padL += o * amp * (1.0f - 0.55f * pan);
+			padR += o * amp * (0.45f + 0.55f * pan);
 		}
 		/* the deep drone: the root and its fifth, two octaves down */
-		float r1 = muFreq[MU_CH[i][0] - 12], r2 = muFreq[MU_CH[i][0] - 12 + 7];
-		muBass[i][0] += r1 * inv; if (muBass[i][0] >= 1) muBass[i][0] -= 1;
-		muBass[i][1] += r2 * inv; if (muBass[i][1] >= 1) muBass[i][1] -= 1;
-		float bs = (tsin(muBass[i][0]) * 0.085f + tsin(muBass[i][1]) * 0.022f) * w;
+		float r1 = muFreq[MU_CH[muLay[i].chord][0] - 12], r2 = muFreq[MU_CH[muLay[i].chord][0] - 12 + 7];
+		muLay[i].bass[0] += r1 * inv; if (muLay[i].bass[0] >= 1) muLay[i].bass[0] -= 1;
+		muLay[i].bass[1] += r2 * inv; if (muLay[i].bass[1] >= 1) muLay[i].bass[1] -= 1;
+		float bs = (tsin(muLay[i].bass[0]) * 0.080f + tsin(muLay[i].bass[1]) * 0.020f) * w;
 		padL += bs;
 		padR += bs;
+		muLay[i].t++;
 	}
-	/* a very slow breathing of the whole pad (about 17 s a breath) */
-	float swell = 0.86f + 0.14f * tsin((float)muT * inv / 17.0f);
-	padL *= swell;
-	padR *= swell;
 
-	/* the reverb: a good part of the pad goes through it, for a big, dark space */
-	float rvL = rv_side(0, padL * 0.6f), rvR = rv_side(1, padR * 0.6f);
-	*outL = padL + rvL * 1.8f;
-	*outR = padR + rvR * 1.8f;
-	if (++muT >= cycle) muT = 0;
+	/* the voice: a quiet, flute-like tone that glides to a note of the chord, holds it, and rests */
+	float vL = 0, vR = 0;
+	if (!muLead.on) {
+		if (muLead.rest > 0) muLead.rest--;
+		else {
+			int note = MU_CH[muCurChord][mu_rand() % MU_NOTES] + 12 * (1 + (int)(mu_rand() % 2));
+			while (note > 84) note -= 12;
+			muLead.on = 1;
+			muLead.t = 0;
+			muLead.len = (uint32_t)((9.0 + 6.0 * mu_unit()) * rate);
+			muLead.tgt = muFreq[note];
+			if (muLead.f < 50.0f) muLead.f = muLead.tgt;
+			muLead.pan = 0.3f + 0.4f * mu_unit();
+		}
+	}
+	if (muLead.on) {
+		float e = mu_env(muLead.t, (uint32_t)(3.0 * rate), muLead.len, (uint32_t)(4.0 * rate));
+		if (e < 0) { muLead.on = 0; muLead.rest = (uint32_t)((2.0 + 5.0 * mu_unit()) * rate); }
+		else {
+			muLead.f += (muLead.tgt - muLead.f) * (1.0f / (1.3f * (float)rate));      /* the glide */
+			float vibDepth = 0.0022f * (muLead.t > 2.0 * rate ? 1.0f : (float)muLead.t / (2.0f * (float)rate));
+			muLead.vibPh += 5.1f * inv; if (muLead.vibPh >= 1) muLead.vibPh -= 1;
+			muLead.ph += muLead.f * (1.0f + vibDepth * tsin(muLead.vibPh)) * inv; if (muLead.ph >= 1) muLead.ph -= 1;
+			float x = (tsin(muLead.ph) + 0.10f * tsin(muLead.ph * 3)) * e * 0.019f;
+			vL = x * (1.0f - muLead.pan);
+			vR = x * muLead.pan;
+			muLead.t++;
+		}
+	}
+
+	/* the reverb: a good part of the pad and most of the voice go through it, for a big, dark space */
+	float rvL = rv_side(0, padL * 0.6f + vL * 1.0f), rvR = rv_side(1, padR * 0.6f + vR * 1.0f);
+	*outL = padL + vL + rvL * 1.8f;
+	*outR = padR + vR + rvR * 1.8f;
 }
 
 /* mixed into the sound device's callback: fades in and out, silent when off */
