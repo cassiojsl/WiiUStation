@@ -1041,6 +1041,7 @@ typedef struct {
 	float scroll;      /* first visible row, fractional while dragging */
 	float hy;          /* animated highlight position (screen y) */
 	int hyInit;
+	int lastSel;       /* the selection of the previous frame (the list follows it only when it changes) */
 } list_t;
 
 static int clampi(int v, int lo, int hi) { return v < lo ? lo : v > hi ? hi : v; }
@@ -1061,11 +1062,16 @@ static int list_run(list_t *L, const char **labels, const char **values, int cou
 	if (!T.down) {
 		/* keep the selection visible when using buttons; glide there */
 		float target = (float)(int)(L->scroll + 0.5f);
-		if (L->sel < target) target = L->sel;
-		if (L->sel >= target + ROWS) target = L->sel - ROWS + 1;
+		/* bring the selection into view only when it changed (the buttons, a tap):
+		 * after a drag the list stays where the finger left it */
+		if (L->sel != L->lastSel) {
+			if (L->sel < target) target = L->sel;
+			if (L->sel >= target + ROWS) target = L->sel - ROWS + 1;
+		}
 		L->scroll += (target - L->scroll) * 0.35f;
 		if (fabsf(target - L->scroll) < 0.01f) L->scroll = target;
 	}
+	L->lastSel = L->sel;
 	if (L->scroll < 0) L->scroll = 0;
 	if (L->scroll > maxFirst) L->scroll = maxFirst;
 
@@ -1376,6 +1382,7 @@ typedef struct {
 	float hx, hy;      /* animated highlight */
 	int hInit;
 	float pos;         /* carousel position, eases towards sel */
+	int lastSel;       /* the selection of the previous frame (the grid follows it only when it changes) */
 } grid_t;
 
 /* draws the cover into the sz x sz square; returns the drawn rectangle */
@@ -1484,11 +1491,14 @@ static int grid_run(grid_t *G, entry_t *list, const char **labels, int count, co
 	if (!T.down) {
 		int selRow = G->sel / S->cols;
 		float target = (float)(int)(G->scroll + 0.5f);
-		if (selRow < target) target = selRow;
-		if (selRow >= target + S->rowsVis) target = selRow - S->rowsVis + 1;
+		if (G->sel != G->lastSel) {                 /* only when the selection changed, not after a drag */
+			if (selRow < target) target = selRow;
+			if (selRow >= target + S->rowsVis) target = selRow - S->rowsVis + 1;
+		}
 		G->scroll += (target - G->scroll) * 0.3f;
 		if (fabsf(target - G->scroll) < 0.01f) G->scroll = target;
 	}
+	G->lastSel = G->sel;
 	if (G->scroll < 0) G->scroll = 0;
 	if (G->scroll > maxFirst) G->scroll = maxFirst;
 
