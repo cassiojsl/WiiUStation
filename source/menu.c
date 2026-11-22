@@ -864,124 +864,43 @@ static void draw_footer(const char *hint)
 static uint32_t fadeStart;
 static void transition(void) { fadeStart = SDL_GetTicks(); }
 
-/* the Wii Remote pointer: a hand with a grey edge and a soft white-to-grey
- * fill, in three poses: pointing (over something to choose), open (idle)
- * and a fist (A held). The fingertip of the pointing hand is the point.
- * The hands are built from capsules (fingers) and ellipses (palm), so the
- * shapes are round and organic. */
+/* The Wii Remote pointer: a hand in three poses, from content/cursors:
+ * pointing (over something to choose), open (idle) and a fist (A held).
+ * The fingertip of the pointing hand is the point; the open hand and the
+ * fist are centred on it. */
 enum { HAND_POINT, HAND_OPEN, HAND_FIST };
-typedef struct { char t; float a, b, c, d, r; } hprim_t;      /* 'c': capsule a,b -> c,d radius r; 'e': ellipse centre a,b radii c,d */
-static const hprim_t H_POINT[] = {
-	{ 'c', 0, 6, 0, 34, 6.0f }, { 'e', 8, 47, 20, 15, 0 }, { 'c', -10, 48, -22, 38, 5.4f },
-	{ 'c', 9, 36, 9, 38, 5.8f }, { 'c', 18, 38, 18, 40, 5.8f }, { 'c', 27, 42, 27, 44, 5.2f },
-};
-static const hprim_t H_OPEN[] = {
-	{ 'c', -15, 16, -15, 38, 5.2f }, { 'c', -5, 8, -5, 38, 5.2f }, { 'c', 5, 10, 5, 38, 5.2f }, { 'c', 15, 18, 15, 38, 4.8f },
-	{ 'e', 0, 48, 20, 13, 0 }, { 'c', -14, 50, -28, 35, 5.6f },
-};
-static const hprim_t H_FIST[] = {
-	{ 'e', 4, 43, 22, 15, 0 },
-	{ 'c', -10, 31, -10, 33, 5.8f }, { 'c', 0, 28, 0, 30, 6.0f }, { 'c', 10, 28, 10, 30, 6.0f }, { 'c', 19, 31, 19, 33, 5.4f },
-	{ 'c', -14, 47, -27, 38, 5.4f },
-};
-
-static void hand_prim(const hprim_t *p, float ox, float oy, float k, float grow, SDL_Color c, uint8_t a)
-{
-	float xy[2 * 32];
-	int n = 0;
-	if (p->t == 'e') {
-		for (int i = 0; i < 24; i++) {
-			float an = i * 0.2617994f;
-			xy[n++] = ox + (p->a + cosf(an) * (p->c + grow)) * k;
-			xy[n++] = oy + (p->b + sinf(an) * (p->d + grow)) * k;
-		}
-		poly(xy, 24, c, a);
-		return;
-	}
-	/* capsule: a half circle round each end, as one convex polygon */
-	float r = p->r + grow, ang = atan2f(p->d - p->b, p->c - p->a);
-	for (int i = 0; i <= 8; i++) {                       /* end 1, from ang-90 to ang+90 */
-		float an = ang - 1.5707963f + i * 0.3926991f;
-		xy[n++] = ox + (p->c + cosf(an) * r) * k;
-		xy[n++] = oy + (p->d + sinf(an) * r) * k;
-	}
-	for (int i = 0; i <= 8; i++) {                       /* end 0, from ang+90 to ang+270 */
-		float an = ang + 1.5707963f + i * 0.3926991f;
-		xy[n++] = ox + (p->a + cosf(an) * r) * k;
-		xy[n++] = oy + (p->b + sinf(an) * r) * k;
-	}
-	poly(xy, n / 2, c, a);
-}
-
-/* The hands are drawn once at twice the size into a surface (software
- * renderer), turned into textures, and shown at half size with linear
- * filtering: the edges come out smooth instead of jagged. */
-#define HK   2.9f            /* scale of the drawing in the surface */
-#define HS_W 240
-#define HS_H 250
-#define HS_OX 110            /* where the fingertip of the pointing hand is in the surface */
-#define HS_OY 30
 static SDL_Texture *handTex[3];
-static int handBuilt;
+static int handW[3], handH[3], handBuilt;
 
-static void hand_vector(float ox, float oy, int pose)
+static void hands_load(void)
 {
-	const hprim_t *h = pose == HAND_POINT ? H_POINT : pose == HAND_OPEN ? H_OPEN : H_FIST;
-	const int cnt = 6;
-	const float k = HK;
-	/* soft shadow, grey edge */
-	for (int i = 0; i < cnt; i++) hand_prim(&h[i], ox, oy + 3, k, 5, (SDL_Color){ 0, 0, 0, 255 }, 70);
-	for (int i = 0; i < cnt; i++) hand_prim(&h[i], ox, oy, k, 3, (SDL_Color){ 98, 100, 108, 255 }, 255);
-	/* fill in horizontal bands, white at the top to light grey at the bottom */
-	const int bands = 8, top = -8, bottom = 66;
-	for (int b = 0; b < bands; b++) {
-		int y0 = (int)(oy + (top + (bottom - top) * b / bands) * k), y1 = (int)(oy + (top + (bottom - top) * (b + 1) / bands) * k);
-		uint8_t v = (uint8_t)(255 - 52 * b / (bands - 1));
-		SDL_RenderSetClipRect(R, &(SDL_Rect){ 0, y0, HS_W, y1 - y0 + 1 });
-		for (int i = 0; i < cnt; i++) hand_prim(&h[i], ox, oy, k, 0, (SDL_Color){ v, v, (uint8_t)(v > 253 ? 255 : v + 2), 255 }, 255);
-	}
-	SDL_RenderSetClipRect(R, NULL);
-	if (pose == HAND_OPEN) {                  /* lines between the fingers, from where the fingertips part */
-		static const float sep[3][2] = { { -10, 15 }, { 0, 9 }, { 10, 17 } };
-		for (int i = 0; i < 3; i++)
-			fill((int)(ox + (sep[i][0] - 0.7f) * k), (int)(oy + sep[i][1] * k), 4, (int)((40 - sep[i][1]) * k), (SDL_Color){ 98, 100, 108, 255 }, 255);
-	}
-}
-
-static void hands_build(void)
-{
+	static const char *const names[3] = { "hand_point", "hand_open", "hand_fist" };
 	handBuilt = 1;
-	for (int pose = 0; pose < 3; pose++) {
-		SDL_Surface *sf = SDL_CreateRGBSurfaceWithFormat(0, HS_W, HS_H, 32, SDL_PIXELFORMAT_ARGB8888);
-		if (!sf) continue;
-		SDL_FillRect(sf, NULL, 0);
-		SDL_Renderer *sr = SDL_CreateSoftwareRenderer(sf);
-		if (sr) {
-			SDL_Renderer *save = R;
-			R = sr;                          /* poly(), fill() draw on the global renderer */
-			SDL_SetRenderDrawBlendMode(R, SDL_BLENDMODE_BLEND);
-			hand_vector(HS_OX, HS_OY, pose);
-			R = save;
-			SDL_DestroyRenderer(sr);
-			handTex[pose] = SDL_CreateTextureFromSurface(R, sf);
-			if (handTex[pose]) {
-				SDL_SetTextureBlendMode(handTex[pose], SDL_BLENDMODE_BLEND);
-#if SDL_VERSION_ATLEAST(2, 0, 12)
-				SDL_SetTextureScaleMode(handTex[pose], SDL_ScaleModeLinear);
-#endif
-			}
-		}
+	for (int i = 0; i < 3; i++) {
+		char path[160];
+		snprintf(path, sizeof(path), "fs:/vol/content/cursors/%s.png", names[i]);
+		SDL_Surface *sf = IMG_Load(path);
+		if (!sf) { wlog("cursor image missing: %s", path); continue; }
+		handTex[i] = SDL_CreateTextureFromSurface(R, sf);
+		handW[i] = sf->w;
+		handH[i] = sf->h;
 		SDL_FreeSurface(sf);
+		if (handTex[i]) {
+			SDL_SetTextureBlendMode(handTex[i], SDL_BLENDMODE_BLEND);
+#if SDL_VERSION_ATLEAST(2, 0, 12)
+			SDL_SetTextureScaleMode(handTex[i], SDL_ScaleModeLinear);
+#endif
+		}
 	}
 }
 
 static void draw_hand(float hx, float hy, int pose)
 {
-	if (!handBuilt) hands_build();
+	if (!handBuilt) hands_load();
 	if (!handTex[pose]) return;
-	/* shown at half size; the open hand and the fist are centred on the point */
-	float lift = pose == HAND_POINT ? 0 : 20 * HK * 0.5f;
-	SDL_Rect dst = { (int)(hx - HS_OX * 0.5f), (int)(hy - HS_OY * 0.5f - lift), HS_W / 2, HS_H / 2 };
+	SDL_Rect dst = { 0, 0, handW[pose], handH[pose] };
+	if (pose == HAND_POINT) { dst.x = (int)hx - 24; dst.y = (int)hy; }              /* the index fingertip */
+	else { dst.x = (int)hx - dst.w / 2; dst.y = (int)hy - dst.h * 45 / 100; }       /* centred */
 	SDL_RenderCopy(R, handTex[pose], NULL, &dst);
 }
 
