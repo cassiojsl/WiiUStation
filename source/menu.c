@@ -512,12 +512,27 @@ static touch_t T;
 /* set when the menu opens: the touch that opened it (still on the screen)
  * must not become a tap in the menu, so it is ignored until lifted */
 static int touchBlock;
+/* the Wii Remote pointer moved this frame (position in menu pixels) */
+static struct { int moved, x, y; } P;
 
 static void poll_touch(void)
 {
 	const wiiu_pad_state *gp = wiiu_input_get(0);
 	int on = gp->connected && (gp->held & WIIU_BTN_TOUCH);
 	wiiu_input_pointer_menu(1);
+	P.moved = 0;
+	for (int i = 1; i < WIIU_MAX_PADS; i++) {
+		static float lx[WIIU_MAX_PADS], ly[WIIU_MAX_PADS];
+		const wiiu_pad_state *w = wiiu_input_get(i);
+		if (!w->connected || !w->ptr_valid) continue;
+		if (fabsf(w->ptr_x - lx[i]) > 3 || fabsf(w->ptr_y - ly[i]) > 3) {
+			lx[i] = w->ptr_x;
+			ly[i] = w->ptr_y;
+			P.moved = 1;
+			P.x = (int)w->ptr_x;
+			P.y = (int)w->ptr_y;
+		}
+	}
 	if (!on)                                       /* a Wii Remote's pointer clicks like a finger */
 		for (int i = 1; i < WIIU_MAX_PADS; i++) {
 			const wiiu_pad_state *w = wiiu_input_get(i);
@@ -552,6 +567,13 @@ static void poll_touch(void)
 static int tap_in(int x, int y, int w, int h)
 {
 	return T.tapped && T.tx >= x && T.tx < x + w && T.ty >= y && T.ty < y + h;
+}
+
+/* the Wii Remote pointer moved this frame and is over the rectangle: the
+ * highlight follows it, without a click */
+static int hover_in(int x, int y, int w, int h)
+{
+	return P.moved && P.x >= x && P.x < x + w && P.y >= y && P.y < y + h;
 }
 
 /* ------------------------------------------------------------------------ */
@@ -1031,6 +1053,13 @@ static int list_run(list_t *L, const char **labels, const char **values, int cou
 	int first = (int)L->scroll;
 	float frac = L->scroll - first;
 
+	if (P.moved && P.x >= LIST_X - 20 && P.x < LIST_X + LIST_W + 40 && P.y >= LIST_Y && P.y < LIST_Y + ROWS * ROW_H) {
+		int idx = first + (int)((P.y - LIST_Y) / ROW_H + frac);
+		float top = LIST_Y + (idx - L->scroll) * ROW_H;
+		if (idx >= 0 && idx < count && labels[idx][0] != '#' && top >= LIST_Y - 1 && top + ROW_H <= LIST_Y + ROWS * ROW_H + 1)
+			L->sel = idx;                  /* the blue bar goes where the pointer is */
+	}
+
 	SDL_Color panel = th(14, 18, 40);
 	rrect(LIST_X - 20, LIST_Y - 8, LIST_W + 40, ROWS * ROW_H + 16, 18, panel, 190);
 	SDL_RenderSetClipRect(R, &(SDL_Rect){ LIST_X - 20, LIST_Y - 8, LIST_W + 40, ROWS * ROW_H + 16 });
@@ -1483,6 +1512,8 @@ static int grid_run(grid_t *G, entry_t *list, const char **labels, int count, co
 			if (T.tapped && T.tx >= x && T.tx < x + S->cellW - 12 && T.ty >= y && T.ty < y + S->cellH - 10 &&
 			    T.ty >= GRID_Y)
 				tapped = i;
+			else if (y >= GRID_Y && y + S->cellH - 10 <= GRID_BOTTOM && hover_in(x, y, S->cellW - 12, S->cellH - 10))
+				G->sel = i;                /* the selection follows the pointer */
 		}
 	}
 	SDL_RenderSetClipRect(R, NULL);
@@ -3798,6 +3829,7 @@ static void gallery(void)
 					if (t) SDL_RenderCopy(R, t, NULL, &dr);
 					else fill(x, y, TW, TH, th(26, 32, 60), 255);
 					if (tap_in(x, y, TW, TH)) { if (sel == i) view = 1; sel = i; }
+					else if (!view && hover_in(x, y, TW, TH)) sel = i;
 				}
 			SDL_RenderSetClipRect(R, NULL);
 		}
@@ -3931,6 +3963,7 @@ static int slot_picker(int save)
 		for (int i = 0; i < 10; i++) {
 			int y = LY + i * RH;
 			if (tap_in(LX, y, LW, RH - 6)) { if (sel == i) activate = 1; sel = i; }
+			else if (hover_in(LX, y, LW, RH - 6)) sel = i;
 		}
 		if (!finit) { fy = LY + sel * RH; finit = 1; }
 		fy += (LY + sel * RH - fy) * 0.35f;
