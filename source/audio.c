@@ -529,7 +529,10 @@ void audio_push(const int16_t *in, size_t count)
 		double d = (target - fill) / target;
 		if (d > 1) d = 1;
 		if (d < -1) d = -1;
-		step *= 1.0 - 0.005 * d;
+		/* a screen that the emulator cannot draw in time (57-58 fps) also makes sound a few % too slowly:
+		 * when the buffer runs low, stretch the sound up to 6% (a slightly lower pitch) instead of letting it
+		 * run dry and stutter */
+		step *= 1.0 - (d > 0 ? 0.06 : 0.005) * d;
 	}
 	audLastPush = SDL_GetTicks();
 	SDL_LockAudio();

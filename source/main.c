@@ -2063,6 +2063,8 @@ static int hotkey_pressed(void)
  * place leaves its marks here: the stage of the loop and where the emulated CPU is. */
 extern unsigned wiiustation_ps1_state(unsigned *cycle);
 extern unsigned wiiustation_lr_state(unsigned *count, unsigned *done);     /* patches/0009 */
+static unsigned prevReads;           /* CHD read counters of the last "slow" line (reset when a game starts) */
+static unsigned long long prevUs;
 static volatile unsigned wdFrames;
 static volatile int wdActive, wdQuit;
 static const char *volatile wdStage = "";
@@ -2214,6 +2216,7 @@ static void run_game(void)
 	const OSTime frameTicks = (OSTime)(OSSecondsToTicks(1) / fps);
 
 	assign_pads();
+	{ extern unsigned wiiustation_chd_reads; extern unsigned long long wiiustation_chd_us; prevReads = wiiustation_chd_reads; prevUs = wiiustation_chd_us; }
 	wdActive = 1;
 	wiiu_input_pointer_menu(0);          /* the pointer is for the menu only */
 	log_controllers(1);
@@ -2394,8 +2397,6 @@ static void run_game(void)
 			frames = 0;
 			/* a slow stretch (under 45 fps): where the time goes, up to 40 times */
 			if (lastFps > 0 && lastFps < 45 && slowLogN < 40) {
-				static unsigned prevReads;
-				static unsigned long long prevUs;
 				wlog("slow: %.1f fps; per frame: emulation %.1f ms, picture conversion %.1f ms (texture upload %.1f ms), drawing %.1f ms, waiting %.1f ms; screen %dx%d; CHD: %u hunk reads, %.1f ms per frame",
 				     lastFps, lastEmuMs, lastConvMs, lastUpdMs, lastDrawMs, lastWaitMs, video_game_width(), video_game_height(),
 				     wiiustation_chd_reads - prevReads, (double)(wiiustation_chd_us - prevUs) / 1000.0 / 60.0);
