@@ -20,16 +20,16 @@
 #define LOG_OLD    WIIU_APP_DIR "/log.old.txt"
 #define RUN_FLAG   WIIU_APP_DIR "/running.flag"
 #define LOG_MAX    (256 * 1024)
-#define LINES_MAX  400                     /* per run */
+#define LINES_MAX  700                     /* per run */
 
 static FILE *lf;
 static SDL_mutex *lock;
 static int lines;
-static char last[256];
+static char last[400];
 
 void wlog(const char *fmt, ...)
 {
-	char b[256];
+	char b[400];
 	if (!lf) return;
 	va_list ap;
 	va_start(ap, fmt);
@@ -60,6 +60,14 @@ void wlog_init(void)
 		rename(LOG_FILE, LOG_OLD);
 	}
 	int crashed = stat(RUN_FLAG, &st) == 0;
+	char was[160] = "";
+	if (crashed) {                       /* what the previous run was doing */
+		FILE *rf = fopen(RUN_FLAG, "r");
+		if (rf) {
+			if (fgets(was, sizeof(was), rf)) was[strcspn(was, "\r\n")] = 0;
+			fclose(rf);
+		}
+	}
 	lf = fopen(LOG_FILE, "a");
 	if (!lf) return;
 	lock = SDL_CreateMutex();
@@ -69,9 +77,22 @@ void wlog_init(void)
 	if (tm) strftime(date, sizeof(date), "%Y-%m-%d", tm);
 	fprintf(lf, "\n===== WiiUStation %s - %s =====\n", app_version(), date);
 	fflush(lf);
-	if (crashed) wlog("the previous run did not end normally (crash or power off)");
+	if (crashed) {
+		if (strncmp(was, "playing ", 8) == 0) wlog("the previous run did not end normally (crash or power off) while %s", was);
+		else wlog("the previous run did not end normally (crash or power off)");
+	}
 	FILE *f = fopen(RUN_FLAG, "w");
 	if (f) { fputs("running\n", f); fclose(f); }
+}
+
+/* what the app is doing now, kept in the run flag: if the app dies, the next
+ * start says what it was doing (the game name, or "" for the menu) */
+void wlog_activity(const char *what)
+{
+	FILE *f = fopen(RUN_FLAG, "w");
+	if (!f) return;
+	fprintf(f, "%s\n", what && what[0] ? what : "running");
+	fclose(f);
 }
 
 void wlog_exit(void)

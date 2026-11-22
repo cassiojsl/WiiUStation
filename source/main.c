@@ -7,6 +7,7 @@
  * handles saves, states and settings.  No RetroArch involved.
  */
 #include <coreinit/thread.h>
+#include <coreinit/systeminfo.h>
 #include <coreinit/time.h>
 #include <sysapp/launch.h>
 #include <SDL2/SDL.h>
@@ -1190,6 +1191,101 @@ int emu_load_game_disc(const char *m3u, int index, const char *disc_path)
 	return emu_load_game(m3u);
 }
 
+/* ---- what the log records about a game session ---- */
+static uint32_t sessStartMs, sessWindows, sessSlow;
+static double sessFpsSum, sessFpsMin;
+static unsigned padSig;                 /* which controllers are connected, to log changes */
+
+static const char *pad_kind_name(const wiiu_pad_state *p)
+{
+	switch (p->kind) {
+	case PADKIND_GAMEPAD: return "GamePad";
+	case PADKIND_PRO:     return "Pro Controller";
+	case PADKIND_CLASSIC: return "Classic Controller";
+	case PADKIND_NUNCHUK: return "Wii Remote + Nunchuk";
+	default:              return "Wii Remote";
+	}
+}
+
+static void log_controllers(int force)
+{
+	unsigned sig = 0;
+	for (int i = 0; i < WIIU_MAX_PADS; i++) {
+		const wiiu_pad_state *p = wiiu_input_get(i);
+		if (p->connected) sig |= (unsigned)(1 + p->kind) << (i * 4);
+	}
+	if (sig == padSig && !force) return;
+	padSig = sig;
+	char b[200] = "";
+	for (int i = 0; i < WIIU_MAX_PADS; i++) {
+		const wiiu_pad_state *p = wiiu_input_get(i);
+		if (!p->connected) continue;
+		size_t l = strlen(b);
+		snprintf(b + l, sizeof(b) - l, "%s%s", l ? ", " : "", pad_kind_name(p));
+	}
+	wlog("controllers: %s", b[0] ? b : "none");
+}
+
+static void log_session_summary(void)
+{
+	unsigned under = 0, drops = 0;
+	audio_take_stats(&under, &drops);
+	uint32_t secs = (SDL_GetTicks() - sessStartMs) / 1000;
+	if (sessWindows)
+		wlog("session: %u min %u s, average %.1f fps, lowest %.1f fps, %u%% of the time under 55 fps, sound ran dry %u times, dropped %u",
+		     secs / 60, secs % 60, sessFpsSum / sessWindows, sessFpsMin, sessSlow * 100 / sessWindows, under, drops);
+	else
+		wlog("session: %u s", secs);
+}
+
+/* the setup, once per start: what a bug report needs to know */
+static void log_system(void)
+{
+	const OSSystemInfo *si = OSGetSystemInfo();
+	if (si)
+		wlog("system: Espresso %u MHz, bus %u MHz, language setting %d, games folder %s",
+		     (unsigned)(si->coreClockSpeed / 1000000), (unsigned)(si->busClockSpeed / 1000000), cfg.lang, cfg.games_dir);
+	/* every setting that is not at its default, on a few lines */
+	char b[360] = "settings:";
+	for (unsigned i = 0; i < sizeof(OPTS) / sizeof(OPTS[0]); i++) {
+		char one[48];
+		snprintf(one, sizeof(one), " %s=%d", OPTS[i].key, *OPTS[i].val);
+		if (strlen(b) + strlen(one) >= sizeof(b) - 1) { wlog("%s", b); snprintf(b, sizeof(b), "settings:"); }
+		strcat(b, one);
+	}
+	wlog("%s", b);
+	snprintf(b, sizeof(b), "core options changed:");
+	int any = 0;
+	for (int i = 0; i < NCOREOPT; i++) {
+		if (cfg.core[i] == COREOPT[i].def) continue;
+		char one[64];
+		snprintf(one, sizeof(one), " %s=%s", COREOPT[i].key, COREOPT[i].vals[cfg.core[i]]);
+		if (strlen(b) + strlen(one) >= sizeof(b) - 1) { wlog("%s", b); snprintf(b, sizeof(b), "core options changed:"); }
+		strcat(b, one);
+		any = 1;
+	}
+	if (any) wlog("%s", b);
+	/* the BIOS files */
+	{
+		char list[360] = "bios files:";
+		int n = 0;
+		DIR *d = opendir(WIIU_BIOS_DIR);
+		struct dirent *e;
+		while (d && (e = readdir(d))) {
+			char full[600];
+			struct stat st;
+			if (e->d_name[0] == '.') continue;
+			snprintf(full, sizeof(full), "%s/%s", WIIU_BIOS_DIR, e->d_name);
+			if (stat(full, &st) != 0 || S_ISDIR(st.st_mode)) continue;
+			size_t l = strlen(list);
+			if (l + 60 < sizeof(list)) snprintf(list + l, sizeof(list) - l, " %s (%ld)", e->d_name, (long)st.st_size);
+			n++;
+		}
+		if (d) closedir(d);
+		wlog("%s", n ? list : "bios files: none (the built-in BIOS is used)");
+	}
+}
+
 int emu_load_game(const char *pathIn)
 {
 	struct retro_game_info gi;
@@ -1247,6 +1343,20 @@ int emu_load_game(const char *pathIn)
 		return -1;
 	}
 	wlog("loaded in %u ms", (unsigned)(SDL_GetTicks() - loadStart));
+	{   /* what the core said while loading (BIOS, game id, region...) */
+		int n = coreLogN < 12 ? coreLogN : 12;
+		for (int i = 0; i < n; i++)
+			wlog("core: %s", coreLog[(coreLogN - n + i + 48 * 4) % 48]);
+	}
+	sessStartMs = SDL_GetTicks();
+	sessWindows = sessSlow = 0;
+	sessFpsSum = 0;
+	sessFpsMin = 1e9;
+	{
+		char act[300];
+		snprintf(act, sizeof(act), "playing %s", gameName);
+		wlog_activity(act);
+	}
 	loaded = 1;
 	retro_get_system_av_info(&av);
 	emu_apply_settings();
@@ -1270,6 +1380,8 @@ void emu_unload_game(void)
 {
 	if (!loaded) return;
 	wlog("closing %s", gameName);
+	log_session_summary();
+	wlog_activity("");
 	emu_save_memcards();
 	if (cfg.resume) emu_state_save(-1);     /* "continue where you left off" */
 	retro_unload_game();
@@ -1460,6 +1572,7 @@ int emu_state_save(int slot)
 	}
 	free(buf);
 	if (!ok) wlog("could not save the state (slot %d)", slot);
+	else if (slot >= 0) wlog("state saved (slot %d)", slot);
 	return ok;
 }
 
@@ -1477,6 +1590,7 @@ int emu_state_load(int slot)
 	if (read_file(path, buf, size) > 0)
 		ok = retro_unserialize(buf, size);
 	free(buf);
+	if (slot >= 0) wlog(ok ? "state loaded (slot %d)" : "could not load the state (slot %d)", slot);
 	return ok;
 }
 
@@ -1931,6 +2045,7 @@ static void run_game(void)
 
 	assign_pads();
 	wiiu_input_pointer_menu(0);          /* the pointer is for the menu only */
+	log_controllers(1);
 	wiiu_home_button_ingame(1);
 	video_set_ingame(1);
 	video_set_vsync(cfg.vsync);
@@ -2062,6 +2177,14 @@ static void run_game(void)
 				double convMs = video_take_conv_ms() / 60.0;
 				lastUpdMs = video_take_upd_ms() / 60.0;
 				if (cfg.show_fps) video_set_timing(tEmu * k, convMs, tDraw * k, tWait * k, vsOn);
+				if (!ff && secs > 0) {                 /* the session summary */
+					double f = 60.0 / secs;
+					sessFpsSum += f;
+					if (f < sessFpsMin) sessFpsMin = f;
+					if (f < 55.0) sessSlow++;
+					sessWindows++;
+				}
+				log_controllers(0);
 				lastFps = secs > 0 ? 60.0 / secs : 0; lastEmuMs = tEmu * k; lastConvMs = convMs; lastDrawMs = tDraw * k; lastWaitMs = tWait * k;
 			}
 			tEmu = tDraw = tWait = 0;
@@ -2183,6 +2306,7 @@ int main(int argc, char **argv)
 	wlog("start: jit %s, dynarec %s, gpu thread %s, vsync %s, aspect %d, filter %d, region %d",
 	     jit_available() ? "available" : "unavailable", cfg.dynarec ? "on" : "off", cfg.gpu_thread ? "on" : "off",
 	     cfg.vsync ? "on" : "off", cfg.aspect, cfg.filter, cfg.region);
+	log_system();
 
 	retro_set_environment(environment);
 	retro_set_video_refresh(video_cb);

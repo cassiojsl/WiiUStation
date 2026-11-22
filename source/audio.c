@@ -29,6 +29,17 @@ static int sfxLen[SFX_COUNT];
 static const int16_t *volatile sfxPlay;
 static volatile int sfxPos, sfxEnd;
 
+static volatile unsigned audUnder, audDrop;   /* game sound: ring ran dry / was full (for the log) */
+static volatile Uint32 audLastPush;
+static int audInUnder;
+
+void audio_take_stats(unsigned *underruns, unsigned *drops)
+{
+	*underruns = audUnder;
+	*drops = audDrop;
+	audUnder = audDrop = 0;
+}
+
 static void callback(void *ud, Uint8 *stream, int len)
 {
 	int16_t *out = (int16_t *)stream;
@@ -40,6 +51,10 @@ static void callback(void *ud, Uint8 *stream, int len)
 			lastL = ring[r * 2];
 			lastR = ring[r * 2 + 1];
 			rpos++;
+			audInUnder = 0;
+		} else if (!audInUnder && SDL_GetTicks() - audLastPush < 300) {
+			audInUnder = 1;               /* a game is feeding the ring and it ran dry */
+			audUnder++;
 		}
 		int l = lastL, r = lastR;
 		if (sfxPlay && sfxPos < sfxEnd) {
@@ -275,12 +290,13 @@ void audio_push(const int16_t *in, size_t count)
 		if (d < -1) d = -1;
 		step *= 1.0 - 0.005 * d;
 	}
+	audLastPush = SDL_GetTicks();
 	SDL_LockAudio();
 	while (resamplePos < (double)count) {
 		size_t i = (size_t)resamplePos;
 		double f = resamplePos - i;
 		size_t j = i + 1 < count ? i + 1 : i;
-		if (wpos - rpos >= RING_FRAMES - 1) break;   /* full: drop */
+		if (wpos - rpos >= RING_FRAMES - 1) { audDrop++; break; }   /* full: drop */
 		uint32_t w = wpos & (RING_FRAMES - 1);
 		ring[w * 2]     = (int16_t)(in[i * 2] + (in[j * 2] - in[i * 2]) * f);
 		ring[w * 2 + 1] = (int16_t)(in[i * 2 + 1] + (in[j * 2 + 1] - in[i * 2 + 1]) * f);
