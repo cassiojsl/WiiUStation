@@ -1,0 +1,13 @@
+diff --git a/plugins/dfsound/spu.c b/plugins/dfsound/spu.c
+index c4891c3b..419781d6 100644
+--- a/plugins/dfsound/spu.c
++++ b/plugins/dfsound/spu.c
+@@ -579,7 +579,7 @@ static noinline void do_decode_bufs(unsigned short *mem, int which,
+  while (count-- > 0)
+   {
+    cursor &= 0x1ff;
+-   dst[cursor] = *src++;
++   dst[cursor] = HTOLE16((unsigned short)*src++);   // SPU RAM is little endian
+    cursor++;
+   }
+ 
