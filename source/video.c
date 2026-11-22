@@ -897,6 +897,9 @@ void *video_preview(void)
 	return previewTex;
 }
 
+int video_game_width(void) { return frameW; }
+int video_game_height(void) { return frameH; }
+
 int video_save_frame(const char *path, int width)
 {
 	/* conv holds the last frame as ARGB8888, frameW x frameH, stride frameW */

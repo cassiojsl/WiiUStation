@@ -1,0 +1,28 @@
+diff --git a/libpcsxcore/cdriso.c b/libpcsxcore/cdriso.c
+index 870cf616..2f4fd0bb 100644
+--- a/libpcsxcore/cdriso.c
++++ b/libpcsxcore/cdriso.c
+@@ -30,6 +30,23 @@
+ #include "zlib_wrapper.h"
+ #ifdef HAVE_CHD
+ #include <libchdr/chd.h>
++#include <time.h>
++
++/* WiiUStation: how much time the CHD hunk reads take (shown in the app's log) */
++unsigned wiiustation_chd_reads;
++unsigned long long wiiustation_chd_us;
++static chd_error timed_chd_read(chd_file *f, unsigned int hunk, void *buf)
++{
++	struct timespec a, b;
++	chd_error e;
++	clock_gettime(CLOCK_MONOTONIC, &a);
++	e = chd_read(f, hunk, buf);
++	clock_gettime(CLOCK_MONOTONIC, &b);
++	wiiustation_chd_us += (unsigned long long)(b.tv_sec - a.tv_sec) * 1000000ull + (b.tv_nsec - a.tv_nsec) / 1000;
++	wiiustation_chd_reads++;
++	return e;
++}
++#define chd_read(f, h, b) timed_chd_read(f, h, b)
+ #endif
+ 
+ #ifdef _WIN32
