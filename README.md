@@ -241,3 +241,7 @@ BSD-style licence, and the game details data (libretro-database) is CC BY-SA
 4.0. PlayStation is a trademark of Sony Interactive Entertainment, and Wii U
 is a trademark of Nintendo. This project is not affiliated with or endorsed
 by either company.
+
+## Disclaimer
+
+This project was developed with the help of AI (Claude, by Anthropic), under the author's direction and tested on real hardware.
